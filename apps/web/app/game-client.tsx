@@ -20,10 +20,15 @@ type StarterWorld = {
   };
   alley: { name: string };
 };
+const guestMode = process.env.NEXT_PUBLIC_NOCTURNE_GUEST_MODE === "true";
 async function gameFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/game/${path}`, {
     ...init,
-    headers: { "content-type": "application/json", ...(init?.headers || {}) },
+    headers: {
+      "content-type": "application/json",
+      ...(guestMode ? { "x-nocturne-guest-mode": "1" } : {}),
+      ...(init?.headers || {}),
+    },
   });
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.message || payload.error || "Game request failed.");
@@ -39,7 +44,7 @@ export default function GameClient() {
   const [world, setWorld] = useState<StarterWorld | null>(null);
   const [message, setMessage] = useState("");
   async function refresh() {
-    if (!session) return;
+    if (!session && !guestMode) return;
     const [characterResponse, worldResponse] = await Promise.all([
       gameFetch<{ characters: Character[] }>("characters"),
       gameFetch<StarterWorld>("world/start"),
@@ -56,7 +61,7 @@ export default function GameClient() {
         <p>Loading Nocturne…</p>
       </main>
     );
-  if (!session)
+  if (!session && !guestMode)
     return (
       <main>
         <p className="eyebrow">NOCTURNE</p>
@@ -99,9 +104,11 @@ export default function GameClient() {
     <main>
       <div className="topline">
         <p className="eyebrow">FOUNDRY ROW</p>
-        <button className="link" onClick={() => void authClient.signOut()}>
-          Sign out
-        </button>
+        {session && (
+          <button className="link" onClick={() => void authClient.signOut()}>
+            Sign out
+          </button>
+        )}
       </div>
       <h1>{selected ? selected.name : "Create your first character."}</h1>
       <p className="lede">
