@@ -22,9 +22,7 @@ try {
     );
   `);
 
-  const files = (await readdir(migrationsDirectory))
-    .filter((file) => file.endsWith(".sql"))
-    .sort();
+  const files = (await readdir(migrationsDirectory)).filter((file) => file.endsWith(".sql")).sort();
 
   const applied = await client<{ name: string; checksum: string }[]>`
     SELECT name, checksum FROM system.schema_migrations

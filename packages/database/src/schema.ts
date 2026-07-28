@@ -70,36 +70,53 @@ export const entityInstances = game.table(
   ],
 );
 
-export const generatedContentRequests = game.table("generated_content_requests", {
-  requestId: uuid("request_id").primaryKey().defaultRandom(),
-  creatorId: uuid("creator_id").notNull(),
-  rawConcept: text("raw_concept").notNull(),
-  context: jsonb("context").$type<Record<string, unknown>>().notNull().default({}),
-  draftPayload: jsonb("draft_payload").$type<Record<string, unknown>>(),
-  validationStatus: text("validation_status").notNull().default("drafting"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const generatedContentRequests = game.table(
+  "generated_content_requests",
+  {
+    requestId: uuid("request_id").primaryKey().defaultRandom(),
+    creatorId: uuid("creator_id").notNull(),
+    rawConcept: text("raw_concept").notNull(),
+    context: jsonb("context").$type<Record<string, unknown>>().notNull().default({}),
+    draftPayload: jsonb("draft_payload").$type<Record<string, unknown>>(),
+    validationStatus: text("validation_status").notNull().default("drafting"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("generated_content_requests_creator_idx").on(table.creatorId),
+    index("generated_content_requests_status_idx").on(table.validationStatus),
+  ],
+);
 
-export const actionIntents = game.table("action_intents", {
-  intentId: uuid("intent_id").primaryKey().defaultRandom(),
-  actorId: uuid("actor_id").notNull(),
-  rawText: text("raw_text").notNull(),
-  parsedIntent: jsonb("parsed_intent").$type<Record<string, unknown>>().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const actionIntents = game.table(
+  "action_intents",
+  {
+    intentId: uuid("intent_id").primaryKey().defaultRandom(),
+    actorId: uuid("actor_id").notNull(),
+    rawText: text("raw_text").notNull(),
+    parsedIntent: jsonb("parsed_intent").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("action_intents_actor_idx").on(table.actorId)],
+);
 
-export const resolutionResults = game.table("resolution_results", {
-  resolutionId: uuid("resolution_id").primaryKey().defaultRandom(),
-  intentId: uuid("intent_id")
-    .notNull()
-    .references(() => actionIntents.intentId),
-  outcomeGrade: text("outcome_grade").notNull(),
-  calculationTrace: jsonb("calculation_trace").$type<string[]>().notNull(),
-  proposedOperations: jsonb("proposed_operations").$type<Array<Record<string, unknown>>>().notNull(),
-  narrativeConstraints: jsonb("narrative_constraints").$type<string[]>().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const resolutionResults = game.table(
+  "resolution_results",
+  {
+    resolutionId: uuid("resolution_id").primaryKey().defaultRandom(),
+    intentId: uuid("intent_id")
+      .notNull()
+      .references(() => actionIntents.intentId),
+    outcomeGrade: text("outcome_grade").notNull(),
+    calculationTrace: jsonb("calculation_trace").$type<string[]>().notNull(),
+    proposedOperations: jsonb("proposed_operations")
+      .$type<Array<Record<string, unknown>>>()
+      .notNull(),
+    narrativeConstraints: jsonb("narrative_constraints").$type<string[]>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("resolution_results_intent_idx").on(table.intentId)],
+);
 
 export const eventLedger = game.table(
   "event_ledger",
@@ -121,17 +138,21 @@ export const eventLedger = game.table(
   ],
 );
 
-export const aiRuns = system.table("ai_runs", {
-  runId: uuid("run_id").primaryKey().defaultRandom(),
-  task: text("task").notNull(),
-  authority: text("authority").notNull(),
-  requestedModel: text("requested_model").notNull(),
-  actualModel: text("actual_model"),
-  promptPolicyVersion: text("prompt_policy_version").notNull(),
-  providerRequestId: text("provider_request_id"),
-  status: text("status").notNull(),
-  inputHash: text("input_hash").notNull(),
-  errorCode: text("error_code"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  completedAt: timestamp("completed_at", { withTimezone: true }),
-});
+export const aiRuns = system.table(
+  "ai_runs",
+  {
+    runId: uuid("run_id").primaryKey().defaultRandom(),
+    task: text("task").notNull(),
+    authority: text("authority").notNull(),
+    requestedModel: text("requested_model").notNull(),
+    actualModel: text("actual_model"),
+    promptPolicyVersion: text("prompt_policy_version").notNull(),
+    providerRequestId: text("provider_request_id"),
+    status: text("status").notNull(),
+    inputHash: text("input_hash").notNull(),
+    errorCode: text("error_code"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => [index("ai_runs_task_idx").on(table.task)],
+);

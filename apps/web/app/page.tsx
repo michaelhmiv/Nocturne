@@ -13,7 +13,8 @@ export default function HomePage() {
       <p className="eyebrow">NOCTURNE FOUNDATION</p>
       <h1>The world accepts what players invent.</h1>
       <p className="lede">
-        The AI interprets and narrates. The backend validates causality, resolves uncertainty, and commits the shared world.
+        The AI interprets and narrates. The backend validates causality, resolves uncertainty, and
+        commits the shared world.
       </p>
       <section>
         <h2>Initial architecture</h2>

@@ -1,20 +1,22 @@
 {
   "name": "nocturne",
   "private": true,
+  "packageManager": "pnpm@11.17.0",
   "type": "module",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "build": "turbo run build",
+    "build": "turbo run build --concurrency=1",
     "dev": "turbo run dev --parallel",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "turbo run typecheck",
-    "test": "turbo run test",
+    "typecheck": "turbo run typecheck --concurrency=2",
+    "test": "turbo run test --concurrency=1",
     "verify": "pnpm format:check && pnpm typecheck && pnpm test",
     "db:migrate": "pnpm --filter @nocturne/database db:migrate",
-    "auth:generate": "pnpm --filter @nocturne/auth auth:generate"
+    "auth:generate": "pnpm --filter @nocturne/auth auth:generate",
+    "auth:migrate": "pnpm --filter @nocturne/auth auth:migrate"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

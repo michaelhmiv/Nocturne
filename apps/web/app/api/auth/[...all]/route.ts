@@ -1,9 +1,10 @@
 import { getAuthFromEnv } from "@nocturne/auth";
+import { toNextJsHandler } from "better-auth/next-js";
 
-export async function GET(request: Request) {
-  return getAuthFromEnv().handler(request);
+export function GET(request: Request) {
+  return toNextJsHandler(getAuthFromEnv()).GET(request);
 }
 
-export async function POST(request: Request) {
-  return getAuthFromEnv().handler(request);
+export function POST(request: Request) {
+  return toNextJsHandler(getAuthFromEnv()).POST(request);
 }

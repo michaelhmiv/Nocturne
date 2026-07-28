@@ -32,8 +32,9 @@ Player-created content is represented as:
 3. Start PostgreSQL and set `DATABASE_URL`.
 4. Run `pnpm install`.
 5. Run `pnpm db:migrate`.
-6. Generate Better Auth tables with `pnpm auth:generate`, review the generated migration, and apply it.
-7. Run `pnpm dev`.
+6. Run `pnpm auth:generate --output /tmp/nocturne-better-auth.sql --yes` and review the SQL.
+7. Apply the reviewed Better Auth changes with `pnpm auth:migrate --yes`; the CLI configuration keeps those tables under `auth`.
+8. Run `pnpm dev`.
 
 The initial OpenRouter model defaults to `openrouter/free`. Set `OPENROUTER_API_KEY` in Railway before invoking AI tasks.
 

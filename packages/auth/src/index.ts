@@ -1,4 +1,5 @@
 import { betterAuth } from "better-auth";
+import { fromNodeHeaders } from "better-auth/node";
 import { Pool } from "pg";
 
 export interface NocturneAuthConfig {
@@ -20,7 +21,7 @@ export function createNocturneAuth(config: NocturneAuthConfig) {
     max: 10,
   });
 
-  return betterAuth({
+  const auth = betterAuth({
     database: pool,
     secret: config.secret,
     baseURL: config.baseUrl,
@@ -35,6 +36,8 @@ export function createNocturneAuth(config: NocturneAuthConfig) {
       },
     },
   });
+
+  return Object.assign(auth, { close: () => pool.end() });
 }
 
 let singleton: ReturnType<typeof createNocturneAuth> | undefined;
@@ -61,4 +64,14 @@ export function getAuthFromEnv() {
   });
 
   return singleton;
+}
+
+export function getSessionFromNodeHeaders(headers: Record<string, string | string[] | undefined>) {
+  return getAuthFromEnv().api.getSession({ headers: fromNodeHeaders(headers) });
+}
+
+export async function closeAuthFromEnv(): Promise<void> {
+  if (!singleton) return;
+  await singleton.close();
+  singleton = undefined;
 }

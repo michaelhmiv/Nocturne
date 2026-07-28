@@ -35,6 +35,9 @@ export function createModelPolicy(input: {
 }): ModelPolicy {
   const authority: AiAuthority = authoritativeTasks.has(input.task) ? "authoritative" : "creative";
   const allowUserOverride = authority === "creative";
+  if (!allowUserOverride && input.requestedModel) {
+    throw new Error("User model overrides are not allowed for authoritative tasks.");
+  }
   const defaultModel =
     authority === "authoritative"
       ? input.authoritativeModel || "openrouter/free"

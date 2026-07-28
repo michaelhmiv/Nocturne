@@ -3,13 +3,13 @@ import { createModelPolicy } from "../src/index.js";
 
 describe("createModelPolicy", () => {
   it("rejects user model selection for authoritative tasks", () => {
-    const policy = createModelPolicy({
-      task: "parse_intent",
-      authoritativeModel: "openrouter/free",
-      requestedModel: "vendor/user-choice",
-    });
-    expect(policy.model).toBe("openrouter/free");
-    expect(policy.allowUserOverride).toBe(false);
+    expect(() =>
+      createModelPolicy({
+        task: "parse_intent",
+        authoritativeModel: "openrouter/free",
+        requestedModel: "vendor/user-choice",
+      }),
+    ).toThrow(/authoritative/i);
   });
 
   it("allows user model selection for creative tasks", () => {

@@ -1,22 +1,11 @@
 import cors from "@fastify/cors";
 import { createModelPolicy } from "@nocturne/ai-gm";
-import { getAuthFromEnv } from "@nocturne/auth";
+import { closeAuthFromEnv, getAuthFromEnv, getSessionFromNodeHeaders } from "@nocturne/auth";
 import { validateGeneratedContent } from "@nocturne/content-engine";
 import Fastify from "fastify";
 
-function toHeaders(input: Record<string, string | string[] | undefined>): Headers {
-  const headers = new Headers();
-  for (const [name, value] of Object.entries(input)) {
-    if (Array.isArray(value)) {
-      for (const item of value) headers.append(name, item);
-    } else if (value !== undefined) {
-      headers.set(name, value);
-    }
-  }
-  return headers;
-}
-
 export async function buildApp() {
+  getAuthFromEnv();
   const app = Fastify({
     logger: {
       level: process.env.LOG_LEVEL || "info",
@@ -37,9 +26,7 @@ export async function buildApp() {
   }));
 
   app.get("/v1/me", async (request, reply) => {
-    const session = await getAuthFromEnv().api.getSession({
-      headers: toHeaders(request.headers),
-    });
+    const session = await getSessionFromNodeHeaders(request.headers);
 
     if (!session) {
       return reply.code(401).send({ error: "unauthorized" });
@@ -66,6 +53,8 @@ export async function buildApp() {
     }
     return result;
   });
+
+  app.addHook("onClose", closeAuthFromEnv);
 
   return app;
 }

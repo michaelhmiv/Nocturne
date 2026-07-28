@@ -18,12 +18,19 @@ Describe the player-facing or architectural change.
 
 ## Verification performed
 
-- [ ] `pnpm format:check`
-- [ ] `pnpm typecheck`
-- [ ] `pnpm test`
-- [ ] Relevant package build completed
-- [ ] Relevant API/web smoke test completed
+- [ ] `pnpm verify`
+- [ ] `pnpm build`
+- [ ] `pnpm --filter @nocturne/database db:check` when migrations change
+- [ ] Clean and repeated migration tested on disposable PostgreSQL when migrations change
+- [ ] Relevant API/web/worker smoke test completed
+- [ ] Better Auth SQL generated and reviewed when auth changes
 - [ ] Railway/Hermes deployment check completed when applicable
+
+State explicitly:
+
+- whether real PostgreSQL was used;
+- whether Railway was deployed/tested; and
+- whether OpenRouter was called live or only mocked.
 
 ## Notes
 

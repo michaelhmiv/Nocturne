@@ -14,16 +14,16 @@ Authoritative tasks do not permit user overrides. Creative tasks may accept a us
 
 ## Task policy
 
-| Task | Authority | User override |
-| --- | --- | --- |
-| Parse action intent | Authoritative | No |
-| Normalize generated content | Authoritative | No |
-| Propose adjudication factors | Authoritative | No |
-| Plan NPC actions | Authoritative | No |
-| Summarize persistent memory | Authoritative | No |
-| Brainstorm player content | Creative | Yes |
-| Narrate committed event | Creative | Yes |
-| Private character assistant | Creative | Yes |
+| Task                         | Authority     | User override |
+| ---------------------------- | ------------- | ------------- |
+| Parse action intent          | Authoritative | No            |
+| Normalize generated content  | Authoritative | No            |
+| Propose adjudication factors | Authoritative | No            |
+| Plan NPC actions             | Authoritative | No            |
+| Summarize persistent memory  | Authoritative | No            |
+| Brainstorm player content    | Creative      | Yes           |
+| Narrate committed event      | Creative      | Yes           |
+| Private character assistant  | Creative      | Yes           |
 
 ## Structured output
 

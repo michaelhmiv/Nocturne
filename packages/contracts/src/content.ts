@@ -10,7 +10,15 @@ export const LifecycleStatusSchema = z.enum([
 
 export const TraitBindingSchema = z.object({
   name: z.string().min(1),
-  type: z.enum(["descriptive", "mechanical", "source", "material", "behavior", "legal", "aesthetic"]),
+  type: z.enum([
+    "descriptive",
+    "mechanical",
+    "source",
+    "material",
+    "behavior",
+    "legal",
+    "aesthetic",
+  ]),
   parameters: z.record(z.string(), z.unknown()).default({}),
 });
 
@@ -72,6 +80,17 @@ export const AcquisitionPathSchema = z.object({
   parameters: z.record(z.string(), z.unknown()).default({}),
 });
 
+export const RelationshipBindingSchema = z
+  .object({
+    relationType: z.string().min(1),
+    targetDefinitionId: z.string().min(1).optional(),
+    targetInstanceId: z.string().min(1).optional(),
+    parameters: z.record(z.string(), z.unknown()).default({}),
+  })
+  .refine((relationship) => relationship.targetDefinitionId || relationship.targetInstanceId, {
+    message: "A relationship requires a target definition or instance.",
+  });
+
 export const GeneratedDefinitionDraftSchema = z.object({
   definitionType: z.string().min(1),
   name: z.string().min(1),
@@ -88,6 +107,7 @@ export const GeneratedDefinitionDraftSchema = z.object({
   risks: z.array(z.string().min(1)).default([]),
   signatures: z.array(SignatureSchema).default([]),
   counters: z.array(z.string().min(1)).default([]),
+  relationships: z.array(RelationshipBindingSchema).default([]),
   acquisitionPath: AcquisitionPathSchema,
   extensionPayload: z.record(z.string(), z.unknown()).default({}),
   status: LifecycleStatusSchema.default("provisional"),
