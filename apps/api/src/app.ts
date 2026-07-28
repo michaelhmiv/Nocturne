@@ -30,6 +30,14 @@ export async function buildApp() {
   });
 
   async function requireUser(headers: Record<string, string | string[] | undefined>) {
+    const guestHeader = headers["x-nocturne-guest-mode"];
+    if (process.env.NOCTURNE_GUEST_MODE === "true" && guestHeader === "1") {
+      return {
+        id: process.env.NOCTURNE_GUEST_USER_ID || "nocturne-test-guest",
+        name: "Test Guest",
+        email: "guest@nocturne.local",
+      };
+    }
     const session = await getSessionFromNodeHeaders(headers);
     if (!session) throw new PersistentWorldError("forbidden", "Authentication is required.");
     return session.user;
