@@ -131,12 +131,14 @@ button.character.active {
   color: #86efac;
   font-weight: 700;
 }
-.invention-list {
+.invention-list,
+.action-history {
   display: grid;
   gap: 14px;
   margin-top: 22px;
 }
-.invention {
+.invention,
+.action-result {
   border-top: 1px solid #2d3039;
   padding-top: 16px;
 }
@@ -146,6 +148,21 @@ button.character.active {
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+.intel {
+  border-left: 3px solid #60a5fa;
+  padding-left: 12px;
+  color: #bfdbfe;
+}
+details {
+  color: #a1a1aa;
+}
+pre {
+  white-space: pre-wrap;
+  font-size: 0.78rem;
+  background: #0d0f14;
+  padding: 12px;
+  border-radius: 8px;
 }
 @media (max-width: 600px) {
   main {
