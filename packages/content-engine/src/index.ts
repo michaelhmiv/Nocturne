@@ -1,3 +1,5 @@
+export * from "./installation.js";
+
 import { GeneratedDefinitionDraftSchema, type GeneratedDefinitionDraft } from "@nocturne/contracts";
 
 export interface ContentValidationIssue {
@@ -16,7 +18,6 @@ export interface ContentValidationResult {
 
 export function validateGeneratedContent(input: unknown): ContentValidationResult {
   const parsed = GeneratedDefinitionDraftSchema.safeParse(input);
-
   if (!parsed.success) {
     return {
       status: "invalid",
@@ -29,12 +30,10 @@ export function validateGeneratedContent(input: unknown): ContentValidationResul
       requiresReview: false,
     };
   }
-
   const draft = parsed.data;
   const issues: ContentValidationIssue[] = [];
   const allEffects = [...draft.effects, ...draft.modes.flatMap((mode) => mode.effects)];
   const peakStrength = allEffects.reduce((peak, effect) => Math.max(peak, effect.strength), 0);
-
   if (allEffects.length === 0) {
     issues.push({
       code: "mechanics.no_effects",
@@ -43,25 +42,22 @@ export function validateGeneratedContent(input: unknown): ContentValidationResul
       suggestions: ["Add an effect binding if the concept should change game mechanics."],
     });
   }
-
   if (peakStrength >= 7) {
-    if (draft.limitations.length === 0) {
+    if (draft.limitations.length === 0)
       issues.push({
         code: "magnitude.missing_limitation",
         severity: "error",
         message: "High-magnitude content requires at least one meaningful limitation.",
         suggestions: ["Add a limitation on range, duration, precision, targets, or activation."],
       });
-    }
-    if (draft.counters.length === 0) {
+    if (draft.counters.length === 0)
       issues.push({
         code: "magnitude.missing_counterplay",
         severity: "error",
         message: "High-magnitude content requires discoverable counterplay.",
         suggestions: ["Add a counter that another character can discover and use."],
       });
-    }
-    if (draft.costs.length === 0 && draft.requirements.length === 0) {
+    if (draft.costs.length === 0 && draft.requirements.length === 0)
       issues.push({
         code: "magnitude.missing_support",
         severity: "error",
@@ -70,8 +66,7 @@ export function validateGeneratedContent(input: unknown): ContentValidationResul
           "Add a resource cost, installation dependency, upkeep, or activation requirement.",
         ],
       });
-    }
-    if (draft.acquisitionPath.type === "immediate") {
+    if (draft.acquisitionPath.type === "immediate")
       issues.push({
         code: "magnitude.immediate_acquisition",
         severity: "error",
@@ -80,9 +75,7 @@ export function validateGeneratedContent(input: unknown): ContentValidationResul
           "Use a staged trained, built, researched, discovered, or story-gated acquisition path.",
         ],
       });
-    }
   }
-
   if (
     allEffects.length > 0 &&
     draft.signatures.length === 0 &&
@@ -98,10 +91,8 @@ export function validateGeneratedContent(input: unknown): ContentValidationResul
       ],
     });
   }
-
   const errors = issues.filter((issue) => issue.severity === "error");
   const requiresReview = draft.noveltyLevel >= 4;
-
   return {
     status:
       errors.length > 0 ? "invalid" : issues.length > 0 || requiresReview ? "conditional" : "valid",

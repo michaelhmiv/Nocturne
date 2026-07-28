@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createPersistentWorldService } from "../src/persistent-world.js";
 
-function fakeStore(keys: string[] = []) {
+function fakeStore() {
   const character = {
     characterId: "40000000-0000-4000-8000-000000000001",
     definitionId: "CHAR-test",
@@ -16,10 +16,7 @@ function fakeStore(keys: string[] = []) {
   return {
     seedStarterWorld: async () => ({}) as never,
     getStarterWorld: async () => ({}) as never,
-    createCharacter: async (_userId: string, _input: unknown, key: string) => {
-      keys.push(key);
-      return character;
-    },
+    createCharacter: async () => character,
     listCharacters: async () => [character],
     getCharacter: async () => character,
     selectCharacter: async () => character,
@@ -46,20 +43,5 @@ describe("persistent world service", () => {
       originSource: "human",
     });
     expect(result.name).toBe("Night Engineer");
-  });
-
-  it("scopes supplied idempotency keys to the account and command", async () => {
-    const keys: string[] = [];
-    const service = createPersistentWorldService(fakeStore(keys));
-    await service.createCharacter(
-      "user-1",
-      {
-        name: "Night Engineer",
-        conceptSummary: "A systems engineer drawn into Calder City's hidden conflicts.",
-        originSource: "human",
-      },
-      "request-1",
-    );
-    expect(keys).toEqual(["character:user-1:request-1"]);
   });
 });

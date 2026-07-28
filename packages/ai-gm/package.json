@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@nocturne/contracts": "workspace:*",
     "zod": "^4.0.0"
   }
 }

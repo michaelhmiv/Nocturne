@@ -98,6 +98,9 @@ importers:
 
   packages/ai-gm:
     dependencies:
+      "@nocturne/contracts":
+        specifier: workspace:*
+        version: link:../contracts
       zod:
         specifier: ^4.0.0
         version: 4.4.3
@@ -129,6 +132,9 @@ importers:
 
   packages/database:
     dependencies:
+      "@nocturne/content-engine":
+        specifier: workspace:*
+        version: link:../content-engine
       "@nocturne/contracts":
         specifier: workspace:*
         version: link:../contracts

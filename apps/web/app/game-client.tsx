@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { authClient } from "../lib/auth-client";
+import InventionPanel from "./invention-panel";
 
 type Character = {
   characterId: string;
@@ -20,7 +21,6 @@ type StarterWorld = {
   };
   alley: { name: string };
 };
-
 async function gameFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/game/${path}`, {
     ...init,
@@ -40,7 +40,6 @@ export default function GameClient() {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [world, setWorld] = useState<StarterWorld | null>(null);
   const [message, setMessage] = useState("");
-
   async function refresh() {
     if (!session) return;
     const [characterResponse, worldResponse] = await Promise.all([
@@ -50,18 +49,16 @@ export default function GameClient() {
     setCharacters(characterResponse.characters);
     setWorld(worldResponse);
   }
-
   useEffect(() => {
     void refresh().catch((error: Error) => setMessage(error.message));
   }, [session?.user.id]);
-
   if (isPending)
     return (
       <main>
         <p>Loading Nocturne…</p>
       </main>
     );
-  if (!session) {
+  if (!session)
     return (
       <main>
         <p className="eyebrow">NOCTURNE</p>
@@ -99,8 +96,6 @@ export default function GameClient() {
         </section>
       </main>
     );
-  }
-
   const selected = characters.find((character) => character.selected) || characters[0];
   return (
     <main>
@@ -112,11 +107,10 @@ export default function GameClient() {
       </div>
       <h1>{selected ? selected.name : "Create your first character."}</h1>
       <p className="lede">
-        The first persistent Nocturne world is active. Character ownership, location, and residence
-        state are committed through the event ledger.
+        Invent freely. Nocturne converts the idea into persistent mechanics without turning the
+        catalog into a limit.
       </p>
       {message && <p className="notice">{message}</p>}
-
       <section className="grid">
         <article className="panel">
           <h2>Characters</h2>
@@ -156,7 +150,6 @@ export default function GameClient() {
             Create character
           </button>
         </article>
-
         <article className="panel">
           <h2>Starting residence</h2>
           {world ? (
@@ -193,6 +186,11 @@ export default function GameClient() {
           {selected?.residenceId && <p className="status">Residence secured.</p>}
         </article>
       </section>
+      {selected?.residenceId && (
+        <section>
+          <InventionPanel characterId={selected.characterId} residenceId={selected.residenceId} />
+        </section>
+      )}
     </main>
   );
 }

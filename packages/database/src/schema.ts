@@ -139,17 +139,46 @@ export const generatedContentRequests = game.table(
   {
     requestId: uuid("request_id").primaryKey().defaultRandom(),
     creatorId: uuid("creator_id").notNull(),
+    userId: text("user_id"),
+    residenceInstanceId: uuid("residence_instance_id").references(() => entityInstances.instanceId),
+    definitionId: text("definition_id").references(() => entityDefinitions.definitionId),
+    installedInstanceId: uuid("installed_instance_id").references(() => entityInstances.instanceId),
     rawConcept: text("raw_concept").notNull(),
     context: jsonb("context").$type<Record<string, unknown>>().notNull().default({}),
     draftPayload: jsonb("draft_payload").$type<Record<string, unknown>>(),
+    validationResult: jsonb("validation_result").$type<Record<string, unknown>>(),
+    installationResult: jsonb("installation_result").$type<Record<string, unknown>>(),
     validationStatus: text("validation_status").notNull().default("drafting"),
+    errorCode: text("error_code"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
   },
   (table) => [
     index("generated_content_requests_creator_idx").on(table.creatorId),
     index("generated_content_requests_status_idx").on(table.validationStatus),
+    index("generated_content_requests_user_idx").on(table.userId, table.createdAt),
+    index("generated_content_requests_definition_idx").on(table.definitionId),
   ],
+);
+
+export const installationEvaluations = game.table(
+  "installation_evaluations",
+  {
+    evaluationId: uuid("evaluation_id").primaryKey().defaultRandom(),
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => generatedContentRequests.requestId, { onDelete: "cascade" }),
+    characterInstanceId: uuid("character_instance_id")
+      .notNull()
+      .references(() => entityInstances.instanceId),
+    residenceInstanceId: uuid("residence_instance_id")
+      .notNull()
+      .references(() => entityInstances.instanceId),
+    result: jsonb("result").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("installation_evaluations_request_idx").on(table.requestId, table.createdAt)],
 );
 
 export const actionIntents = game.table(
@@ -214,6 +243,8 @@ export const aiRuns = system.table(
     providerRequestId: text("provider_request_id"),
     status: text("status").notNull(),
     inputHash: text("input_hash").notNull(),
+    outputHash: text("output_hash"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
     errorCode: text("error_code"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { withTimezone: true }),

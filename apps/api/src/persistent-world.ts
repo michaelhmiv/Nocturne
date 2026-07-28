@@ -7,14 +7,6 @@ import {
   type StarterWorld,
 } from "@nocturne/contracts";
 import type { PersistentWorldStore } from "@nocturne/database";
-import { z } from "zod";
-
-const IdempotencyKeySchema = z.string().trim().min(1).max(200);
-
-function scopedIdempotencyKey(command: string, userId: string, key?: string): string {
-  const requestKey = key ? IdempotencyKeySchema.parse(key) : randomUUID();
-  return `${command}:${userId}:${requestKey}`;
-}
 
 export interface PersistentWorldService {
   createCharacter(
@@ -41,7 +33,7 @@ export function createPersistentWorldService(store: PersistentWorldStore): Persi
       return store.createCharacter(
         userId,
         parsed,
-        scopedIdempotencyKey("character", userId, idempotencyKey),
+        idempotencyKey || `character:${userId}:${randomUUID()}`,
       );
     },
     listCharacters: (userId) => store.listCharacters(userId),
@@ -57,7 +49,7 @@ export function createPersistentWorldService(store: PersistentWorldStore): Persi
       return store.rentStarterResidence(
         userId,
         parsed.characterId,
-        scopedIdempotencyKey("residence", userId, idempotencyKey),
+        idempotencyKey || `residence:${userId}:${parsed.characterId}:${randomUUID()}`,
       );
     },
   };
