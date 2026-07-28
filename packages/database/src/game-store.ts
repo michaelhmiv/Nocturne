@@ -80,7 +80,7 @@ function asIso(value: Date | string): string {
 }
 
 function json(value: unknown) {
-  return JSON.parse(JSON.stringify(value));
+  return JSON.stringify(value);
 }
 
 type StarterWorldRow = {
