@@ -1,0 +1,20 @@
+{
+  "name": "@nocturne/auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "auth:generate": "npx @better-auth/cli@latest generate --config ./src/cli-config.ts"
+  },
+  "dependencies": {
+    "better-auth": "^1.4.0",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.0"
+  }
+}
