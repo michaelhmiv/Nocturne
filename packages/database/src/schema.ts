@@ -1,8 +1,10 @@
 import {
+  boolean,
   index,
   integer,
   jsonb,
   pgSchema,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -67,6 +69,68 @@ export const entityInstances = game.table(
     index("entity_instances_definition_idx").on(table.definitionId),
     index("entity_instances_owner_idx").on(table.ownerId),
     index("entity_instances_location_idx").on(table.locationId),
+  ],
+);
+
+export const playerCharacters = game.table(
+  "player_characters",
+  {
+    userId: text("user_id").notNull(),
+    characterInstanceId: uuid("character_instance_id")
+      .notNull()
+      .references(() => entityInstances.instanceId, { onDelete: "cascade" }),
+    selected: boolean("selected").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.characterInstanceId] }),
+    uniqueIndex("player_characters_character_uq").on(table.characterInstanceId),
+    index("player_characters_user_idx").on(table.userId),
+  ],
+);
+
+export const entityRelations = game.table(
+  "entity_relations",
+  {
+    relationId: uuid("relation_id").primaryKey().defaultRandom(),
+    sourceInstanceId: uuid("source_instance_id")
+      .notNull()
+      .references(() => entityInstances.instanceId, { onDelete: "cascade" }),
+    targetInstanceId: uuid("target_instance_id")
+      .notNull()
+      .references(() => entityInstances.instanceId, { onDelete: "cascade" }),
+    relationType: text("relation_type").notNull(),
+    parameters: jsonb("parameters").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("entity_relations_unique_uq").on(
+      table.sourceInstanceId,
+      table.targetInstanceId,
+      table.relationType,
+    ),
+    index("entity_relations_source_idx").on(table.sourceInstanceId, table.relationType),
+    index("entity_relations_target_idx").on(table.targetInstanceId, table.relationType),
+  ],
+);
+
+export const residenceOccupancies = game.table(
+  "residence_occupancies",
+  {
+    residenceInstanceId: uuid("residence_instance_id")
+      .primaryKey()
+      .references(() => entityInstances.instanceId, { onDelete: "cascade" }),
+    characterInstanceId: uuid("character_instance_id")
+      .notNull()
+      .references(() => entityInstances.instanceId, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    status: text("status").notNull().default("active"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("residence_occupancies_character_uq").on(table.characterInstanceId),
+    index("residence_occupancies_user_idx").on(table.userId),
   ],
 );
 

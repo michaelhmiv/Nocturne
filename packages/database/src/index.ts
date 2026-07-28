@@ -17,4 +17,5 @@ export function createDatabase(connectionString: string) {
   };
 }
 
+export * from "./game-store.js";
 export * from "./schema.js";
