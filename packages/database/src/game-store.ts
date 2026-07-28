@@ -179,7 +179,7 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
       JOIN game.definition_revisions r ON r.revision_id = d.current_revision_id
       LEFT JOIN game.residence_occupancies o
         ON o.residence_instance_id = i.instance_id AND o.status = 'active'
-      WHERE i.instance_id IN ${database.client(STARTER_INSTANCE_IDS)}
+      WHERE i.instance_id = ANY(${database.client.array(STARTER_INSTANCE_IDS, 2950)})
     `) as StarterWorldRow[];
     const byId = new Map(rows.map((row) => [String(row.instance_id), row]));
     const pick = (id: string) => {
