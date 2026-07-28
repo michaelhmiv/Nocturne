@@ -7,14 +7,30 @@ import {
   type StarterWorld,
 } from "@nocturne/contracts";
 import type { PersistentWorldStore } from "@nocturne/database";
+import { z } from "zod";
+
+const IdempotencyKeySchema = z.string().trim().min(1).max(200);
+
+function scopedIdempotencyKey(command: string, userId: string, key?: string): string {
+  const requestKey = key ? IdempotencyKeySchema.parse(key) : randomUUID();
+  return `${command}:${userId}:${requestKey}`;
+}
 
 export interface PersistentWorldService {
-  createCharacter(userId: string, input: unknown, idempotencyKey?: string): Promise<CharacterSummary>;
+  createCharacter(
+    userId: string,
+    input: unknown,
+    idempotencyKey?: string,
+  ): Promise<CharacterSummary>;
   listCharacters(userId: string): Promise<CharacterSummary[]>;
   getCharacter(userId: string, characterId: string): Promise<CharacterSummary | null>;
   selectCharacter(userId: string, characterId: string): Promise<CharacterSummary>;
   getStarterWorld(): Promise<StarterWorld>;
-  rentStarterResidence(userId: string, input: unknown, idempotencyKey?: string): Promise<RentResidenceResult>;
+  rentStarterResidence(
+    userId: string,
+    input: unknown,
+    idempotencyKey?: string,
+  ): Promise<RentResidenceResult>;
 }
 
 export function createPersistentWorldService(store: PersistentWorldStore): PersistentWorldService {
@@ -22,7 +38,11 @@ export function createPersistentWorldService(store: PersistentWorldStore): Persi
     async createCharacter(userId, input, idempotencyKey) {
       const parsed = CreateCharacterInputSchema.parse(input);
       await store.seedStarterWorld();
-      return store.createCharacter(userId, parsed, idempotencyKey || `character:${userId}:${randomUUID()}`);
+      return store.createCharacter(
+        userId,
+        parsed,
+        scopedIdempotencyKey("character", userId, idempotencyKey),
+      );
     },
     listCharacters: (userId) => store.listCharacters(userId),
     getCharacter: (userId, characterId) => store.getCharacter(userId, characterId),
@@ -37,7 +57,7 @@ export function createPersistentWorldService(store: PersistentWorldStore): Persi
       return store.rentStarterResidence(
         userId,
         parsed.characterId,
-        idempotencyKey || `residence:${userId}:${parsed.characterId}:${randomUUID()}`,
+        scopedIdempotencyKey("residence", userId, idempotencyKey),
       );
     },
   };

@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
-import type { CharacterSummary, CreateCharacterInput, RentResidenceResult, StarterWorld } from "@nocturne/contracts";
+import type {
+  CharacterSummary,
+  CreateCharacterInput,
+  RentResidenceResult,
+  StarterWorld,
+} from "@nocturne/contracts";
 import type { createDatabase } from "./index.js";
 
 export const STARTER_WORLD_IDS = {
@@ -12,12 +17,42 @@ export const STARTER_WORLD_IDS = {
 } as const;
 
 const STARTER_DEFINITIONS = [
-  ["WORLD-CALDER-CITY", "location", "Calder City", "An Atlantic coastal metropolis shaped by old wealth, port crime, advanced research, and hidden supernatural history."],
-  ["WORLD-FOUNDRY-WARD", "location", "Foundry Ward", "A former industrial district of brick factories, rail infrastructure, workshops, and uneven redevelopment."],
-  ["WORLD-FOUNDRY-ROW", "location", "Foundry Row", "A dense neighborhood of converted industrial buildings, repair shops, apartments, and active alleys."],
-  ["WORLD-ASHDOWN-APARTMENTS", "location", "Ashdown Apartments", "A worn but serviceable brick apartment building overlooking Foundry Row."],
-  ["WORLD-ASHDOWN-UNIT-3B", "residence", "Ashdown Apartments, Unit 3B", "A modest apartment with a spare room, ordinary utilities, and limited concealment for unusual equipment."],
-  ["WORLD-ASHDOWN-REAR-ALLEY", "location", "Rear Alley", "A service alley behind Ashdown Apartments with dumpsters, fire escapes, delivery access, and inconsistent lighting."],
+  [
+    "WORLD-CALDER-CITY",
+    "location",
+    "Calder City",
+    "An Atlantic coastal metropolis shaped by old wealth, port crime, advanced research, and hidden supernatural history.",
+  ],
+  [
+    "WORLD-FOUNDRY-WARD",
+    "location",
+    "Foundry Ward",
+    "A former industrial district of brick factories, rail infrastructure, workshops, and uneven redevelopment.",
+  ],
+  [
+    "WORLD-FOUNDRY-ROW",
+    "location",
+    "Foundry Row",
+    "A dense neighborhood of converted industrial buildings, repair shops, apartments, and active alleys.",
+  ],
+  [
+    "WORLD-ASHDOWN-APARTMENTS",
+    "location",
+    "Ashdown Apartments",
+    "A worn but serviceable brick apartment building overlooking Foundry Row.",
+  ],
+  [
+    "WORLD-ASHDOWN-UNIT-3B",
+    "residence",
+    "Ashdown Apartments, Unit 3B",
+    "A modest apartment with a spare room, ordinary utilities, and limited concealment for unusual equipment.",
+  ],
+  [
+    "WORLD-ASHDOWN-REAR-ALLEY",
+    "location",
+    "Rear Alley",
+    "A service alley behind Ashdown Apartments with dumpsters, fire escapes, delivery access, and inconsistent lighting.",
+  ],
 ] as const;
 
 const STARTER_INSTANCE_IDS = Object.values(STARTER_WORLD_IDS);
@@ -31,7 +66,11 @@ const STARTER_REVISION_IDS = [
 ] as const;
 
 export class PersistentWorldError extends Error {
-  constructor(readonly code: "not_found" | "forbidden" | "residence_unavailable" | "conflict", message: string) {
+  constructor(
+    readonly code:
+      "unauthorized" | "not_found" | "forbidden" | "residence_unavailable" | "conflict",
+    message: string,
+  ) {
     super(message);
     this.name = "PersistentWorldError";
   }
@@ -45,10 +84,12 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
   async function seedStarterWorld(): Promise<StarterWorld> {
     await database.client.begin(async (sql) => {
       for (let index = 0; index < STARTER_DEFINITIONS.length; index += 1) {
-        const [definitionId, definitionType, name, conceptSummary] = STARTER_DEFINITIONS[index];
+        const definition = STARTER_DEFINITIONS[index];
         const revisionId = STARTER_REVISION_IDS[index];
         const instanceId = STARTER_INSTANCE_IDS[index];
-        const locationId = index === 0 ? null : STARTER_INSTANCE_IDS[index - 1];
+        if (!definition || !revisionId || !instanceId) continue;
+        const [definitionId, definitionType, name, conceptSummary] = definition;
+        const locationId = index === 0 ? null : (STARTER_INSTANCE_IDS[index - 1] ?? null);
         const extensionPayload =
           definitionId === "WORLD-ASHDOWN-UNIT-3B"
             ? { capacities: { space: 3, power: 2, concealment: 1, security: 1, access: 2 } }
@@ -86,11 +127,14 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
       }
 
       for (let index = 1; index < STARTER_INSTANCE_IDS.length; index += 1) {
+        const sourceInstanceId = STARTER_INSTANCE_IDS[index];
+        const targetInstanceId = STARTER_INSTANCE_IDS[index - 1];
+        if (!sourceInstanceId || !targetInstanceId) continue;
         await sql`
           INSERT INTO game.entity_relations (
             source_instance_id, target_instance_id, relation_type
           ) VALUES (
-            ${STARTER_INSTANCE_IDS[index]}, ${STARTER_INSTANCE_IDS[index - 1]}, 'located_within'
+            ${sourceInstanceId}, ${targetInstanceId}, 'located_within'
           ) ON CONFLICT (source_instance_id, target_instance_id, relation_type) DO NOTHING
         `;
       }
@@ -118,7 +162,7 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
       JOIN game.definition_revisions r ON r.revision_id = d.current_revision_id
       LEFT JOIN game.residence_occupancies o
         ON o.residence_instance_id = i.instance_id AND o.status = 'active'
-      WHERE i.instance_id IN ${database.client(STARTER_INSTANCE_IDS)}
+      WHERE i.instance_id = ANY(${database.client.array(STARTER_INSTANCE_IDS, 2950)})
     `;
     const byId = new Map(rows.map((row) => [String(row.instance_id), row]));
     const pick = (id: string) => {
@@ -127,12 +171,23 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
       return row;
     };
     const residence = pick(STARTER_WORLD_IDS.residence);
-    const payload = residence.payload as { extensionPayload?: { capacities?: Record<string, number> } };
+    const payload = residence.payload as {
+      extensionPayload?: { capacities?: Record<string, number> };
+    };
     return {
       city: { id: STARTER_WORLD_IDS.city, name: String(pick(STARTER_WORLD_IDS.city).name) },
-      district: { id: STARTER_WORLD_IDS.district, name: String(pick(STARTER_WORLD_IDS.district).name) },
-      neighborhood: { id: STARTER_WORLD_IDS.neighborhood, name: String(pick(STARTER_WORLD_IDS.neighborhood).name) },
-      building: { id: STARTER_WORLD_IDS.building, name: String(pick(STARTER_WORLD_IDS.building).name) },
+      district: {
+        id: STARTER_WORLD_IDS.district,
+        name: String(pick(STARTER_WORLD_IDS.district).name),
+      },
+      neighborhood: {
+        id: STARTER_WORLD_IDS.neighborhood,
+        name: String(pick(STARTER_WORLD_IDS.neighborhood).name),
+      },
+      building: {
+        id: STARTER_WORLD_IDS.building,
+        name: String(pick(STARTER_WORLD_IDS.building).name),
+      },
       residence: {
         id: STARTER_WORLD_IDS.residence,
         name: String(residence.name),
@@ -143,7 +198,11 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
     };
   }
 
-  async function createCharacter(userId: string, input: CreateCharacterInput, idempotencyKey: string): Promise<CharacterSummary> {
+  async function createCharacter(
+    userId: string,
+    input: CreateCharacterInput,
+    idempotencyKey: string,
+  ): Promise<CharacterSummary> {
     return database.client.begin(async (sql) => {
       const existing = await sql`
         SELECT payload FROM game.event_ledger WHERE idempotency_key = ${idempotencyKey}
@@ -151,7 +210,11 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
       if (existing[0]?.payload) {
         const characterId = String((existing[0].payload as Record<string, unknown>).characterId);
         const character = await getCharacter(userId, characterId);
-        if (!character) throw new PersistentWorldError("conflict", "Idempotency key belongs to an unavailable result.");
+        if (!character)
+          throw new PersistentWorldError(
+            "conflict",
+            "Idempotency key belongs to an unavailable result.",
+          );
         return character;
       }
 
@@ -160,23 +223,36 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
       const characterId = randomUUID();
       const eventId = randomUUID();
       const createdAt = new Date().toISOString();
-      const payload = {
-        definitionType: "character",
-        name: input.name,
-        conceptSummary: input.conceptSummary,
-        playerFantasy: input.conceptSummary,
-        noveltyLevel: 0,
-        originSource: input.originSource,
-        traits: Object.entries(input.qualities).map(([name, parameters]) => ({
-          name,
-          type: "descriptive",
-          parameters: typeof parameters === "object" && parameters !== null ? parameters : { value: parameters },
-        })),
-        effects: [], modes: [], requirements: [], costs: [], limitations: [], risks: [], signatures: [], counters: [], relationships: [],
-        acquisitionPath: { type: "immediate", parameters: {} },
-        extensionPayload: { character: { qualities: input.qualities } },
-        status: "approved",
-      };
+      const payload = JSON.parse(
+        JSON.stringify({
+          definitionType: "character",
+          name: input.name,
+          conceptSummary: input.conceptSummary,
+          playerFantasy: input.conceptSummary,
+          noveltyLevel: 0,
+          originSource: input.originSource,
+          traits: Object.entries(input.qualities).map(([name, parameters]) => ({
+            name,
+            type: "descriptive",
+            parameters:
+              typeof parameters === "object" && parameters !== null
+                ? parameters
+                : { value: parameters },
+          })),
+          effects: [],
+          modes: [],
+          requirements: [],
+          costs: [],
+          limitations: [],
+          risks: [],
+          signatures: [],
+          counters: [],
+          relationships: [],
+          acquisitionPath: { type: "immediate", parameters: {} },
+          extensionPayload: { character: { qualities: input.qualities } },
+          status: "approved",
+        }),
+      );
 
       await sql`
         INSERT INTO game.entity_definitions (
@@ -258,7 +334,10 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
     }));
   }
 
-  async function getCharacter(userId: string, characterId: string): Promise<CharacterSummary | null> {
+  async function getCharacter(
+    userId: string,
+    characterId: string,
+  ): Promise<CharacterSummary | null> {
     const characters = await listCharacters(userId);
     return characters.find((character) => character.characterId === characterId) ?? null;
   }
@@ -269,7 +348,8 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
         SELECT 1 FROM game.player_characters
         WHERE user_id = ${userId} AND character_instance_id = ${characterId}
       `;
-      if (controlled.length === 0) throw new PersistentWorldError("forbidden", "Character is not controlled by this account.");
+      if (controlled.length === 0)
+        throw new PersistentWorldError("forbidden", "Character is not controlled by this account.");
       await sql`UPDATE game.player_characters SET selected = false WHERE user_id = ${userId}`;
       await sql`
         UPDATE game.player_characters SET selected = true
@@ -281,11 +361,22 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
     return selected;
   }
 
-  async function rentStarterResidence(userId: string, characterId: string, idempotencyKey: string): Promise<RentResidenceResult> {
+  async function rentStarterResidence(
+    userId: string,
+    characterId: string,
+    idempotencyKey: string,
+  ): Promise<RentResidenceResult> {
     return database.client.begin(async (sql) => {
-      const prior = await sql`SELECT payload FROM game.event_ledger WHERE idempotency_key = ${idempotencyKey}`;
+      const prior =
+        await sql`SELECT payload FROM game.event_ledger WHERE idempotency_key = ${idempotencyKey}`;
       if (prior[0]?.payload) {
         const payload = prior[0].payload as Record<string, unknown>;
+        if (payload.userId !== userId || payload.characterId !== characterId) {
+          throw new PersistentWorldError(
+            "conflict",
+            "Idempotency key belongs to a different residence command.",
+          );
+        }
         return {
           characterId: String(payload.characterId),
           residenceId: String(payload.residenceId),
@@ -298,15 +389,20 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
         SELECT 1 FROM game.player_characters
         WHERE user_id = ${userId} AND character_instance_id = ${characterId}
       `;
-      if (controlled.length === 0) throw new PersistentWorldError("forbidden", "Character is not controlled by this account.");
+      if (controlled.length === 0)
+        throw new PersistentWorldError("forbidden", "Character is not controlled by this account.");
 
       const occupancy = await sql`
         SELECT character_instance_id FROM game.residence_occupancies
         WHERE residence_instance_id = ${STARTER_WORLD_IDS.residence} AND status = 'active'
         FOR UPDATE
       `;
-      if (occupancy.length > 0 && String(occupancy[0].character_instance_id) !== characterId) {
-        throw new PersistentWorldError("residence_unavailable", "The starter apartment is already occupied.");
+      const occupiedCharacterId = occupancy[0]?.character_instance_id;
+      if (occupiedCharacterId && String(occupiedCharacterId) !== characterId) {
+        throw new PersistentWorldError(
+          "residence_unavailable",
+          "The starter apartment is already occupied.",
+        );
       }
       if (occupancy.length > 0) {
         const events = await sql`
@@ -339,7 +435,12 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
         ) VALUES (${characterId}, ${STARTER_WORLD_IDS.residence}, 'occupies', ${sql.json({ role: "tenant" })})
         ON CONFLICT (source_instance_id, target_instance_id, relation_type) DO NOTHING
       `;
-      const eventPayload = { eventId, characterId, residenceId: STARTER_WORLD_IDS.residence, userId };
+      const eventPayload = {
+        eventId,
+        characterId,
+        residenceId: STARTER_WORLD_IDS.residence,
+        userId,
+      };
       await sql`
         INSERT INTO game.event_ledger (
           event_id, idempotency_key, world_time, event_type, involved_entity_ids, payload
@@ -348,11 +449,24 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
           ${sql.json([characterId, STARTER_WORLD_IDS.residence])}, ${sql.json(eventPayload)}
         )
       `;
-      return { characterId, residenceId: STARTER_WORLD_IDS.residence, eventId, alreadyRented: false };
+      return {
+        characterId,
+        residenceId: STARTER_WORLD_IDS.residence,
+        eventId,
+        alreadyRented: false,
+      };
     });
   }
 
-  return { seedStarterWorld, getStarterWorld, createCharacter, listCharacters, getCharacter, selectCharacter, rentStarterResidence };
+  return {
+    seedStarterWorld,
+    getStarterWorld,
+    createCharacter,
+    listCharacters,
+    getCharacter,
+    selectCharacter,
+    rentStarterResidence,
+  };
 }
 
 export type PersistentWorldStore = ReturnType<typeof createPersistentWorldStore>;

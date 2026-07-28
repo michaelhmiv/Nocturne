@@ -2,7 +2,11 @@ import cors from "@fastify/cors";
 import { createModelPolicy } from "@nocturne/ai-gm";
 import { closeAuthFromEnv, getAuthFromEnv, getSessionFromNodeHeaders } from "@nocturne/auth";
 import { validateGeneratedContent } from "@nocturne/content-engine";
-import { createDatabase, createPersistentWorldStore, PersistentWorldError } from "@nocturne/database";
+import {
+  createDatabase,
+  createPersistentWorldStore,
+  PersistentWorldError,
+} from "@nocturne/database";
 import Fastify from "fastify";
 import { ZodError } from "zod";
 import { createPersistentWorldService } from "./persistent-world.js";
@@ -24,7 +28,7 @@ export async function buildApp() {
 
   async function requireUser(headers: Record<string, string | string[] | undefined>) {
     const session = await getSessionFromNodeHeaders(headers);
-    if (!session) throw new PersistentWorldError("forbidden", "Authentication is required.");
+    if (!session) throw new PersistentWorldError("unauthorized", "Authentication is required.");
     return session.user;
   }
 
@@ -33,14 +37,27 @@ export async function buildApp() {
       return reply.code(400).send({ error: "invalid_request", issues: error.issues });
     }
     if (error instanceof PersistentWorldError) {
-      const status = error.code === "not_found" ? 404 : error.code === "forbidden" ? 403 : error.code === "residence_unavailable" ? 409 : 409;
+      const status =
+        error.code === "unauthorized"
+          ? 401
+          : error.code === "not_found"
+            ? 404
+            : error.code === "forbidden"
+              ? 403
+              : error.code === "residence_unavailable"
+                ? 409
+                : 409;
       return reply.code(status).send({ error: error.code, message: error.message });
     }
     app.log.error(error);
     return reply.code(500).send({ error: "internal_error" });
   });
 
-  app.get("/health", async () => ({ status: "ok", service: "api", openRouterConfigured: Boolean(process.env.OPENROUTER_API_KEY) }));
+  app.get("/health", async () => ({
+    status: "ok",
+    service: "api",
+    openRouterConfigured: Boolean(process.env.OPENROUTER_API_KEY),
+  }));
 
   app.get("/v1/me", async (request, reply) => {
     const session = await getSessionFromNodeHeaders(request.headers);
@@ -49,8 +66,14 @@ export async function buildApp() {
   });
 
   app.get("/v1/system/model-policy", async () => ({
-    authoritative: createModelPolicy({ task: "parse_intent", authoritativeModel: process.env.NOCTURNE_AUTHORITATIVE_MODEL }),
-    creative: createModelPolicy({ task: "narrate_event", creativeModel: process.env.NOCTURNE_CREATIVE_MODEL }),
+    authoritative: createModelPolicy({
+      task: "parse_intent",
+      authoritativeModel: process.env.NOCTURNE_AUTHORITATIVE_MODEL,
+    }),
+    creative: createModelPolicy({
+      task: "narrate_event",
+      creativeModel: process.env.NOCTURNE_CREATIVE_MODEL,
+    }),
   }));
 
   app.post("/v1/content/validate", async (request, reply) => {
@@ -61,7 +84,11 @@ export async function buildApp() {
 
   app.post("/v1/characters", async (request, reply) => {
     const user = await requireUser(request.headers);
-    const result = await world.createCharacter(user.id, request.body, request.headers["idempotency-key"] as string | undefined);
+    const result = await world.createCharacter(
+      user.id,
+      request.body,
+      request.headers["idempotency-key"] as string | undefined,
+    );
     return reply.code(201).send(result);
   });
   app.get("/v1/characters", async (request) => {
@@ -83,7 +110,11 @@ export async function buildApp() {
   });
   app.post("/v1/residences/starter/rent", async (request, reply) => {
     const user = await requireUser(request.headers);
-    const result = await world.rentStarterResidence(user.id, request.body, request.headers["idempotency-key"] as string | undefined);
+    const result = await world.rentStarterResidence(
+      user.id,
+      request.body,
+      request.headers["idempotency-key"] as string | undefined,
+    );
     return reply.code(result.alreadyRented ? 200 : 201).send(result);
   });
 
