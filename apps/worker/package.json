@@ -1,0 +1,17 @@
+{
+  "name": "@nocturne/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsup --config ../../tsup.app.config.ts",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@nocturne/ai-gm": "workspace:*",
+    "@nocturne/database": "workspace:*"
+  }
+}

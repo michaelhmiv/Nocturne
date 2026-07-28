@@ -1,0 +1,21 @@
+{
+  "name": "@nocturne/database",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts src/schema.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "db:migrate": "tsx src/migrate.ts",
+    "db:check": "tsx src/check-migrations.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.44.0",
+    "postgres": "^3.4.0"
+  }
+}
