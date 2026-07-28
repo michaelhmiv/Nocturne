@@ -1,9 +1,8 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { authClient } from "../lib/auth-client";
+import ActionPanel from "./action-panel";
 import InventionPanel from "./invention-panel";
-
 type Character = {
   characterId: string;
   name: string;
@@ -30,7 +29,6 @@ async function gameFetch<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) throw new Error(payload.message || payload.error || "Game request failed.");
   return payload as T;
 }
-
 export default function GameClient() {
   const { data: session, isPending } = authClient.useSession();
   const [email, setEmail] = useState("");
@@ -107,8 +105,7 @@ export default function GameClient() {
       </div>
       <h1>{selected ? selected.name : "Create your first character."}</h1>
       <p className="lede">
-        Invent freely. Nocturne converts the idea into persistent mechanics without turning the
-        catalog into a limit.
+        Invent freely, install what the world can support, and act through persistent consequences.
       </p>
       {message && <p className="notice">{message}</p>}
       <section className="grid">
@@ -187,9 +184,14 @@ export default function GameClient() {
         </article>
       </section>
       {selected?.residenceId && (
-        <section>
-          <InventionPanel characterId={selected.characterId} residenceId={selected.residenceId} />
-        </section>
+        <>
+          <section>
+            <InventionPanel characterId={selected.characterId} residenceId={selected.residenceId} />
+          </section>
+          <section>
+            <ActionPanel characterId={selected.characterId} />
+          </section>
+        </>
       )}
     </main>
   );

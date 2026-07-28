@@ -3,6 +3,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgSchema,
   primaryKey,
   text,
@@ -186,29 +187,18 @@ export const actionIntents = game.table(
   {
     intentId: uuid("intent_id").primaryKey().defaultRandom(),
     actorId: uuid("actor_id").notNull(),
+    userId: text("user_id"),
     rawText: text("raw_text").notNull(),
     parsedIntent: jsonb("parsed_intent").$type<Record<string, unknown>>().notNull(),
+    methodInstanceId: uuid("method_instance_id").references(() => entityInstances.instanceId),
+    targetLocationId: uuid("target_location_id").references(() => entityInstances.instanceId),
+    idempotencyKey: text("idempotency_key"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("action_intents_actor_idx").on(table.actorId)],
-);
-
-export const resolutionResults = game.table(
-  "resolution_results",
-  {
-    resolutionId: uuid("resolution_id").primaryKey().defaultRandom(),
-    intentId: uuid("intent_id")
-      .notNull()
-      .references(() => actionIntents.intentId),
-    outcomeGrade: text("outcome_grade").notNull(),
-    calculationTrace: jsonb("calculation_trace").$type<string[]>().notNull(),
-    proposedOperations: jsonb("proposed_operations")
-      .$type<Array<Record<string, unknown>>>()
-      .notNull(),
-    narrativeConstraints: jsonb("narrative_constraints").$type<string[]>().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => [index("resolution_results_intent_idx").on(table.intentId)],
+  (table) => [
+    index("action_intents_actor_idx").on(table.actorId),
+    uniqueIndex("action_intents_idempotency_uq").on(table.idempotencyKey),
+  ],
 );
 
 export const eventLedger = game.table(
@@ -228,6 +218,54 @@ export const eventLedger = game.table(
     uniqueIndex("event_ledger_idempotency_uq").on(table.idempotencyKey),
     index("event_ledger_world_time_idx").on(table.worldTime),
     index("event_ledger_type_idx").on(table.eventType),
+  ],
+);
+
+export const resolutionResults = game.table(
+  "resolution_results",
+  {
+    resolutionId: uuid("resolution_id").primaryKey().defaultRandom(),
+    intentId: uuid("intent_id")
+      .notNull()
+      .references(() => actionIntents.intentId),
+    eventId: uuid("event_id").references(() => eventLedger.eventId),
+    outcomeGrade: text("outcome_grade").notNull(),
+    calculationTrace: jsonb("calculation_trace").$type<string[]>().notNull(),
+    proposedOperations: jsonb("proposed_operations")
+      .$type<Array<Record<string, unknown>>>()
+      .notNull(),
+    narrativeConstraints: jsonb("narrative_constraints").$type<string[]>().notNull(),
+    authoritativeSeed: text("authoritative_seed"),
+    actorScore: integer("actor_score"),
+    targetScore: integer("target_score"),
+    narration: text("narration"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("resolution_results_intent_idx").on(table.intentId),
+    uniqueIndex("resolution_results_event_uq").on(table.eventId),
+  ],
+);
+
+export const informationAssets = game.table(
+  "information_assets",
+  {
+    informationId: uuid("information_id").primaryKey().defaultRandom(),
+    holderInstanceId: uuid("holder_instance_id")
+      .notNull()
+      .references(() => entityInstances.instanceId, { onDelete: "cascade" }),
+    subjectInstanceId: uuid("subject_instance_id").references(() => entityInstances.instanceId),
+    content: text("content").notNull(),
+    confidence: numeric("confidence", { precision: 5, scale: 4 }).notNull(),
+    truthStatus: text("truth_status").notNull(),
+    sourceEventId: uuid("source_event_id")
+      .notNull()
+      .references(() => eventLedger.eventId),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("information_assets_holder_idx").on(table.holderInstanceId, table.createdAt),
+    index("information_assets_subject_idx").on(table.subjectInstanceId),
   ],
 );
 
