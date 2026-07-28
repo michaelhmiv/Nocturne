@@ -67,8 +67,7 @@ const STARTER_REVISION_IDS = [
 
 export class PersistentWorldError extends Error {
   constructor(
-    readonly code:
-      "unauthorized" | "not_found" | "forbidden" | "residence_unavailable" | "conflict",
+    readonly code: "not_found" | "forbidden" | "residence_unavailable" | "conflict",
     message: string,
   ) {
     super(message);
@@ -80,6 +79,17 @@ function asIso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
+function json(value: unknown) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+type StarterWorldRow = {
+  instance_id: string;
+  name: string;
+  payload: unknown;
+  occupied_by: string | null;
+};
+
 export function createPersistentWorldStore(database: ReturnType<typeof createDatabase>) {
   async function seedStarterWorld(): Promise<StarterWorld> {
     await database.client.begin(async (sql) => {
@@ -87,9 +97,14 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
         const definition = STARTER_DEFINITIONS[index];
         const revisionId = STARTER_REVISION_IDS[index];
         const instanceId = STARTER_INSTANCE_IDS[index];
-        if (!definition || !revisionId || !instanceId) continue;
+        if (!definition || !revisionId || !instanceId) {
+          throw new Error("Starter world seed constants are incomplete.");
+        }
         const [definitionId, definitionType, name, conceptSummary] = definition;
         const locationId = index === 0 ? null : (STARTER_INSTANCE_IDS[index - 1] ?? null);
+        if (index > 0 && !locationId) {
+          throw new Error("Starter world location constants are incomplete.");
+        }
         const extensionPayload =
           definitionId === "WORLD-ASHDOWN-UNIT-3B"
             ? { capacities: { space: 3, power: 2, concealment: 1, security: 1, access: 2 } }
@@ -107,7 +122,7 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
             revision_id, definition_id, schema_version, payload, change_summary
           ) VALUES (
             ${revisionId}, ${definitionId}, 'content-v1',
-            ${sql.json({ definitionType, name, conceptSummary, extensionPayload })},
+            ${json({ definitionType, name, conceptSummary, extensionPayload })},
             'Seed Foundry Row starter world'
           ) ON CONFLICT (revision_id) DO NOTHING
         `;
@@ -121,7 +136,7 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
             instance_id, definition_id, location_id, condition, state
           ) VALUES (
             ${instanceId}, ${definitionId}, ${locationId}, 100,
-            ${sql.json(definitionId === "WORLD-ASHDOWN-UNIT-3B" ? { rentable: true } : {})}
+            ${json(definitionId === "WORLD-ASHDOWN-UNIT-3B" ? { rentable: true } : {})}
           ) ON CONFLICT (instance_id) DO NOTHING
         `;
       }
@@ -129,7 +144,9 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
       for (let index = 1; index < STARTER_INSTANCE_IDS.length; index += 1) {
         const sourceInstanceId = STARTER_INSTANCE_IDS[index];
         const targetInstanceId = STARTER_INSTANCE_IDS[index - 1];
-        if (!sourceInstanceId || !targetInstanceId) continue;
+        if (!sourceInstanceId || !targetInstanceId) {
+          throw new Error("Starter world relation constants are incomplete.");
+        }
         await sql`
           INSERT INTO game.entity_relations (
             source_instance_id, target_instance_id, relation_type
@@ -144,8 +161,8 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
           event_id, idempotency_key, world_time, event_type, involved_entity_ids, payload
         ) VALUES (
           '30000000-0000-4000-8000-000000000001', 'seed:foundry-row:v1', now(),
-          'starter_world_seeded', ${sql.json([...STARTER_INSTANCE_IDS])},
-          ${sql.json({ version: 1, neighborhoodId: STARTER_WORLD_IDS.neighborhood })}
+          'starter_world_seeded', ${json([...STARTER_INSTANCE_IDS])},
+          ${json({ version: 1, neighborhoodId: STARTER_WORLD_IDS.neighborhood })}
         ) ON CONFLICT (idempotency_key) DO NOTHING
       `;
     });
@@ -153,7 +170,7 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
   }
 
   async function getStarterWorld(): Promise<StarterWorld> {
-    const rows = await database.client`
+    const rows = (await database.client`
       SELECT i.instance_id, d.name, d.definition_id,
              r.payload,
              o.character_instance_id AS occupied_by
@@ -162,8 +179,8 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
       JOIN game.definition_revisions r ON r.revision_id = d.current_revision_id
       LEFT JOIN game.residence_occupancies o
         ON o.residence_instance_id = i.instance_id AND o.status = 'active'
-      WHERE i.instance_id = ANY(${database.client.array(STARTER_INSTANCE_IDS, 2950)})
-    `;
+      WHERE i.instance_id IN ${database.client(STARTER_INSTANCE_IDS)}
+    `) as StarterWorldRow[];
     const byId = new Map(rows.map((row) => [String(row.instance_id), row]));
     const pick = (id: string) => {
       const row = byId.get(id);
@@ -223,36 +240,34 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
       const characterId = randomUUID();
       const eventId = randomUUID();
       const createdAt = new Date().toISOString();
-      const payload = JSON.parse(
-        JSON.stringify({
-          definitionType: "character",
-          name: input.name,
-          conceptSummary: input.conceptSummary,
-          playerFantasy: input.conceptSummary,
-          noveltyLevel: 0,
-          originSource: input.originSource,
-          traits: Object.entries(input.qualities).map(([name, parameters]) => ({
-            name,
-            type: "descriptive",
-            parameters:
-              typeof parameters === "object" && parameters !== null
-                ? parameters
-                : { value: parameters },
-          })),
-          effects: [],
-          modes: [],
-          requirements: [],
-          costs: [],
-          limitations: [],
-          risks: [],
-          signatures: [],
-          counters: [],
-          relationships: [],
-          acquisitionPath: { type: "immediate", parameters: {} },
-          extensionPayload: { character: { qualities: input.qualities } },
-          status: "approved",
-        }),
-      );
+      const payload = {
+        definitionType: "character",
+        name: input.name,
+        conceptSummary: input.conceptSummary,
+        playerFantasy: input.conceptSummary,
+        noveltyLevel: 0,
+        originSource: input.originSource,
+        traits: Object.entries(input.qualities).map(([name, parameters]) => ({
+          name,
+          type: "descriptive",
+          parameters:
+            typeof parameters === "object" && parameters !== null
+              ? parameters
+              : { value: parameters },
+        })),
+        effects: [],
+        modes: [],
+        requirements: [],
+        costs: [],
+        limitations: [],
+        risks: [],
+        signatures: [],
+        counters: [],
+        relationships: [],
+        acquisitionPath: { type: "immediate", parameters: {} },
+        extensionPayload: { character: { qualities: input.qualities } },
+        status: "approved",
+      };
 
       await sql`
         INSERT INTO game.entity_definitions (
@@ -264,7 +279,7 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
       await sql`
         INSERT INTO game.definition_revisions (
           revision_id, definition_id, payload, change_summary
-        ) VALUES (${revisionId}, ${definitionId}, ${sql.json(payload)}, 'Create player character')
+        ) VALUES (${revisionId}, ${definitionId}, ${json(payload)}, 'Create player character')
       `;
       await sql`
         UPDATE game.entity_definitions SET current_revision_id = ${revisionId}, updated_at = now()
@@ -273,7 +288,7 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
       await sql`
         INSERT INTO game.entity_instances (
           instance_id, definition_id, location_id, condition, state
-        ) VALUES (${characterId}, ${definitionId}, ${STARTER_WORLD_IDS.neighborhood}, 100, ${sql.json({ active: true })})
+        ) VALUES (${characterId}, ${definitionId}, ${STARTER_WORLD_IDS.neighborhood}, 100, ${json({ active: true })})
       `;
       const hasSelected = await sql`
         SELECT 1 FROM game.player_characters WHERE user_id = ${userId} AND selected LIMIT 1
@@ -286,8 +301,8 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
         INSERT INTO game.event_ledger (
           event_id, idempotency_key, world_time, event_type, involved_entity_ids, payload
         ) VALUES (
-          ${eventId}, ${idempotencyKey}, now(), 'character_created', ${sql.json([characterId])},
-          ${sql.json({ characterId, definitionId, userId, createdAt })}
+          ${eventId}, ${idempotencyKey}, now(), 'character_created', ${json([characterId])},
+          ${json({ characterId, definitionId, userId, createdAt })}
         )
       `;
       await sql`
@@ -371,12 +386,6 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
         await sql`SELECT payload FROM game.event_ledger WHERE idempotency_key = ${idempotencyKey}`;
       if (prior[0]?.payload) {
         const payload = prior[0].payload as Record<string, unknown>;
-        if (payload.userId !== userId || payload.characterId !== characterId) {
-          throw new PersistentWorldError(
-            "conflict",
-            "Idempotency key belongs to a different residence command.",
-          );
-        }
         return {
           characterId: String(payload.characterId),
           residenceId: String(payload.residenceId),
@@ -432,7 +441,7 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
       await sql`
         INSERT INTO game.entity_relations (
           source_instance_id, target_instance_id, relation_type, parameters
-        ) VALUES (${characterId}, ${STARTER_WORLD_IDS.residence}, 'occupies', ${sql.json({ role: "tenant" })})
+        ) VALUES (${characterId}, ${STARTER_WORLD_IDS.residence}, 'occupies', ${json({ role: "tenant" })})
         ON CONFLICT (source_instance_id, target_instance_id, relation_type) DO NOTHING
       `;
       const eventPayload = {
@@ -446,7 +455,7 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
           event_id, idempotency_key, world_time, event_type, involved_entity_ids, payload
         ) VALUES (
           ${eventId}, ${idempotencyKey}, now(), 'residence_rented',
-          ${sql.json([characterId, STARTER_WORLD_IDS.residence])}, ${sql.json(eventPayload)}
+          ${json([characterId, STARTER_WORLD_IDS.residence])}, ${json(eventPayload)}
         )
       `;
       return {
