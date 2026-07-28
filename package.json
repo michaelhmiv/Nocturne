@@ -1,0 +1,28 @@
+{
+  "name": "nocturne",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "verify": "pnpm format:check && pnpm typecheck && pnpm test",
+    "db:migrate": "pnpm --filter @nocturne/database db:migrate",
+    "auth:generate": "pnpm --filter @nocturne/auth auth:generate"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "prettier": "^3.5.0",
+    "tsup": "^8.5.0",
+    "tsx": "^4.19.0",
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  }
+}
