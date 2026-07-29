@@ -71,11 +71,74 @@ interface OpenRouterResponse {
   };
 }
 
+type JsonObject = Record<string, unknown>;
+
+function object(value: unknown): value is JsonObject {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function resolveSchema(schema: unknown, root: JsonObject): JsonObject | undefined {
+  if (!object(schema)) return undefined;
+  const reference = schema.$ref;
+  if (typeof reference !== "string" || !reference.startsWith("#/")) return schema;
+  const resolved = reference
+    .slice(2)
+    .split("/")
+    .map((part) => part.replace(/~1/g, "/").replace(/~0/g, "~"))
+    .reduce<unknown>((value, part) => (object(value) ? value[part] : undefined), root);
+  return object(resolved) ? resolved : schema;
+}
+
+function allowsNull(schema: unknown, root: JsonObject): boolean {
+  const resolved = resolveSchema(schema, root);
+  if (!resolved) return false;
+  if (resolved.type === "null") return true;
+  if (Array.isArray(resolved.type) && resolved.type.includes("null")) return true;
+  return [resolved.anyOf, resolved.oneOf].some(
+    (variants) => Array.isArray(variants) && variants.some((variant) => allowsNull(variant, root)),
+  );
+}
+
+function omitUnexpectedNulls(value: unknown, schema: unknown, root: JsonObject): unknown {
+  const resolved = resolveSchema(schema, root);
+  if (!resolved) return value;
+  if (Array.isArray(value))
+    return value.map((item) => omitUnexpectedNulls(item, resolved.items, root));
+  if (!object(value)) return value;
+  const variants = Array.isArray(resolved.anyOf)
+    ? resolved.anyOf
+    : Array.isArray(resolved.oneOf)
+      ? resolved.oneOf
+      : [];
+  if (variants.length)
+    return omitUnexpectedNulls(
+      value,
+      variants.find((variant) => !allowsNull(variant, root)),
+      root,
+    );
+  if (!object(resolved.properties)) return value;
+  const cleaned: JsonObject = { ...value };
+  const required = new Set(Array.isArray(resolved.required) ? resolved.required : []);
+  for (const [key, propertySchema] of Object.entries(resolved.properties)) {
+    const property = resolveSchema(propertySchema, root);
+    if (!(key in cleaned)) {
+      if (required.has(key) && property?.type === "array") cleaned[key] = [];
+      continue;
+    }
+    if (cleaned[key] === null && !allowsNull(propertySchema, root)) {
+      if (required.has(key) && property?.type === "array") cleaned[key] = [];
+      else if (!required.has(key)) delete cleaned[key];
+    } else cleaned[key] = omitUnexpectedNulls(cleaned[key], propertySchema, root);
+  }
+  return cleaned;
+}
+
 export class OpenRouterClient {
   constructor(private readonly config: OpenRouterConfig) {}
 
   async generateStructured<T>(
     request: StructuredGenerationRequest<T>,
+    retries = 3,
   ): Promise<StructuredGenerationResult<T>> {
     const policy = createModelPolicy({
       task: request.task,
@@ -107,6 +170,7 @@ export class OpenRouterClient {
           body: JSON.stringify({
             model: policy.model,
             temperature: policy.temperature,
+            max_tokens: 1024,
             messages: [
               { role: "system", content: request.system },
               { role: "user", content: request.prompt },
@@ -116,7 +180,7 @@ export class OpenRouterClient {
               json_schema: {
                 name: request.jsonSchema.name,
                 description: request.jsonSchema.description,
-                strict: true,
+                strict: false,
                 schema: request.jsonSchema.schema,
               },
             },
@@ -141,6 +205,7 @@ export class OpenRouterClient {
     try {
       payload = JSON.parse(await response.text()) as OpenRouterResponse;
     } catch (error) {
+      if (retries) return this.generateStructured(request, retries - 1);
       throw new OpenRouterError("malformed_response", "OpenRouter returned malformed JSON.", {
         cause: error,
       });
@@ -156,11 +221,13 @@ export class OpenRouterClient {
       throw new OpenRouterError(
         code,
         payload.error?.message || `OpenRouter request failed with ${response.status}.`,
+        { cause: payload.error },
       );
     }
 
     const content = payload.choices?.[0]?.message?.content;
     if (!content || !payload.model) {
+      if (retries) return this.generateStructured(request, retries - 1);
       throw new OpenRouterError(
         "malformed_response",
         "OpenRouter returned no structured content or actual model identifier.",
@@ -170,7 +237,9 @@ export class OpenRouterClient {
     let decoded: unknown;
     try {
       decoded = JSON.parse(content);
+      decoded = omitUnexpectedNulls(decoded, request.jsonSchema.schema, request.jsonSchema.schema);
     } catch (error) {
+      if (retries) return this.generateStructured(request, retries - 1);
       throw new OpenRouterError(
         "malformed_response",
         "OpenRouter returned invalid structured JSON.",
@@ -182,6 +251,7 @@ export class OpenRouterClient {
 
     const validated = request.validator.safeParse(decoded);
     if (!validated.success) {
+      if (retries) return this.generateStructured(request, retries - 1);
       throw new OpenRouterError(
         "validation",
         `Structured model output failed validation: ${validated.error.message}`,

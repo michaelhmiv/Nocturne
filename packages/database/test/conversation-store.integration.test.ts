@@ -222,6 +222,44 @@ describePostgres("conversation store (PostgreSQL)", () => {
     ).rejects.toMatchObject<Partial<ConversationStoreError>>({ code: "invalid_input" });
   });
 
+  it("reopens failed and abandoned pending turns with a single lease claimant", async () => {
+    const failed = await store.reserveTurn("alice", randomUUID(), "failed-key", "hash-1", {
+      message: "Retry me",
+    });
+    await store.failTurn("alice", failed.turn.turnId, "provider_failure");
+    await expect(
+      store.reopenTurn("alice", failed.turn.turnId, new Date(Date.now() - 60_000)),
+    ).resolves.toMatchObject({ status: "pending", errorCode: null });
+    await expect(
+      store.reopenTurn("alice", failed.turn.turnId, new Date(Date.now() - 60_000)),
+    ).rejects.toMatchObject<Partial<ConversationStoreError>>({ code: "invalid_transition" });
+
+    const abandoned = await store.reserveTurn("alice", randomUUID(), "pending-key", "hash-2", {
+      message: "Resume me",
+    });
+    await database.client`
+      UPDATE game.conversation_turns
+      SET updated_at = now() - interval '10 minutes'
+      WHERE turn_id = ${abandoned.turn.turnId}
+    `;
+    const claims = await Promise.allSettled([
+      store.reopenTurn("alice", abandoned.turn.turnId, new Date(Date.now() - 60_000)),
+      store.reopenTurn("alice", abandoned.turn.turnId, new Date(Date.now() - 60_000)),
+    ]);
+    const winner = claims.find(
+      (claim): claim is PromiseFulfilledResult<Awaited<ReturnType<typeof store.reopenTurn>>> =>
+        claim.status === "fulfilled",
+    )!.value;
+    expect(claims.filter(({ status }) => status === "fulfilled")).toHaveLength(1);
+    expect(claims.filter(({ status }) => status === "rejected")).toHaveLength(1);
+    await expect(
+      store.failTurn("alice", abandoned.turn.turnId, "late-worker", abandoned.turn.updatedAt),
+    ).rejects.toMatchObject<Partial<ConversationStoreError>>({ code: "invalid_transition" });
+    await expect(
+      store.failTurn("alice", abandoned.turn.turnId, "winner", winner.updatedAt),
+    ).resolves.toMatchObject({ status: "failed" });
+  });
+
   it("returns bounded ordered player-safe history without authoritative fields", async () => {
     const conversationId = randomUUID();
     for (let index = 0; index <= MAX_CONVERSATION_HISTORY_ENTRIES; index += 1) {

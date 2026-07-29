@@ -87,6 +87,23 @@ const authoritativePlan: AuthoritativeConversationPlan = {
   unconditionalOperations: [],
 };
 
+const playerSafeHistory = [
+  {
+    request: { message: "Where am I?" },
+    response: {
+      responseId: "prior-turn",
+      narration: "You are in the library.",
+      plan: {
+        intent: { kind: "question" as const, summary: "Ask where you are." },
+        facts: [playerFact],
+        checks: [],
+      },
+      execution: { state: "completed" as const },
+      outcomes: [],
+    },
+  },
+];
+
 type Request = StructuredGenerationRequest<unknown>;
 
 function queuedClient(outputs: unknown[]) {
@@ -113,13 +130,16 @@ describe("conversation adjudicator", () => {
     const result = await proposeViewpointConversation(mock.client, {
       message: "I search the desk.",
       playerKnownFacts: [playerFact],
+      playerSafeHistory,
     });
 
     expect(result.data).toEqual(viewpointPlan);
     expect(mock.requests).toHaveLength(1);
     expect(mock.requests[0]!.task).toBe("propose_adjudication");
     expect(mock.requests[0]!.prompt).toContain(playerFact.claim);
+    expect(mock.requests[0]!.prompt).toContain("You are in the library.");
     expect(mock.requests[0]!.prompt).not.toContain(hiddenFact.claim);
+    expect((mock.requests[0]!.jsonSchema.schema as any).properties).not.toHaveProperty("facts");
   });
 
   it("passes the frozen viewpoint result to the authoritative pass", async () => {
@@ -128,28 +148,33 @@ describe("conversation adjudicator", () => {
       message: "I search the desk.",
       viewpointPlan,
       hiddenFacts: [hiddenFact],
+      playerSafeHistory,
     });
 
     expect(result.data).toEqual(authoritativePlan);
     expect(mock.requests[0]!.prompt).toContain(hiddenFact.claim);
+    expect(mock.requests[0]!.prompt).toContain("You are in the library.");
     expect(JSON.parse(mock.requests[0]!.prompt).viewpointPlan).toEqual(viewpointPlan);
+    expect((mock.requests[0]!.jsonSchema.schema as any).properties).not.toHaveProperty(
+      "viewpointPlan",
+    );
+    expect((mock.requests[0]!.jsonSchema.schema as any).properties).not.toHaveProperty(
+      "hiddenFacts",
+    );
   });
 
-  it("rejects an authoritative pass that rewrites the frozen viewpoint", async () => {
+  it("overwrites model changes to frozen inputs", async () => {
     const rewritten = structuredClone(authoritativePlan);
     rewritten.viewpointPlan.checks[0]!.apparentProbability = probability(5_000, "even");
-    const mock = queuedClient([rewritten]);
-
+    rewritten.hiddenFacts[0]!.claim = "A different hidden fact.";
     await expect(
-      authorizeConversation(mock.client, {
+      authorizeConversation(queuedClient([rewritten]).client, {
         message: "I search the desk.",
         viewpointPlan,
         hiddenFacts: [hiddenFact],
       }),
-    ).rejects.toMatchObject({ code: "validation" });
-  });
+    ).resolves.toMatchObject({ data: authoritativePlan });
 
-  it("rejects either pass rewriting its frozen fact set", async () => {
     const rewrittenViewpoint = structuredClone(viewpointPlan);
     rewrittenViewpoint.facts[0]!.claim = "A different public fact.";
     await expect(
@@ -157,17 +182,7 @@ describe("conversation adjudicator", () => {
         message: "I search the desk.",
         playerKnownFacts: [playerFact],
       }),
-    ).rejects.toMatchObject({ code: "validation" });
-
-    const rewrittenAuthority = structuredClone(authoritativePlan);
-    rewrittenAuthority.hiddenFacts[0]!.claim = "A different hidden fact.";
-    await expect(
-      authorizeConversation(queuedClient([rewrittenAuthority]).client, {
-        message: "I search the desk.",
-        viewpointPlan,
-        hiddenFacts: [hiddenFact],
-      }),
-    ).rejects.toMatchObject({ code: "validation" });
+    ).resolves.toMatchObject({ data: viewpointPlan });
   });
 
   it("supports ordinary no-roll conversation", async () => {
@@ -176,14 +191,46 @@ describe("conversation adjudicator", () => {
       facts: [playerFact],
       checks: [],
     };
-    const mock = queuedClient([noRoll]);
+    const proposed = {
+      ...noRoll,
+      intent: { kind: "world_action" as const, summary: "Check the time." },
+      checks: viewpointPlan.checks,
+    };
+    const mock = queuedClient([proposed]);
 
     await expect(
       proposeViewpointConversation(mock.client, {
         message: "What time is it?",
         playerKnownFacts: [playerFact],
       }),
-    ).resolves.toMatchObject({ data: noRoll });
+    ).resolves.toMatchObject({ data: { intent: { kind: "question" }, checks: [] } });
+    expect(mock.requests).toHaveLength(0);
+  });
+
+  it("skips authority generation for ordinary no-roll questions", async () => {
+    const question = {
+      ...viewpointPlan,
+      intent: { kind: "question" as const, summary: "Look around." },
+      checks: [],
+    };
+    const mock = queuedClient([]);
+
+    await expect(
+      authorizeConversation(mock.client, {
+        message: "What can I see?",
+        viewpointPlan: question,
+        hiddenFacts: [hiddenFact],
+      }),
+    ).resolves.toMatchObject({
+      data: {
+        viewpointPlan: question,
+        hiddenFacts: [hiddenFact],
+        checkAuthorizations: [],
+        hiddenChecks: [],
+        unconditionalOperations: [],
+      },
+    });
+    expect(mock.requests).toHaveLength(0);
   });
 
   it("narrates only from player-safe committed data", async () => {

@@ -42,9 +42,9 @@ type TurnRow = {
   authoritative_response: unknown | null;
   player_safe_response: unknown | null;
   error_code: string | null;
-  created_at: Date;
-  updated_at: Date;
-  completed_at: Date | null;
+  created_at: Date | string;
+  updated_at: Date | string;
+  completed_at: Date | string | null;
 };
 
 export class ConversationStoreError extends Error {
@@ -81,6 +81,13 @@ function parse<T>(schema: { parse(value: unknown): T }, value: unknown, name: st
   }
 }
 
+function timestamp(value: Date | string): Date {
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(parsed.getTime()))
+    throw new ConversationStoreError("invalid_input", "Invalid stored timestamp.");
+  return parsed;
+}
+
 function turn(row: TurnRow): ConversationTurn {
   return {
     turnId: row.turn_id,
@@ -107,9 +114,9 @@ function turn(row: TurnRow): ConversationTurn {
             "stored player-safe response",
           ),
     errorCode: row.error_code,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    completedAt: row.completed_at,
+    createdAt: timestamp(row.created_at),
+    updatedAt: timestamp(row.updated_at),
+    completedAt: row.completed_at === null ? null : timestamp(row.completed_at),
   };
 }
 
@@ -179,9 +186,11 @@ export function createConversationStore(database: ReturnType<typeof createDataba
     turnIdValue: string,
     authoritativeResponseValue: unknown,
     playerSafeResponseValue: unknown,
+    leaseUpdatedAtValue?: Date,
   ): Promise<ConversationTurn> {
     const userId = identifier(userIdValue, "user ID", 256);
     const turnId = identifier(turnIdValue, "turn ID", 36, true);
+    const leaseUpdatedAt = leaseUpdatedAtValue?.toISOString() ?? null;
     const authoritativeResponse = parse(
       AuthoritativeConversationResponseSchema,
       authoritativeResponseValue,
@@ -200,6 +209,7 @@ export function createConversationStore(database: ReturnType<typeof createDataba
             player_safe_response = ${json(playerSafeResponse)}, error_code = NULL,
             updated_at = now(), completed_at = now()
         WHERE turn_id = ${turnId} AND user_id = ${userId} AND status = 'pending'
+          AND (${leaseUpdatedAt}::timestamptz IS NULL OR date_trunc('milliseconds', updated_at) = ${leaseUpdatedAt}::timestamptz)
         RETURNING *
       `;
       if (updated[0]) return turn(updated[0]);
@@ -218,16 +228,19 @@ export function createConversationStore(database: ReturnType<typeof createDataba
     userIdValue: string,
     turnIdValue: string,
     errorCodeValue: string,
+    leaseUpdatedAtValue?: Date,
   ): Promise<ConversationTurn> {
     const userId = identifier(userIdValue, "user ID", 256);
     const turnId = identifier(turnIdValue, "turn ID", 36, true);
     const errorCode = identifier(errorCodeValue, "error code", 128);
+    const leaseUpdatedAt = leaseUpdatedAtValue?.toISOString() ?? null;
 
     return database.client.begin(async (sql) => {
       const updated = await sql<TurnRow[]>`
         UPDATE game.conversation_turns
         SET status = 'failed', error_code = ${errorCode}, updated_at = now(), completed_at = now()
         WHERE turn_id = ${turnId} AND user_id = ${userId} AND status = 'pending'
+          AND (${leaseUpdatedAt}::timestamptz IS NULL OR date_trunc('milliseconds', updated_at) = ${leaseUpdatedAt}::timestamptz)
         RETURNING *
       `;
       if (updated[0]) return turn(updated[0]);
@@ -240,6 +253,43 @@ export function createConversationStore(database: ReturnType<typeof createDataba
       if (existing[0].status === "failed") return turn(existing[0]);
       throw new ConversationStoreError("invalid_transition", "Completed turns cannot be failed.");
     });
+  }
+
+  async function reopenTurn(
+    userIdValue: string,
+    turnIdValue: string,
+    staleBeforeValue: Date,
+  ): Promise<ConversationTurn> {
+    const userId = identifier(userIdValue, "user ID", 256);
+    const turnId = identifier(turnIdValue, "turn ID", 36, true);
+    if (!(staleBeforeValue instanceof Date) || !Number.isFinite(staleBeforeValue.getTime())) {
+      throw new ConversationStoreError("invalid_input", "Invalid stale-before timestamp.");
+    }
+
+    const updated = await database.client<TurnRow[]>`
+      UPDATE game.conversation_turns
+      SET status = 'pending', authoritative_response = NULL, player_safe_response = NULL,
+          error_code = NULL, updated_at = now(), completed_at = NULL
+      WHERE turn_id = ${turnId} AND user_id = ${userId}
+        AND (
+          status = 'failed'
+          OR (status = 'pending' AND updated_at <= ${staleBeforeValue.toISOString()}::timestamptz)
+        )
+      RETURNING *
+    `;
+    if (updated[0]) return turn(updated[0]);
+
+    const existing = await database.client<TurnRow[]>`
+      SELECT * FROM game.conversation_turns
+      WHERE turn_id = ${turnId} AND user_id = ${userId}
+    `;
+    if (!existing[0]) throw new ConversationStoreError("not_found", "Turn not found.");
+    throw new ConversationStoreError(
+      "invalid_transition",
+      existing[0].status === "completed"
+        ? "Completed turns cannot be reopened."
+        : "Pending turn lease is still active.",
+    );
   }
 
   async function listPlayerSafeHistory(userIdValue: string, conversationIdValue: string) {
@@ -265,7 +315,7 @@ export function createConversationStore(database: ReturnType<typeof createDataba
     });
   }
 
-  return { reserveTurn, completeTurn, failTurn, listPlayerSafeHistory };
+  return { reserveTurn, completeTurn, failTurn, reopenTurn, listPlayerSafeHistory };
 }
 
 export type ConversationStore = ReturnType<typeof createConversationStore>;

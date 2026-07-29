@@ -4,6 +4,7 @@ import {
   ConversationMessageRequestSchema,
   HiddenFactReferenceSchema,
   MAX_CONVERSATION_FACTS,
+  PlayerSafeConversationHistorySchema,
   PlayerSafeConversationResponseSchema,
   PublicFactReferenceSchema,
   ViewpointConversationPlanSchema,
@@ -36,9 +37,19 @@ function jsonSchema(name: string, schema: z.ZodType): JsonSchemaDefinition {
   };
 }
 
-function sameJson(left: unknown, right: unknown): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
-}
+const ViewpointOutputSchema = z
+  .object({
+    intent: ViewpointConversationPlanSchema.shape.intent,
+    checks: ViewpointConversationPlanSchema.shape.checks,
+  })
+  .strict();
+const AuthoritativeOutputSchema = z
+  .object({
+    checkAuthorizations: AuthoritativeConversationPlanSchema.shape.checkAuthorizations,
+    hiddenChecks: AuthoritativeConversationPlanSchema.shape.hiddenChecks,
+    unconditionalOperations: AuthoritativeConversationPlanSchema.shape.unconditionalOperations,
+  })
+  .strict();
 
 function validatedResult<T>(
   result: StructuredGenerationResult<unknown>,
@@ -56,25 +67,55 @@ function validatedResult<T>(
 
 export async function proposeViewpointConversation(
   client: Generator,
-  input: { message: string; playerKnownFacts: FactReference[] },
+  input: {
+    message: string;
+    playerKnownFacts: FactReference[];
+    playerSafeHistory?: z.infer<typeof PlayerSafeConversationHistorySchema>;
+  },
 ): Promise<StructuredGenerationResult<ViewpointConversationPlan>> {
   const message = ConversationMessageRequestSchema.parse({ message: input.message }).message;
   const facts = z
     .array(PublicFactReferenceSchema)
     .max(MAX_CONVERSATION_FACTS)
     .parse(input.playerKnownFacts);
-  const generation = await client.generateStructured<ViewpointConversationPlan>({
+  const playerSafeHistory = PlayerSafeConversationHistorySchema.parse(
+    input.playerSafeHistory ?? [],
+  );
+  const isQuestion =
+    message.endsWith("?") ||
+    /^(?:what|where|when|who|why|how|is|are|can|could|do|does|did|will|would|should)\b/i.test(
+      message,
+    );
+  if (isQuestion) {
+    return {
+      data: ViewpointConversationPlanSchema.parse({
+        intent: { kind: "question", summary: message },
+        facts,
+        checks: [],
+      }),
+      requestedModel: "deterministic/no-roll",
+      actualModel: "deterministic/no-roll",
+    };
+  }
+  const generation = await client.generateStructured<z.infer<typeof ViewpointOutputSchema>>({
     task: "propose_adjudication",
     system: `You are Nocturne's player-viewpoint adjudicator. Policy ${VIEWPOINT_ADJUDICATION_POLICY_VERSION}. Infer ordinary conversational intent. Propose only meaningful uncertainty checks. Use and cite only supplied player-known facts. Never invent hidden context, roll dice, authorize writes, or coach the player toward canned actions.`,
-    prompt: JSON.stringify({ message, playerKnownFacts: facts }),
-    jsonSchema: jsonSchema("nocturne_viewpoint_conversation_plan", ViewpointConversationPlanSchema),
-    validator: ViewpointConversationPlanSchema,
+    prompt: JSON.stringify({ message, playerKnownFacts: facts, playerSafeHistory }),
+    jsonSchema: jsonSchema("nocturne_viewpoint_conversation_plan", ViewpointOutputSchema),
+    validator: ViewpointOutputSchema,
   });
-  const result = validatedResult(generation, ViewpointConversationPlanSchema);
-  if (!sameJson(result.data.facts, facts)) {
-    throw new OpenRouterError("validation", "The viewpoint pass rewrote its frozen fact set.");
-  }
-  return result;
+  return validatedResult(
+    {
+      ...generation,
+      data: {
+        ...generation.data,
+        intent: generation.data.intent,
+        checks: generation.data.checks,
+        facts,
+      },
+    },
+    ViewpointConversationPlanSchema,
+  );
 }
 
 export async function authorizeConversation(
@@ -83,6 +124,7 @@ export async function authorizeConversation(
     message: string;
     viewpointPlan: ViewpointConversationPlan;
     hiddenFacts: FactReference[];
+    playerSafeHistory?: z.infer<typeof PlayerSafeConversationHistorySchema>;
   },
 ): Promise<StructuredGenerationResult<AuthoritativeConversationPlan>> {
   const message = ConversationMessageRequestSchema.parse({ message: input.message }).message;
@@ -91,30 +133,33 @@ export async function authorizeConversation(
     .array(HiddenFactReferenceSchema)
     .max(MAX_CONVERSATION_FACTS - viewpointPlan.facts.length)
     .parse(input.hiddenFacts);
-  const generation = await client.generateStructured<AuthoritativeConversationPlan>({
+  const playerSafeHistory = PlayerSafeConversationHistorySchema.parse(
+    input.playerSafeHistory ?? [],
+  );
+  if (viewpointPlan.intent.kind === "question" && viewpointPlan.checks.length === 0) {
+    return {
+      data: AuthoritativeConversationPlanSchema.parse({
+        viewpointPlan,
+        hiddenFacts,
+        checkAuthorizations: [],
+        hiddenChecks: [],
+        unconditionalOperations: [],
+      }),
+      requestedModel: "deterministic/no-roll",
+      actualModel: "deterministic/no-roll",
+    };
+  }
+  const generation = await client.generateStructured<z.infer<typeof AuthoritativeOutputSchema>>({
     task: "propose_adjudication",
     system: `You are Nocturne's authoritative adjudicator. Policy ${AUTHORITATIVE_ADJUDICATION_POLICY_VERSION}. Preserve the supplied viewpoint plan byte-for-byte. You may add only cited hidden adjustments, separate hidden reactions, and allowlisted state operations with cited preconditions. Never roll dice, narrate to the player, or perform writes.`,
-    prompt: JSON.stringify({ message, viewpointPlan, hiddenFacts }),
-    jsonSchema: jsonSchema(
-      "nocturne_authoritative_conversation_plan",
-      AuthoritativeConversationPlanSchema,
-    ),
-    validator: AuthoritativeConversationPlanSchema,
+    prompt: JSON.stringify({ message, viewpointPlan, hiddenFacts, playerSafeHistory }),
+    jsonSchema: jsonSchema("nocturne_authoritative_conversation_plan", AuthoritativeOutputSchema),
+    validator: AuthoritativeOutputSchema,
   });
-  const result = validatedResult(generation, AuthoritativeConversationPlanSchema);
-  if (!sameJson(result.data.viewpointPlan, viewpointPlan)) {
-    throw new OpenRouterError(
-      "validation",
-      "The authoritative pass rewrote the frozen viewpoint plan.",
-    );
-  }
-  if (!sameJson(result.data.hiddenFacts, hiddenFacts)) {
-    throw new OpenRouterError(
-      "validation",
-      "The authoritative pass rewrote its frozen hidden fact set.",
-    );
-  }
-  return result;
+  return validatedResult(
+    { ...generation, data: { ...generation.data, viewpointPlan, hiddenFacts } },
+    AuthoritativeConversationPlanSchema,
+  );
 }
 
 export async function narratePlayerSafeConversation(

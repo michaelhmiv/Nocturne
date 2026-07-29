@@ -16,7 +16,10 @@
     "verify": "pnpm format:check && pnpm typecheck && pnpm test",
     "db:migrate": "pnpm --filter @nocturne/database db:migrate",
     "auth:generate": "pnpm --filter @nocturne/auth auth:generate",
-    "auth:migrate": "pnpm --filter @nocturne/auth auth:migrate"
+    "auth:migrate": "pnpm --filter @nocturne/auth auth:migrate",
+    "nocturne:cli": "tsx scripts/nocturne-cli.ts",
+    "nocturne:scenario": "tsx scripts/nocturne-scenario.ts",
+    "test:cli": "vitest run test/cli.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

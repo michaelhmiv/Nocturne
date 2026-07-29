@@ -10,12 +10,16 @@ const request = {
     name: "draft",
     schema: {
       type: "object",
-      properties: { name: { type: "string" } },
-      required: ["name"],
+      properties: {
+        name: { type: "string" },
+        note: { type: "string" },
+        tags: { type: "array", items: { type: "string" } },
+      },
+      required: ["name", "tags"],
       additionalProperties: false,
     },
   },
-  validator: z.object({ name: z.string() }),
+  validator: z.object({ name: z.string(), note: z.string().optional(), tags: z.array(z.string()) }),
 };
 
 function errorCode(error: unknown) {
@@ -33,12 +37,12 @@ describe("OpenRouterClient", () => {
     );
   });
 
-  it("requests strict JSON Schema, defaults to openrouter/free, and records the actual model", async () => {
+  it("requests provider-compatible JSON Schema, defaults to openrouter/free, and records the actual model", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       Response.json({
         id: "run-1",
         model: "provider/actual-free-model",
-        choices: [{ message: { content: '{"name":"Parallax Array"}' } }],
+        choices: [{ message: { content: '{"name":"Parallax Array","note":null}' } }],
       }),
     );
     vi.stubGlobal("fetch", fetchMock);
@@ -48,9 +52,11 @@ describe("OpenRouterClient", () => {
     const body = JSON.parse(String(init.body));
 
     expect(body.model).toBe("openrouter/free");
-    expect(body.response_format.json_schema.strict).toBe(true);
+    expect(body.max_tokens).toBe(1024);
+    expect(body.response_format.json_schema.strict).toBe(false);
     expect(body.provider.require_parameters).toBe(true);
     expect(result.actualModel).toBe("provider/actual-free-model");
+    expect(result.data).toEqual({ name: "Parallax Array", tags: [] });
     expect(result.providerRequestId).toBe("run-1");
   });
 
@@ -78,6 +84,29 @@ describe("OpenRouterClient", () => {
     await expect(
       new OpenRouterClient({ apiKey: "test-key" }).generateStructured(request),
     ).rejects.toSatisfy((error: unknown) => errorCode(error) === "malformed_response");
+  });
+
+  it("retries one invalid structured response", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          model: "provider/free-model",
+          choices: [{ message: { content: "We need to answer..." } }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          model: "provider/free-model",
+          choices: [{ message: { content: '{"name":"Parallax Array","tags":[]}' } }],
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      new OpenRouterClient({ apiKey: "x" }).generateStructured(request),
+    ).resolves.toMatchObject({ data: { name: "Parallax Array", tags: [] } });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("honors caller abort signals", async () => {
