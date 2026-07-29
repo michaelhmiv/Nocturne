@@ -184,6 +184,7 @@ export class OpenRouterClient {
                 schema: request.jsonSchema.schema,
               },
             },
+            plugins: [{ id: "response-healing" }],
             provider: {
               require_parameters: true,
             },
