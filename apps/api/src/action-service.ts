@@ -26,8 +26,6 @@ export function createActionService(store: ActionStore, environment = process.en
   const client = new OpenRouterClient({
     apiKey: environment.OPENROUTER_API_KEY,
     baseUrl: environment.OPENROUTER_BASE_URL,
-    authoritativeModel: environment.NOCTURNE_AUTHORITATIVE_MODEL,
-    creativeModel: environment.NOCTURNE_CREATIVE_MODEL,
     httpReferer: environment.OPENROUTER_HTTP_REFERER,
     appName: environment.OPENROUTER_APP_NAME,
   });
@@ -52,7 +50,7 @@ export function createActionService(store: ActionStore, environment = process.en
     const parseRun = await store.startAiRun({
       task: "parse_intent",
       authority: "authoritative",
-      requestedModel: environment.NOCTURNE_AUTHORITATIVE_MODEL || "openrouter/free",
+      requestedModel: "openrouter/free",
       policyVersion: ACTION_PARSE_POLICY_VERSION,
       inputHash: hash({ input, context: context.publicContext }),
       metadata: { actorId: input.actorId, idempotencyKey },
@@ -208,7 +206,7 @@ export function createActionService(store: ActionStore, environment = process.en
       const narrationRun = await store.startAiRun({
         task: "narrate_event",
         authority: "creative",
-        requestedModel: environment.NOCTURNE_CREATIVE_MODEL || "openrouter/free",
+        requestedModel: "openrouter/free",
         policyVersion: EVENT_NARRATION_POLICY_VERSION,
         inputHash: hash(committed),
         metadata: { eventId: committed.eventId },

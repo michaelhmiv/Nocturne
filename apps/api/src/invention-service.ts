@@ -22,8 +22,6 @@ export function createInventionService(store: InventionStore, environment = proc
   const client = new OpenRouterClient({
     apiKey: environment.OPENROUTER_API_KEY,
     baseUrl: environment.OPENROUTER_BASE_URL,
-    authoritativeModel: environment.NOCTURNE_AUTHORITATIVE_MODEL,
-    creativeModel: environment.NOCTURNE_CREATIVE_MODEL,
     httpReferer: environment.OPENROUTER_HTTP_REFERER,
     appName: environment.OPENROUTER_APP_NAME,
   });
@@ -37,10 +35,9 @@ export function createInventionService(store: InventionStore, environment = proc
       rawConcept: input.rawConcept,
       context: { intendedUse: input.intendedUse },
     });
-    const requestedModel = environment.NOCTURNE_AUTHORITATIVE_MODEL || "openrouter/free";
     const runId = await store.startAiRun({
       task: "normalize_content",
-      requestedModel,
+      requestedModel: "openrouter/free",
       policyVersion: CONTENT_NORMALIZATION_POLICY_VERSION,
       inputHash: hash(input),
       metadata: { requestId, characterId: input.characterId },

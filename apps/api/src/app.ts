@@ -37,8 +37,6 @@ export async function buildApp() {
   const conversations = createConversationService({
     client: new OpenRouterClient({
       apiKey: process.env.OPENROUTER_API_KEY,
-      authoritativeModel: process.env.NOCTURNE_AUTHORITATIVE_MODEL,
-      creativeModel: process.env.NOCTURNE_CREATIVE_MODEL,
     }),
     turns: conversationTurns,
     rollSecret: process.env.NOCTURNE_ROLL_SECRET || process.env.BETTER_AUTH_SECRET,
@@ -129,14 +127,8 @@ export async function buildApp() {
       : reply.code(401).send({ error: "unauthorized" });
   });
   app.get("/v1/system/model-policy", async () => ({
-    authoritative: createModelPolicy({
-      task: "parse_intent",
-      authoritativeModel: process.env.NOCTURNE_AUTHORITATIVE_MODEL,
-    }),
-    creative: createModelPolicy({
-      task: "narrate_event",
-      creativeModel: process.env.NOCTURNE_CREATIVE_MODEL,
-    }),
+    authoritative: createModelPolicy({ task: "parse_intent" }),
+    creative: createModelPolicy({ task: "narrate_event" }),
   }));
   app.post("/v1/content/validate", async (request, reply) => {
     const result = validateGeneratedContent(request.body);
