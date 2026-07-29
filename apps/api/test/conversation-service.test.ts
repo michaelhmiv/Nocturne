@@ -101,7 +101,6 @@ describe("conversation service", () => {
     const client = queuedClient([
       new Error("temporary provider failure"),
       viewpointPlan,
-      authoritativePlan,
       { narration: "Recovered." },
     ]);
     const service = createConversationService({
@@ -121,11 +120,7 @@ describe("conversation service", () => {
   });
 
   it("loads persisted player-safe history for the requested conversation", async () => {
-    const client = queuedClient([
-      viewpointPlan,
-      authoritativePlan,
-      { narration: "The corridor is currently quiet." },
-    ]);
+    const client = queuedClient([{ narration: "The corridor is currently quiet." }]);
     const turns = memoryTurns();
     const conversationId = randomUUID();
     const service = createConversationService({
@@ -145,12 +140,12 @@ describe("conversation service", () => {
   });
 
   it("completes a passive conversational turn through both adjudication passes", async () => {
-    const client = queuedClient([
-      viewpointPlan,
-      authoritativePlan,
-      { narration: "The corridor is currently quiet." },
-    ]);
+    const client = queuedClient([{ narration: "The corridor is currently quiet." }]);
     const turns = memoryTurns();
+    const expectedViewpointPlan = {
+      ...viewpointPlan,
+      intent: { kind: "question" as const, summary: "Is the corridor quiet?" },
+    };
     const service = createConversationService({
       client,
       turns,
@@ -166,16 +161,50 @@ describe("conversation service", () => {
 
     expect(response).toMatchObject({
       narration: "The corridor is currently quiet.",
-      plan: viewpointPlan,
+      plan: expectedViewpointPlan,
       execution: { state: "completed" },
       outcomes: [],
     });
-    expect(client.calls).toBe(3);
+    expect(client.calls).toBe(1);
     expect([...turns.turns.values()][0]).toMatchObject({
       status: "completed",
-      authoritativeResponse: { plan: authoritativePlan, hiddenOutcomes: [] },
+      authoritativeResponse: {
+        plan: { ...authoritativePlan, viewpointPlan: expectedViewpointPlan },
+        hiddenOutcomes: [],
+      },
       playerSafeResponse: response,
     });
+  });
+
+  it("returns the canonical response when another lease completes first", async () => {
+    const turnId = randomUUID();
+    const turns = memoryTurns(turnId);
+    const canonicalResponse = {
+      responseId: turnId,
+      narration: "Canonical persisted response.",
+      plan: viewpointPlan,
+      execution: { state: "completed" as const },
+      outcomes: [],
+    };
+    turns.completeTurn = async () => ({
+      ...turns.turns.values().next().value,
+      status: "completed" as const,
+      playerSafeResponse: canonicalResponse,
+    });
+    const service = createConversationService({
+      client: queuedClient([{ narration: "Noncanonical local response." }]),
+      turns,
+      loadContext: async () => ({ playerKnownFacts: [], hiddenFacts: [] }),
+    });
+
+    await expect(
+      service.submitMessage({
+        userId: "alice",
+        conversationId: randomUUID(),
+        idempotencyKey: "overlapping-lease",
+        request: { message: "What happened?" },
+      }),
+    ).resolves.toEqual(canonicalResponse);
   });
 
   it("rolls an authorized world-action check and returns the exact result", async () => {

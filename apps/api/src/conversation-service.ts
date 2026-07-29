@@ -38,7 +38,7 @@ type Turns = {
     authoritativeResponse: unknown,
     playerSafeResponse: unknown,
     leaseUpdatedAt?: Date,
-  ): Promise<unknown>;
+  ): Promise<Turn>;
   failTurn(
     userId: string,
     turnId: string,
@@ -251,14 +251,14 @@ export function createConversationService(dependencies: {
         hiddenOutcomes,
       });
       const playerSafeResponse = redactConversationResponse(authoritativeResponse);
-      await dependencies.turns.completeTurn(
+      const completed = await dependencies.turns.completeTurn(
         input.userId,
         activeTurn.turnId,
         authoritativeResponse,
         playerSafeResponse,
         activeTurn.updatedAt,
       );
-      return playerSafeResponse;
+      return PlayerSafeConversationResponseSchema.parse(completed.playerSafeResponse);
     } catch (error) {
       const code = error instanceof ConversationServiceError ? error.code : "processing_error";
       await dependencies.turns

@@ -128,7 +128,8 @@ export async function executeConversationStateOperations(
     declaredFactIds: input.declaredFactIds,
     operations,
   };
-  return database.client.begin(async (sql) => {
+  const execution = database.client.begin(async (sql) => {
+    await sql`SET TRANSACTION ISOLATION LEVEL SERIALIZABLE`;
     const turns = await sql<{ status: string; updatedAt: string }[]>`
       SELECT status, updated_at::text AS "updatedAt"
       FROM game.conversation_turns
@@ -168,6 +169,7 @@ export async function executeConversationStateOperations(
       throw new StateOperationExecutorError("invalid_input", "State operation replay conflicts.");
     }
 
+    await requireMutableEntity(sql, input.viewpointId, input.viewpointId);
     const context = await createAuthoritativeContextStore(database).buildContext(input.userId, sql);
     if (context.viewpointId !== input.viewpointId) {
       throw new StateOperationExecutorError(
@@ -176,11 +178,26 @@ export async function executeConversationStateOperations(
       );
     }
     const declared = new Set(input.declaredFactIds);
-    const current = new Set(
-      [...context.playerKnownFacts, ...context.authoritativeHiddenFacts].map(
-        ({ factId }) => factId,
-      ),
-    );
+    const currentFacts = [...context.playerKnownFacts, ...context.authoritativeHiddenFacts];
+    const current = new Set(currentFacts.map(({ factId }) => factId));
+    const subjectReferenceClaims = new Set([
+      "selected_character",
+      "current_location",
+      "place_ancestor",
+      "held_item",
+      "observed_entity",
+    ]);
+    const citesCurrentEntity = (
+      operation: ConversationStateOperation,
+      entityId: string,
+      allowsClaim: (claim: string) => boolean,
+    ) =>
+      currentFacts.some(
+        (fact) =>
+          operation.preconditionFactIds.includes(fact.factId) &&
+          fact.value === entityId &&
+          allowsClaim(fact.claim),
+      );
     for (const operation of operations) {
       for (const factId of operation.preconditionFactIds) {
         if (!declared.has(factId) || !current.has(factId)) {
@@ -195,6 +212,18 @@ export async function executeConversationStateOperations(
     for (const operation of operations) {
       if (operation.type === "move_entity") {
         await requireMutableEntity(sql, operation.entityId, input.viewpointId);
+        if (
+          !citesCurrentEntity(
+            operation,
+            operation.locationId,
+            (claim) => claim === "relationship.can_enter",
+          )
+        ) {
+          throw new StateOperationExecutorError(
+            "unmet_precondition",
+            "Movement destination is not authorized by a current cited fact.",
+          );
+        }
         const destinations = await sql`
           SELECT 1
           FROM game.entity_instances instance
@@ -211,7 +240,21 @@ export async function executeConversationStateOperations(
         }
       } else if (operation.type === "create_information_asset") {
         await requireMutableEntity(sql, operation.holderId, input.viewpointId);
-        if (operation.subjectId) await requireEntity(sql, operation.subjectId);
+        if (operation.subjectId) {
+          if (
+            !citesCurrentEntity(
+              operation,
+              operation.subjectId,
+              (claim) => subjectReferenceClaims.has(claim) || claim.startsWith("relationship."),
+            )
+          ) {
+            throw new StateOperationExecutorError(
+              "unmet_precondition",
+              "Information subject is not authorized by a current cited fact.",
+            );
+          }
+          await requireEntity(sql, operation.subjectId);
+        }
       }
     }
 
@@ -262,5 +305,14 @@ export async function executeConversationStateOperations(
       }
     }
     return { eventId: input.eventId };
+  });
+  return execution.catch((error: unknown) => {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "40001") {
+      throw new StateOperationExecutorError(
+        "unmet_precondition",
+        "State changed while applying this turn.",
+      );
+    }
+    throw error;
   });
 }
