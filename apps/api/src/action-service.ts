@@ -95,33 +95,34 @@ export function createActionService(store: ActionStore, environment = process.en
     if (parsed.intent.actorId !== input.actorId) {
       throw new Error("Parsed actor does not match the authenticated command actor.");
     }
+    // ponytail: override AI mistakes for the single supported action type in v0.1
     if (parsed.intent.actionType !== "detect") {
-      throw new Error("The first vertical slice accepts detection actions only.");
+      parsed = deterministicActionFallback(
+        input,
+        context.method.definitionId,
+        context.targetLocation.id,
+      );
     }
     if (!parsed.intent.methodDefinitionIds.includes(context.method.definitionId)) {
-      throw new Error("Parsed action does not use the selected installed method.");
+      parsed.intent.methodDefinitionIds = [context.method.definitionId];
     }
     if (!parsed.intent.targetIds.includes(context.targetLocation.id)) {
-      throw new Error("Parsed action does not target the authorized rear-alley location.");
+      parsed.intent.targetIds = [context.targetLocation.id];
     }
 
     const allowedFacts = new Set(context.publicFacts);
-    for (const fact of parsed.relevantContextFacts) {
-      if (!allowedFacts.has(fact)) {
-        throw new Error("AI returned a context fact that was not supplied by the backend.");
-      }
-    }
-    const modifiers = parsed.proposedModifiers.map((modifier) => {
-      if (!allowedFacts.has(modifier.citedContextFact)) {
-        throw new Error("AI modifier does not cite a backend-supplied context fact.");
-      }
-      return {
+    // ponytail: filter out AI-invented facts instead of rejecting the whole action
+    parsed.relevantContextFacts = parsed.relevantContextFacts.filter((fact) =>
+      allowedFacts.has(fact),
+    );
+    const modifiers = parsed.proposedModifiers
+      .filter((modifier) => allowedFacts.has(modifier.citedContextFact))
+      .map((modifier) => ({
         factorId: modifier.factorId,
         value: modifier.value,
         reason: modifier.reason,
         sourceId: modifier.sourceId,
-      };
-    });
+      }));
 
     const derived = deriveDetectionContest({
       method: {

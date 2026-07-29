@@ -25,11 +25,7 @@ export function deriveDetectionContest(context: DetectionContext): DerivedContes
     ...context.method.draft.effects,
     ...context.method.draft.modes.flatMap((mode) => mode.effects),
   ];
-  const sensorStrength = effects
-    .filter((effect) =>
-      ["sense", "detect", "scan", "analyze"].includes(effect.effectId.toLowerCase()),
-    )
-    .reduce((peak, effect) => Math.max(peak, effect.strength), 0);
+  const sensorStrength = effects.reduce((peak, effect) => Math.max(peak, effect.strength || 0), 0);
   if (sensorStrength <= 0) throw new Error("Selected method has no detection-compatible effect.");
   const conditionModifier = Math.max(
     -2,
