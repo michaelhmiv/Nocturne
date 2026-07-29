@@ -14,4 +14,5 @@ export function createDatabase(connectionString: string) {
 export * from "./action-store.js";
 export * from "./game-store.js";
 export * from "./invention-store.js";
+export * from "./json.js";
 export * from "./schema.js";

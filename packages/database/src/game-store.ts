@@ -6,6 +6,7 @@ import type {
   StarterWorld,
 } from "@nocturne/contracts";
 import type { createDatabase } from "./index.js";
+import { serializeJson as json } from "./json.js";
 
 export const STARTER_WORLD_IDS = {
   city: "10000000-0000-4000-8000-000000000001",
@@ -77,10 +78,6 @@ export class PersistentWorldError extends Error {
 
 function asIso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
-}
-
-function json(value: unknown) {
-  return JSON.stringify(value);
 }
 
 type StarterWorldRow = {

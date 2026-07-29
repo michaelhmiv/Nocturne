@@ -3,6 +3,8 @@ import { createModelPolicy } from "@nocturne/ai-gm";
 import { closeAuthFromEnv, getAuthFromEnv, getSessionFromNodeHeaders } from "@nocturne/auth";
 import { validateGeneratedContent } from "@nocturne/content-engine";
 import {
+  ActionStoreError,
+  createActionStore,
   createDatabase,
   createInventionStore,
   createPersistentWorldStore,
@@ -10,7 +12,8 @@ import {
   PersistentWorldError,
 } from "@nocturne/database";
 import Fastify from "fastify";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
+import { createActionService } from "./action-service.js";
 import { createInventionService } from "./invention-service.js";
 import { createPersistentWorldService } from "./persistent-world.js";
 
@@ -21,6 +24,7 @@ export async function buildApp() {
   const database = createDatabase(databaseUrl);
   const world = createPersistentWorldService(createPersistentWorldStore(database));
   const inventions = createInventionService(createInventionStore(database));
+  const actions = createActionService(createActionStore(database));
   const app = Fastify({ logger: { level: process.env.LOG_LEVEL || "info" } });
   await app.register(cors, {
     origin: (process.env.BETTER_AUTH_TRUSTED_ORIGINS || "http://localhost:3000")
@@ -45,7 +49,11 @@ export async function buildApp() {
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError)
       return reply.code(400).send({ error: "invalid_request", issues: error.issues });
-    if (error instanceof PersistentWorldError || error instanceof InventionStoreError) {
+    if (
+      error instanceof PersistentWorldError ||
+      error instanceof InventionStoreError ||
+      error instanceof ActionStoreError
+    ) {
       const status =
         error.code === "not_found"
           ? 404
@@ -160,6 +168,23 @@ export async function buildApp() {
         );
     },
   );
+
+  app.get("/v1/actions", async (request) => {
+    const user = await requireUser(request.headers);
+    const actorId = z
+      .string()
+      .uuid()
+      .parse((request.query as { actorId?: string }).actorId);
+    return { actions: await actions.list(user.id, actorId) };
+  });
+  app.post("/v1/actions", async (request) => {
+    const user = await requireUser(request.headers);
+    return actions.execute(
+      user.id,
+      request.body,
+      request.headers["idempotency-key"] as string | undefined,
+    );
+  });
 
   app.addHook("onClose", async () => {
     await Promise.all([closeAuthFromEnv(), database.close()]);

@@ -9,16 +9,13 @@ import type {
 import { StateOperationSchema } from "@nocturne/contracts";
 import { STARTER_WORLD_IDS } from "./game-store.js";
 import type { createDatabase } from "./index.js";
+import { serializeJson as json } from "./json.js";
 
 const ALLEY_TARGET = {
   definitionId: "WORLD-ALLEY-CONTACT",
   revisionId: "60000000-0000-4000-8000-000000000001",
   instanceId: "60000000-0000-4000-8000-000000000002",
 };
-
-function json(value: unknown) {
-  return JSON.parse(JSON.stringify(value));
-}
 
 export interface ActionRuntimeContext {
   actor: { id: string; name: string };
@@ -219,8 +216,8 @@ export function createActionStore(database: ReturnType<typeof createDatabase>) {
     idempotencyKey: string,
   ): Promise<ActionExecutionResponse | null> {
     const rows = await database.client`
-      SELECT e.event_id, ai.intent_id, rr.resolution_id, rr.outcome_grade,
-             rr.calculation_trace, rr.narration, e.payload
+      SELECT e.event_id, e.world_time, ai.intent_id, ai.raw_text, rr.resolution_id,
+             rr.outcome_grade, rr.calculation_trace, rr.narration, e.payload
       FROM game.event_ledger e
       JOIN game.action_intents ai ON ai.intent_id = e.source_intent_id
       JOIN game.resolution_results rr ON rr.event_id = e.event_id
@@ -233,6 +230,7 @@ export function createActionStore(database: ReturnType<typeof createDatabase>) {
       eventId: String(row.event_id),
       intentId: String(row.intent_id),
       resolutionId: String(row.resolution_id),
+      rawText: String(row.raw_text),
       outcomeGrade: String(row.outcome_grade),
       margin: Number(payload.margin),
       narration: String(row.narration || "The event has been committed."),
@@ -240,6 +238,7 @@ export function createActionStore(database: ReturnType<typeof createDatabase>) {
       informationGained:
         (payload.informationGained as ActionExecutionResponse["informationGained"]) || [],
       costs: (payload.costs as ActionExecutionResponse["costs"]) || [],
+      createdAt: new Date(row.world_time as Date).toISOString(),
       idempotentReplay: true,
     };
   }
@@ -304,6 +303,7 @@ export function createActionStore(database: ReturnType<typeof createDatabase>) {
     const parsedOperations = input.operations.map((operation) =>
       StateOperationSchema.parse(operation),
     );
+    const createdAt = new Date().toISOString();
 
     return database.client.begin(async (sql) => {
       const existing = await sql`
@@ -358,7 +358,7 @@ export function createActionStore(database: ReturnType<typeof createDatabase>) {
           event_id, idempotency_key, world_time, event_type,
           involved_entity_ids, payload, source_intent_id
         ) VALUES (
-          ${eventId}, ${input.idempotencyKey}, now(), 'action_resolved',
+          ${eventId}, ${input.idempotencyKey}, ${createdAt}, 'action_resolved',
           ${json([input.intent.actorId, input.methodInstanceId, input.targetLocationId])},
           ${json(eventPayload)}, ${intentId}
         )
@@ -427,12 +427,14 @@ export function createActionStore(database: ReturnType<typeof createDatabase>) {
         eventId,
         intentId,
         resolutionId,
+        rawText: input.rawText,
         outcomeGrade: input.resolution.outcomeGrade,
         margin: input.resolution.margin,
         narration: "The event has been committed and awaits narration.",
         calculationTrace: input.resolution.calculationTrace,
         informationGained,
         costs,
+        createdAt,
         idempotentReplay: false,
       };
     });

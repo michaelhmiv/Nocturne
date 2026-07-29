@@ -6,6 +6,7 @@ import type {
 } from "@nocturne/contracts";
 import type { ContentValidationResult } from "@nocturne/content-engine";
 import type { createDatabase } from "./index.js";
+import { serializeJson as json } from "./json.js";
 
 export class InventionStoreError extends Error {
   constructor(
@@ -35,10 +36,6 @@ function mapRequest(row: Record<string, unknown>): InventionSummary {
     createdAt: new Date(row.created_at as Date).toISOString(),
     completedAt: iso(row.completed_at as Date | null),
   };
-}
-
-function json(value: unknown) {
-  return JSON.parse(JSON.stringify(value));
 }
 
 export function createInventionStore(database: ReturnType<typeof createDatabase>) {

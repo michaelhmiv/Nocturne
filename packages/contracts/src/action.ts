@@ -37,6 +37,7 @@ export const ActionExecutionResponseSchema = z.object({
   eventId: z.string().uuid(),
   intentId: z.string().uuid(),
   resolutionId: z.string().uuid(),
+  rawText: z.string(),
   outcomeGrade: z.string(),
   margin: z.number().int(),
   narration: z.string(),
@@ -45,6 +46,7 @@ export const ActionExecutionResponseSchema = z.object({
     z.object({ informationId: z.string().uuid(), content: z.string(), confidence: z.number() }),
   ),
   costs: z.array(z.object({ resource: z.string(), amount: z.number() })),
+  createdAt: z.string().datetime(),
   idempotentReplay: z.boolean(),
 });
 
