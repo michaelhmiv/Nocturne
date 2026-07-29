@@ -1,5 +1,8 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -8,6 +11,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   type AnyPgColumn,
@@ -267,6 +271,78 @@ export const informationAssets = game.table(
   (table) => [
     index("information_assets_holder_idx").on(table.holderInstanceId, table.createdAt),
     index("information_assets_subject_idx").on(table.subjectInstanceId),
+  ],
+);
+
+export const conversations = game.table(
+  "conversations",
+  {
+    conversationId: uuid("conversation_id").primaryKey(),
+    userId: text("user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("conversations_owner_uq").on(table.conversationId, table.userId),
+    index("conversations_user_idx").on(table.userId, table.createdAt.desc()),
+    check("conversations_user_check", sql`btrim(${table.userId}) <> ''`),
+  ],
+);
+
+export const conversationTurns = game.table(
+  "conversation_turns",
+  {
+    turnId: uuid("turn_id").primaryKey().defaultRandom(),
+    conversationId: uuid("conversation_id").notNull(),
+    userId: text("user_id").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    requestHash: text("request_hash").notNull(),
+    request: jsonb("request").$type<Record<string, unknown>>().notNull(),
+    status: text("status").notNull().default("pending"),
+    authoritativeResponse: jsonb("authoritative_response").$type<Record<string, unknown>>(),
+    playerSafeResponse: jsonb("player_safe_response").$type<Record<string, unknown>>(),
+    errorCode: text("error_code"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("conversation_turns_idempotency_uq").on(
+      table.userId,
+      table.conversationId,
+      table.idempotencyKey,
+    ),
+    foreignKey({
+      name: "conversation_turns_owner_fk",
+      columns: [table.conversationId, table.userId],
+      foreignColumns: [conversations.conversationId, conversations.userId],
+    }).onDelete("cascade"),
+    index("conversation_turns_history_idx")
+      .on(table.userId, table.conversationId, table.createdAt.desc(), table.turnId.desc())
+      .where(sql`${table.status} = 'completed'`),
+    check("conversation_turns_user_check", sql`btrim(${table.userId}) <> ''`),
+    check("conversation_turns_key_check", sql`btrim(${table.idempotencyKey}) <> ''`),
+    check("conversation_turns_hash_check", sql`btrim(${table.requestHash}) <> ''`),
+    check("conversation_turns_request_check", sql`jsonb_typeof(${table.request}) = 'object'`),
+    check(
+      "conversation_turns_status_check",
+      sql`${table.status} IN ('pending', 'completed', 'failed')`,
+    ),
+    check(
+      "conversation_turns_shape_check",
+      sql`(
+        (${table.status} = 'pending' AND ${table.authoritativeResponse} IS NULL
+          AND ${table.playerSafeResponse} IS NULL AND ${table.errorCode} IS NULL
+          AND ${table.completedAt} IS NULL)
+        OR (${table.status} = 'completed' AND ${table.authoritativeResponse} IS NOT NULL
+          AND ${table.playerSafeResponse} IS NOT NULL AND ${table.errorCode} IS NULL
+          AND ${table.completedAt} IS NOT NULL)
+        OR (${table.status} = 'failed' AND ${table.authoritativeResponse} IS NULL
+          AND ${table.playerSafeResponse} IS NULL AND ${table.errorCode} IS NOT NULL
+          AND btrim(${table.errorCode}) <> ''
+          AND ${table.completedAt} IS NOT NULL)
+      )`,
+    ),
   ],
 );
 
