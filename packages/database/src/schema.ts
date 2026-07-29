@@ -10,6 +10,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 const game = pgSchema("game");
@@ -59,7 +60,7 @@ export const entityInstances = game.table(
       .references(() => entityDefinitions.definitionId),
     ownerId: uuid("owner_id"),
     controllerId: uuid("controller_id"),
-    locationId: uuid("location_id"),
+    locationId: uuid("location_id").references((): AnyPgColumn => entityInstances.instanceId),
     condition: integer("condition").notNull().default(100),
     state: jsonb("state").$type<Record<string, unknown>>().notNull().default({}),
     createdEventId: uuid("created_event_id"),
