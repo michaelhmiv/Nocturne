@@ -51,6 +51,92 @@ export const StateOperationSchema = z.discriminatedUnion("type", [
   ChangeInstanceConditionOperationSchema,
 ]);
 
+const OpaqueIdSchema = z.string().trim().min(1).max(128);
+const OperationTextSchema = z.string().trim().min(1).max(1_000);
+const BasisPointsSchema = z.number().int().min(0).max(10_000);
+const preconditions = { preconditionFactIds: z.array(OpaqueIdSchema).max(8) };
+const operation = <T extends z.ZodRawShape>(shape: T) =>
+  z.object({ ...shape, ...preconditions }).strict();
+
+export const MAX_STATE_OPERATIONS = 16;
+export const ConversationStateOperationSchema = z.discriminatedUnion("type", [
+  operation({
+    type: z.literal("create_definition"),
+    name: z.string().trim().min(1).max(200),
+    definitionId: OpaqueIdSchema,
+    definitionKind: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/),
+  }),
+  operation({
+    type: z.literal("create_revision"),
+    revisionId: OpaqueIdSchema,
+    definitionId: OpaqueIdSchema,
+    patch: OperationTextSchema,
+  }),
+  operation({
+    type: z.literal("create_instance"),
+    instanceId: OpaqueIdSchema,
+    definitionId: OpaqueIdSchema,
+    name: z.string().trim().min(1).max(200),
+  }),
+  operation({
+    type: z.literal("acquire_entity"),
+    ownerId: OpaqueIdSchema,
+    entityId: OpaqueIdSchema,
+  }),
+  operation({
+    type: z.literal("move_entity"),
+    entityId: OpaqueIdSchema,
+    locationId: OpaqueIdSchema,
+  }),
+  operation({
+    type: z.literal("set_relationship"),
+    sourceId: OpaqueIdSchema,
+    targetId: OpaqueIdSchema,
+    relationship: z.string().trim().min(1).max(100),
+    value: z.number().int().min(-100).max(100),
+  }),
+  operation({
+    type: z.literal("set_access"),
+    subjectId: OpaqueIdSchema,
+    resourceId: OpaqueIdSchema,
+    access: z.enum(["grant", "revoke"]),
+  }),
+  operation({
+    type: z.literal("set_condition"),
+    entityId: OpaqueIdSchema,
+    condition: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/),
+    active: z.boolean(),
+  }),
+  operation({
+    type: z.literal("adjust_resource"),
+    entityId: OpaqueIdSchema,
+    resource: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/),
+    delta: z.number().int().min(-1_000_000).max(1_000_000),
+  }),
+  operation({
+    type: z.literal("create_information_asset"),
+    holderId: OpaqueIdSchema,
+    subjectId: OpaqueIdSchema.optional(),
+    content: OperationTextSchema,
+    confidenceBasisPoints: BasisPointsSchema,
+    truthStatus: z.enum(["observation", "inference", "rumor"]),
+  }),
+  operation({
+    type: z.literal("schedule_timed_work"),
+    workerId: OpaqueIdSchema,
+    workId: OpaqueIdSchema,
+    description: OperationTextSchema,
+    durationSeconds: z.number().int().positive().max(31_536_000),
+  }),
+  operation({
+    type: z.literal("apply_area_effect"),
+    areaId: OpaqueIdSchema,
+    effect: z.string().trim().min(1).max(200),
+    active: z.boolean(),
+    durationSeconds: z.number().int().positive().max(31_536_000).optional(),
+  }),
+]);
+
 export const ResolutionResultSchema = z.object({
   outcomeGrade: OutcomeGradeSchema,
   margin: z.number().int(),
@@ -64,4 +150,5 @@ export const ResolutionResultSchema = z.object({
 export type OutcomeGrade = z.infer<typeof OutcomeGradeSchema>;
 export type ResolutionModifier = z.infer<typeof ResolutionModifierSchema>;
 export type StateOperation = z.infer<typeof StateOperationSchema>;
+export type ConversationStateOperation = z.infer<typeof ConversationStateOperationSchema>;
 export type ResolutionResult = z.infer<typeof ResolutionResultSchema>;
