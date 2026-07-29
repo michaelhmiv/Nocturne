@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import {
   MAX_CONVERSATION_CHECKS,
   NocturneProbabilitySchema,
+  outcomeGradeForMarginBasisPoints,
   type OutcomeGrade,
 } from "@nocturne/contracts";
 
@@ -38,15 +39,6 @@ export function validateNocturneProbability(value: unknown): NocturneProbability
   const parsed = NocturneProbabilitySchema.safeParse(value);
   if (!parsed.success) throw new Error("Invalid probability.");
   return parsed.data;
-}
-
-function gradeOutcome(marginBasisPoints: number): OutcomeGrade {
-  if (marginBasisPoints >= 2_000) return "complete_success";
-  if (marginBasisPoints >= 500) return "success_with_consequence";
-  if (marginBasisPoints >= 0) return "partial_success";
-  if (marginBasisPoints > -500) return "failure_with_progress";
-  if (marginBasisPoints > -2_000) return "failure";
-  return "catastrophic_reversal";
 }
 
 export function resolveProbabilityCheck(input: ProbabilityCheckInput): ProbabilityCheckResult {
@@ -96,7 +88,7 @@ export function resolveProbabilityCheck(input: ProbabilityCheckInput): Probabili
         success: marginBasisPoints >= 0,
         rollBasisPoints,
         marginBasisPoints,
-        outcomeGrade: gradeOutcome(marginBasisPoints),
+        outcomeGrade: outcomeGradeForMarginBasisPoints(marginBasisPoints),
       };
     }
   }

@@ -19,7 +19,7 @@
 - Unusual actions are mapped to general mechanics rather than rejected for lacking bespoke code.
 - Anything may be attempted. Skill, resources, time, location, known and hidden circumstances, and consequences determine the outcome.
 - For each meaningful uncertain step, the LLM proposes structured probability and reasoning; the backend validates cited facts, allowed ranges, authorization, and proposed operations before performing the authoritative roll.
-- Player-facing probability is the character's exact assessed probability from known information. Hidden safeguards may alter authoritative resolution or create latent reactions without being disclosed.
+- Player-facing results show the exact final probability and roll. Hidden safeguards may alter authoritative resolution or create latent reactions, but their identities and individual adjustments are not disclosed.
 - The player learns only facts their character successfully observes, infers, or is told.
 - Physical location is authoritative. Logging out does not move or protect a character. The character performs no autonomous actions while absent except explicitly committed timed work.
 - Responses do not contain canned next-step advice or suggestions.
@@ -53,12 +53,14 @@
 **Objective:** Prevent future agents from rebuilding the wrong product.
 
 **Files:**
+
 - Modify: `docs/ARCHITECTURE.md`
 - Modify: `docs/VERTICAL_SLICE.md`
 - Modify: `docs/PR_TESTING.md`
 - Create: `docs/CONVERSATIONAL_ENGINE.md`
 
 **Work:**
+
 - Document the single conversational command path, public/hidden context boundary, apparent versus authoritative probability, fact-ID citations, operation allowlist, location/presence semantics, offline behavior, timed work, and narration boundary.
 - Replace the surveillance-array-only definition of the first vertical slice with the approved conversational acceptance flow.
 - State that the CLI and frontend are clients of the same API and contain no adjudication logic.
@@ -71,6 +73,7 @@
 **Objective:** Define one stable schema shared by the LLM, backend, CLI, and later frontend.
 
 **Files:**
+
 - Create: `packages/contracts/src/conversation.ts`
 - Modify: `packages/contracts/src/action.ts`
 - Modify: `packages/contracts/src/resolution.ts`
@@ -78,6 +81,7 @@
 - Test: `packages/contracts/test/conversation-contracts.test.ts`
 
 **Work:**
+
 - Add a single message request containing conversation/session identity and raw text; actor is backend-selected when one exists.
 - Define internal intent categories without exposing UI modes.
 - Define versioned fact references with IDs, source entity/event, visibility, and provenance.
@@ -88,6 +92,7 @@
 - Bound message length, check count, operation count, text lengths, and probability ranges at the trust boundary.
 
 **Tests (RED first):**
+
 - Accept ordinary chat messages with no actor/method/target mode fields.
 - Reject malformed probabilities, unknown operation types, excessive check/operation counts, and uncited factors.
 - Preserve hidden/public visibility in authoritative records while proving player-safe schemas cannot contain hidden facts.
@@ -100,6 +105,7 @@
 **Objective:** Make LLM-proposed probabilities bounded, auditable, reproducible, and safe.
 
 **Files:**
+
 - Create: `packages/rules-engine/src/probability.ts`
 - Modify: `packages/rules-engine/src/index.ts`
 - Retire after migration: `packages/rules-engine/src/score-derivation.ts`
@@ -107,15 +113,17 @@
 - Test: `packages/rules-engine/test/probability-distribution.test.ts`
 
 **Work:**
+
 - Encode the documented difficulty bands and valid basis-point ranges.
 - Validate that every proposed factor cites a supplied fact ID and that visible reasoning cites only player-known facts.
 - Validate proposed probability against the selected band and bounded factor adjustments.
-- Keep both apparent probability and authoritative probability; hidden factors may affect only the authoritative audit.
+- Keep both apparent and authoritative probability; expose the exact final probability while retaining hidden factors and individual adjustments only in the authoritative audit.
 - Derive randomness from the server resolution secret plus stable event inputs. The LLM never sees or chooses the seed.
 - Return a percentile roll, success/failure, margin, and outcome grade without narration.
 - Support hidden reactions as separately validated checks/operations rather than forcing every safeguard into the visible lock-picking percentage.
 
 **Tests (RED first):**
+
 - Boundary tests for every probability band and basis-point edge.
 - Same inputs and seed produce exactly the same roll/result.
 - Changed seed changes samples while preserving bounds.
@@ -131,6 +139,7 @@
 **Objective:** Give the adjudicator enough world truth to reason while giving the player only legitimately known information.
 
 **Files:**
+
 - Create: `packages/database/src/context-store.ts`
 - Create: `apps/api/src/context-service.ts`
 - Modify: `packages/database/src/index.ts`
@@ -139,6 +148,7 @@
 - Test: `apps/api/test/context-service.test.ts`
 
 **Work:**
+
 - Reuse `entity_instances.location_id` for exact physical presence and `located_within` for place ancestry.
 - Add missing self-reference/index/constraints required for reliable location queries without introducing a second location model.
 - Build recursive containment queries: current place, ancestors, descendants, occupants inside a place, and affected entities at an event timestamp.
@@ -149,6 +159,7 @@
 - Add player-safe redaction as one shared backend function used by API, CLI, history, and frontend.
 
 **Database tests against disposable PostgreSQL:**
+
 - Exactly one current physical location per character.
 - Moving between nested places is atomic and event-backed.
 - Residence tenancy does not imply current physical presence.
@@ -166,6 +177,7 @@
 **Objective:** Let the LLM interpret unlimited natural-language interactions through one constrained schema.
 
 **Files:**
+
 - Replace/extend: `packages/ai-gm/src/action-adjudicator.ts`
 - Create: `packages/ai-gm/src/conversation-adjudicator.ts`
 - Modify: `packages/ai-gm/src/index.ts`
@@ -173,6 +185,7 @@
 - Test: `packages/ai-gm/test/viewpoint-boundary.test.ts`
 
 **Work:**
+
 - Prompt the authoritative model to infer intent, decompose only meaningful uncertain steps, propose probability bands/basis points, cite fact IDs, define stakes, and propose allowlisted operations.
 - Do not prompt next steps, prescribe player actions, or reject novelty merely because it lacks a named mechanic.
 - Let ambiguity create assumptions and uncertain consequences unless commitment is impossible.
@@ -181,6 +194,7 @@
 - Remove deterministic surveillance-specific fallback from production paths. Test fallback may return fixture proposals only when explicitly enabled.
 
 **Mocked-provider tests:**
+
 - Character concept inferred from ordinary conversation.
 - Invention attempt inferred without an Invent mode.
 - Immediate use of a newly created item.
@@ -199,6 +213,7 @@
 **Objective:** Orchestrate interpretation, validation, rolls, operations, persistence, and narration through one backend entry point.
 
 **Files:**
+
 - Create: `apps/api/src/conversation-service.ts`
 - Create: `packages/database/src/conversation-store.ts`
 - Modify: `apps/api/src/app.ts`
@@ -209,6 +224,7 @@
 - Test: `apps/api/test/conversation.integration.test.ts`
 
 **Work:**
+
 - Add `POST /v1/conversations/:id/messages` and read endpoints for history/player-safe dashboard data.
 - Select the authenticated user's active character server-side; allow pre-character conversation.
 - Execute ordered checks sequentially, refreshing authoritative context between committed checks and stopping when failure/consequence makes later steps impossible.
@@ -220,6 +236,7 @@
 - Return typed, useful GM failures instead of generic `invalid_request`; provider/system failures must not masquerade as in-world outcomes.
 
 **Integration tests against disposable PostgreSQL:**
+
 - Conversational character creation persists and becomes active.
 - Arbitrary invention success, partial success, failure, costs, and timed research.
 - Immediate use of a newly created usable instance.
@@ -238,6 +255,7 @@
 **Objective:** Make conversational behavior easy to explore and reproduce without frontend noise.
 
 **Files:**
+
 - Create: `scripts/nocturne-cli.ts`
 - Create: `scripts/nocturne-scenario.ts`
 - Modify: root `package.json`
@@ -245,8 +263,9 @@
 - Test: `test/cli.test.ts`
 
 **Work:**
+
 - Use installed `tsx`, Node `readline`, and native `fetch`; add no CLI framework.
-- Send raw messages to the conversational API and print narration, apparent probability, visible factors, roll, costs, state changes, and event IDs.
+- Send raw messages to the conversational API and print narration, exact final probability, visible factors, roll, costs, state changes, and event IDs.
 - Support developer-only inspection commands for player-safe state/history and an opt-in authoritative trace when running locally.
 - Accept base URL, conversation ID, and session cookie through arguments/environment; never embed credentials.
 - Script JSONL transcripts with assertions so a failed creative flow is immediately reproducible.
@@ -311,12 +330,14 @@ The gate fails if any tested creative input produces a generic `invalid_request`
 **Objective:** Make the browser a thin client of the proven conversational API.
 
 **Files:**
+
 - Modify: `apps/web/app/game-client.tsx`
 - Modify: `apps/web/app/game-state.ts`
 - Modify: `apps/web/app/styles.css` only as needed
 - Test: existing web tests plus one conversational transport/render test
 
 **Work:**
+
 - Remove Invent/Act modes, character-creation form, rent/install workflow buttons, and scripted next-step guidance.
 - Keep one composer and conversation timeline.
 - Keep a separate read-only dashboard using player-safe backend state.
@@ -329,6 +350,7 @@ The gate fails if any tested creative input produces a generic `invalid_request`
 **Objective:** Verify the real Railway system, not only local builds.
 
 **Work:**
+
 - Use a fresh `feat/*` branch and the required feat -> beta -> main PR flow.
 - Apply the new migration as a release step and verify the second run is a no-op.
 - Verify API/web/worker health, private database connectivity, variables by name only, logs, restart persistence, and no secret leakage.

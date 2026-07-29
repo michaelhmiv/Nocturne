@@ -87,7 +87,7 @@ const authoritativePlan = {
       hiddenFactors: [
         {
           summary: "The release is deliberately disguised.",
-          probabilityDeltaBasisPoints: -1700,
+          probabilityDeltaBasisPoints: -1100,
           citations: [hiddenFact.factId],
         },
       ],
@@ -106,6 +106,7 @@ const authoritativePlan = {
 
 const outcome = {
   order: 1,
+  finalProbability: probability(6100, "even"),
   grade: "complete_success",
   rollBasisPoints: 4021,
   summary: "The letter is recovered.",
@@ -115,6 +116,7 @@ const authoritativeResponse = {
   responseId: "response:search-library",
   narration: "The desk yields a folded letter.",
   plan: authoritativePlan,
+  execution: { state: "completed" as const },
   outcomes: [outcome],
   hiddenOutcomes: [],
 };
@@ -123,6 +125,7 @@ const playerSafeResponse = {
   responseId: authoritativeResponse.responseId,
   narration: authoritativeResponse.narration,
   plan: viewpointPlan,
+  execution: authoritativeResponse.execution,
   outcomes: [outcome],
 };
 
@@ -147,12 +150,21 @@ describe("conversation contracts", () => {
     (kind) => {
       const plan = {
         intent: { kind, summary: "No uncertain world action occurs." },
-        facts: [],
+        facts: [publicFact],
         checks: [],
       };
       expect(ViewpointConversationPlanSchema.safeParse(plan).success).toBe(true);
       expect(
         ViewpointConversationPlanSchema.safeParse({ ...plan, checks: [check(1)] }).success,
+      ).toBe(false);
+      expect(
+        AuthoritativeConversationPlanSchema.safeParse({
+          viewpointPlan: plan,
+          hiddenFacts: [],
+          checkAuthorizations: [],
+          hiddenChecks: [],
+          unconditionalOperations: [successfulOperations[0]],
+        }).success,
       ).toBe(false);
     },
   );
@@ -304,6 +316,116 @@ describe("conversation contracts", () => {
         stateOperations,
       }).success,
     ).toBe(false);
+    expect(
+      AuthoritativeConversationPlanSchema.safeParse({
+        ...branched,
+        unconditionalOperations: stateOperations,
+      }).success,
+    ).toBe(false);
+
+    const grades = [
+      "complete_success",
+      "success_with_consequence",
+      "partial_success",
+      "failure_with_progress",
+      "failure",
+      "catastrophic_reversal",
+    ] as const;
+    expect(
+      AuthoritativeConversationPlanSchema.safeParse({
+        ...branched,
+        checkAuthorizations: [
+          {
+            ...branched.checkAuthorizations[0],
+            outcomeBranches: grades.map((grade) => ({
+              outcomeGrades: [grade],
+              stateOperations: [stateOperations[0]],
+            })),
+          },
+        ],
+      }).success,
+    ).toBe(true);
+  });
+
+  it("preserves full compound plans while reporting only an explicit committed prefix", () => {
+    const secondCheck = check(2);
+    const twoStepViewpoint = {
+      ...viewpointPlan,
+      checks: [viewpointPlan.checks[0]!, secondCheck],
+    };
+    const twoStepPlan = {
+      ...authoritativePlan,
+      viewpointPlan: twoStepViewpoint,
+      checkAuthorizations: [
+        authoritativePlan.checkAuthorizations[0]!,
+        {
+          order: 2,
+          hiddenFactors: [],
+          authoritativeProbability: secondCheck.apparentProbability,
+          outcomeBranches: [],
+        },
+      ],
+    };
+    const stopped = {
+      ...authoritativeResponse,
+      plan: twoStepPlan,
+      execution: { state: "stopped", stoppedAfterOrder: 1 },
+      outcomes: [outcome],
+    };
+
+    expect(AuthoritativeConversationResponseSchema.safeParse(stopped).success).toBe(true);
+    expect(
+      PlayerSafeConversationResponseSchema.safeParse({
+        ...playerSafeResponse,
+        plan: twoStepViewpoint,
+        execution: stopped.execution,
+        outcomes: stopped.outcomes,
+      }).success,
+    ).toBe(true);
+    expect(
+      AuthoritativeConversationResponseSchema.safeParse({
+        ...stopped,
+        execution: { state: "completed" },
+      }).success,
+    ).toBe(false);
+    expect(
+      AuthoritativeConversationResponseSchema.safeParse({
+        ...stopped,
+        outcomes: [{ ...outcome, order: 2 }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("validates terminal roll presence from the visible final probability", () => {
+    const terminalOutcome = {
+      ...outcome,
+      finalProbability: probability(10_000, "certain"),
+      rollBasisPoints: null,
+    };
+    expect(
+      PlayerSafeConversationResponseSchema.safeParse({
+        ...playerSafeResponse,
+        outcomes: [terminalOutcome],
+      }).success,
+    ).toBe(true);
+    expect(
+      PlayerSafeConversationResponseSchema.safeParse({
+        ...playerSafeResponse,
+        outcomes: [{ ...terminalOutcome, rollBasisPoints: 1 }],
+      }).success,
+    ).toBe(false);
+    expect(
+      PlayerSafeConversationResponseSchema.safeParse({
+        ...playerSafeResponse,
+        outcomes: [{ ...outcome, rollBasisPoints: null }],
+      }).success,
+    ).toBe(false);
+    expect(
+      AuthoritativeConversationResponseSchema.safeParse({
+        ...authoritativeResponse,
+        outcomes: [{ ...outcome, rollBasisPoints: 9_999, grade: "complete_success" }],
+      }).success,
+    ).toBe(false);
   });
 
   it("keeps separately rolled hidden reactions in authoritative audit only", () => {
@@ -325,10 +447,23 @@ describe("conversation contracts", () => {
     const authoritativeOnly = {
       ...authoritativeResponse,
       plan: { ...authoritativePlan, hiddenChecks: [hiddenCheck] },
-      hiddenOutcomes: [{ ...outcome, rollBasisPoints: 2_000 }],
+      hiddenOutcomes: [
+        {
+          ...outcome,
+          finalProbability: hiddenCheck.probability,
+          grade: "success_with_consequence",
+          rollBasisPoints: 2_000,
+        },
+      ],
     };
 
     expect(AuthoritativeConversationResponseSchema.safeParse(authoritativeOnly).success).toBe(true);
+    expect(
+      AuthoritativeConversationPlanSchema.safeParse({
+        ...authoritativePlan,
+        hiddenChecks: [hiddenCheck, { ...hiddenCheck, order: 2, triggerAfterOrder: 0 }],
+      }).success,
+    ).toBe(false);
     expect(
       PlayerSafeConversationResponseSchema.safeParse({
         ...playerSafeResponse,
@@ -339,6 +474,20 @@ describe("conversation contracts", () => {
       PlayerSafeConversationResponseSchema.safeParse({
         ...playerSafeResponse,
         hiddenOutcomes: authoritativeOnly.hiddenOutcomes,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("requires hidden deltas to produce the authoritative probability", () => {
+    expect(
+      AuthoritativeConversationPlanSchema.safeParse({
+        ...authoritativePlan,
+        checkAuthorizations: [
+          {
+            ...authoritativePlan.checkAuthorizations[0],
+            authoritativeProbability: probability(0, "impossible"),
+          },
+        ],
       }).success,
     ).toBe(false);
   });
@@ -417,35 +566,37 @@ describe("conversation contracts", () => {
         durationSeconds: 60,
       },
     ];
+    const noCheckPlan = {
+      ...authoritativePlan,
+      viewpointPlan: {
+        ...viewpointPlan,
+        intent: { kind: "world_action", summary: "Apply a deterministic state change." },
+        checks: [],
+      },
+      checkAuthorizations: [],
+      hiddenChecks: [],
+    };
     expect(
       AuthoritativeConversationPlanSchema.safeParse({
-        ...authoritativePlan,
-        checkAuthorizations: authoritativePlan.checkAuthorizations.map((authorization) => ({
-          ...authorization,
-          outcomeBranches: [],
-        })),
+        ...noCheckPlan,
         unconditionalOperations: genericOperations,
       }).success,
     ).toBe(true);
 
     const unknown = {
-      ...authoritativePlan,
+      ...noCheckPlan,
       unconditionalOperations: [{ ...genericOperations[0], preconditionFactIds: ["fact:unknown"] }],
     };
     expect(AuthoritativeConversationPlanSchema.safeParse(unknown).success).toBe(false);
     expect(
       AuthoritativeConversationPlanSchema.safeParse({
-        ...authoritativePlan,
+        ...noCheckPlan,
         unconditionalOperations: [{ type: "invent_new_workflow", preconditionFactIds: [] }],
       }).success,
     ).toBe(false);
 
     const maximum = {
-      ...authoritativePlan,
-      checkAuthorizations: authoritativePlan.checkAuthorizations.map((authorization) => ({
-        ...authorization,
-        outcomeBranches: [],
-      })),
+      ...noCheckPlan,
       unconditionalOperations: Array.from(
         { length: MAX_STATE_OPERATIONS },
         () => genericOperations[0],
@@ -496,7 +647,13 @@ describe("conversation contracts", () => {
       expect(
         AuthoritativeConversationResponseSchema.safeParse({
           ...authoritativeResponse,
-          outcomes: [{ ...outcome, rollBasisPoints }],
+          outcomes: [
+            {
+              ...outcome,
+              rollBasisPoints,
+              grade: rollBasisPoints === 1 ? "complete_success" : "catastrophic_reversal",
+            },
+          ],
         }).success,
       ).toBe(true);
     }
@@ -516,17 +673,35 @@ describe("conversation contracts", () => {
         checkAuthorizations: [
           {
             ...authoritativePlan.checkAuthorizations[0],
+            hiddenFactors: [
+              {
+                ...authoritativePlan.checkAuthorizations[0]!.hiddenFactors[0]!,
+                probabilityDeltaBasisPoints: 2_800,
+              },
+            ],
             authoritativeProbability: probability(10_000, "certain"),
           },
         ],
       },
-      outcomes: [{ ...outcome, rollBasisPoints: null }],
+      outcomes: [
+        {
+          ...outcome,
+          finalProbability: probability(10_000, "certain"),
+          rollBasisPoints: null,
+        },
+      ],
     };
     expect(AuthoritativeConversationResponseSchema.safeParse(terminal).success).toBe(true);
     expect(
       AuthoritativeConversationResponseSchema.safeParse({
         ...terminal,
-        outcomes: [{ ...outcome, rollBasisPoints: 5_000 }],
+        outcomes: [
+          {
+            ...outcome,
+            finalProbability: probability(10_000, "certain"),
+            rollBasisPoints: 5_000,
+          },
+        ],
       }).success,
     ).toBe(false);
 

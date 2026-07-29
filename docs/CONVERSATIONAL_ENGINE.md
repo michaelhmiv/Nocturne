@@ -55,10 +55,10 @@ The viewpoint model's calibrated judgment supplies the exact basis points and ma
 
 Each uncertain check keeps two values:
 
-- **Apparent probability** is the character's exact assessment from player-known facts. It is produced by the viewpoint pass, which never receives authoritative-hidden facts. It and only its player-known factors may be shown to that player.
-- **Authoritative probability** is the backend-validated resolution probability using all relevant known and hidden facts. It is used for the roll and retained only in the authoritative audit.
+- **Apparent probability** is the character's assessment from player-known facts. It is produced by the viewpoint pass, which never receives authoritative-hidden facts. Only its player-known factors may be shown to that player.
+- **Authoritative probability** is the backend-validated final probability using all relevant known and hidden facts. It is used for the roll and shown exactly with the result, while hidden factors and their individual adjustments remain authoritative-only.
 
-The authoritative pass receives the apparent proposal as immutable input and may differ only when cited authoritative-hidden facts justify the difference. The difference itself, hidden adjustment, and hidden reasoning are not disclosed. The player-safe roll is the exact raw draw for the visible action check and its committed visible outcome. That pair may reveal that the character's assessment was incomplete, but never identifies the hidden fact or adjustment. A hidden safeguard such as an alarm should normally use a separate hidden check/reaction whose draw remains undisclosed until the character legitimately detects its consequence.
+The authoritative pass receives the apparent proposal as immutable input and may differ only by the summed, cited authoritative-hidden adjustments. The final probability and exact raw draw are disclosed with the committed visible outcome; hidden facts, individual adjustments, and hidden reasoning are not. A hidden safeguard such as an alarm should normally use a separate hidden check/reaction whose draw remains undisclosed until the character legitimately detects its consequence.
 
 ## Operations and authority
 

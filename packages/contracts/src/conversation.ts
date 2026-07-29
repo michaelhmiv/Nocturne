@@ -4,6 +4,7 @@ import {
   ConversationStateOperationSchema,
   MAX_STATE_OPERATIONS,
   OutcomeGradeSchema,
+  outcomeGradeForMarginBasisPoints,
 } from "./resolution.js";
 
 export const MAX_CONVERSATION_CHECKS = 8;
@@ -208,7 +209,7 @@ export const OutcomeOperationBranchSchema = z
     outcomeGrades: z
       .array(OutcomeGradeSchema)
       .min(1)
-      .max(5)
+      .max(6)
       .refine((grades) => new Set(grades).size === grades.length, "Outcome grades must be unique"),
     stateOperations: z.array(ConversationStateOperationSchema).min(1).max(MAX_STATE_OPERATIONS),
   })
@@ -216,7 +217,7 @@ export const OutcomeOperationBranchSchema = z
 
 const operationBranches = z
   .array(OutcomeOperationBranchSchema)
-  .max(5)
+  .max(6)
   .superRefine((branches, context) => {
     const seen = new Set<string>();
     branches.forEach((branch, branchIndex) =>
@@ -267,6 +268,26 @@ export const AuthoritativeConversationPlanSchema = z
     const facts = [...plan.viewpointPlan.facts, ...plan.hiddenFacts];
     const known = new Set(facts.map(({ factId }) => factId));
     const hidden = new Set(plan.hiddenFacts.map(({ factId }) => factId));
+    if (
+      ["question", "dialogue", "out_of_character"].includes(plan.viewpointPlan.intent.kind) &&
+      (plan.hiddenChecks.length > 0 || plan.unconditionalOperations.length > 0)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Non-action intents cannot authorize hidden checks or state operations",
+        path: ["viewpointPlan", "intent", "kind"],
+      });
+    }
+    if (
+      plan.unconditionalOperations.length > 0 &&
+      (plan.viewpointPlan.checks.length > 0 || plan.hiddenChecks.length > 0)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Unconditional operations are only valid for plans with no checks",
+        path: ["unconditionalOperations"],
+      });
+    }
     if (known.size !== facts.length || facts.length > MAX_CONVERSATION_FACTS) {
       context.addIssue({
         code: "custom",
@@ -295,19 +316,39 @@ export const AuthoritativeConversationPlanSchema = z
         "hiddenFactors",
       ]);
       const apparentProbability = plan.viewpointPlan.checks[index]?.apparentProbability;
+      const expectedBasisPoints = apparentProbability
+        ? Math.max(
+            0,
+            Math.min(
+              10_000,
+              apparentProbability.basisPoints +
+                authorization.hiddenFactors.reduce(
+                  (total, factor) => total + factor.probabilityDeltaBasisPoints,
+                  0,
+                ),
+            ),
+          )
+        : undefined;
       if (
-        authorization.hiddenFactors.length === 0 &&
-        apparentProbability &&
-        authorization.authoritativeProbability.basisPoints !== apparentProbability.basisPoints
+        expectedBasisPoints !== undefined &&
+        authorization.authoritativeProbability.basisPoints !== expectedBasisPoints
       ) {
         context.addIssue({
           code: "custom",
-          message: "An authoritative adjustment requires a cited hidden factor",
+          message:
+            "Authoritative probability must equal the apparent probability plus hidden deltas",
           path: ["checkAuthorizations", index, "authoritativeProbability"],
         });
       }
     });
     plan.hiddenChecks.forEach((check, index) => {
+      if (index > 0 && check.triggerAfterOrder < plan.hiddenChecks[index - 1]!.triggerAfterOrder) {
+        context.addIssue({
+          code: "custom",
+          message: "Hidden check triggers must be nondecreasing",
+          path: ["hiddenChecks", index, "triggerAfterOrder"],
+        });
+      }
       if (check.triggerAfterOrder > plan.viewpointPlan.checks.length) {
         context.addIssue({
           code: "custom",
@@ -373,6 +414,7 @@ export const AuthoritativeConversationPlanSchema = z
 export const CheckOutcomeSchema = z
   .object({
     order: z.number().int().positive().max(MAX_CONVERSATION_CHECKS),
+    finalProbability: NocturneProbabilitySchema,
     grade: OutcomeGradeSchema,
     rollBasisPoints: z.number().int().min(1).max(10_000).nullable(),
     summary: TextSchema,
@@ -381,25 +423,59 @@ export const CheckOutcomeSchema = z
 
 const outcomes = ordered(CheckOutcomeSchema);
 
+export const ConversationExecutionSchema = z.discriminatedUnion("state", [
+  z.object({ state: z.literal("completed") }).strict(),
+  z
+    .object({
+      state: z.literal("stopped"),
+      stoppedAfterOrder: z.number().int().positive().max(MAX_CONVERSATION_CHECKS),
+    })
+    .strict(),
+]);
+
 function outcomesMatchChecks(
-  outcomeValues: { order: number; rollBasisPoints?: number | null }[],
-  checks: { order: number; probability: { basisPoints: number } }[],
+  outcomeValues: {
+    order: number;
+    finalProbability: { scale: string; band: string; basisPoints: number };
+    grade: z.infer<typeof OutcomeGradeSchema>;
+    rollBasisPoints?: number | null;
+  }[],
+  checks: {
+    order: number;
+    probability: { scale: string; band: string; basisPoints: number };
+  }[],
   context: z.RefinementCtx,
   path: string,
+  exact = true,
 ) {
   if (
-    outcomeValues.length !== checks.length ||
+    (exact && outcomeValues.length !== checks.length) ||
+    outcomeValues.length > checks.length ||
     outcomeValues.some(({ order }, index) => order !== checks[index]?.order)
   ) {
     context.addIssue({
       code: "custom",
-      message: "Outcomes must correspond exactly to meaningful checks",
+      message: exact
+        ? "Outcomes must correspond exactly to executed checks"
+        : "Outcomes must be a consecutive prefix of meaningful checks",
       path: [path],
     });
   }
   outcomeValues.forEach((outcome, index) => {
-    const basisPoints = checks[index]?.probability.basisPoints;
-    if (basisPoints === undefined) return;
+    const expected = checks[index]?.probability;
+    if (!expected) return;
+    if (
+      outcome.finalProbability.scale !== expected.scale ||
+      outcome.finalProbability.band !== expected.band ||
+      outcome.finalProbability.basisPoints !== expected.basisPoints
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Outcome final probability must match the authoritative check probability",
+        path: [path, index, "finalProbability"],
+      });
+    }
+    const basisPoints = outcome.finalProbability.basisPoints;
     const terminal = basisPoints === 0 || basisPoints === 10_000;
     if (
       (terminal && outcome.rollBasisPoints !== null) ||
@@ -411,7 +487,46 @@ function outcomesMatchChecks(
         path: [path, index, "rollBasisPoints"],
       });
     }
+    const expectedGrade = terminal
+      ? basisPoints === 10_000
+        ? "complete_success"
+        : "failure"
+      : outcomeGradeForMarginBasisPoints(basisPoints - outcome.rollBasisPoints!);
+    if (outcome.grade !== expectedGrade) {
+      context.addIssue({
+        code: "custom",
+        message: "Outcome grade must match the authoritative probability and roll",
+        path: [path, index, "grade"],
+      });
+    }
   });
+}
+
+function validateExecution(
+  execution: z.infer<typeof ConversationExecutionSchema>,
+  outcomeValues: { order: number }[],
+  checkCount: number,
+  context: z.RefinementCtx,
+) {
+  if (execution.state === "completed" && outcomeValues.length !== checkCount) {
+    context.addIssue({
+      code: "custom",
+      message: "Completed execution requires outcomes for every planned check",
+      path: ["execution"],
+    });
+  }
+  if (
+    execution.state === "stopped" &&
+    (outcomeValues.length === 0 ||
+      outcomeValues.length >= checkCount ||
+      outcomeValues.at(-1)?.order !== execution.stoppedAfterOrder)
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Stopped execution must identify the last outcome in a strict check prefix",
+      path: ["execution"],
+    });
+  }
 }
 
 export const AuthoritativeConversationResponseSchema = z
@@ -419,6 +534,7 @@ export const AuthoritativeConversationResponseSchema = z
     responseId: OpaqueIdSchema,
     narration: z.string().trim().min(1).max(8_000),
     plan: AuthoritativeConversationPlanSchema,
+    execution: ConversationExecutionSchema,
     outcomes,
     hiddenOutcomes: outcomes,
   })
@@ -432,8 +548,23 @@ export const AuthoritativeConversationResponseSchema = z
       })),
       context,
       "outcomes",
+      false,
     );
-    outcomesMatchChecks(value.hiddenOutcomes, value.plan.hiddenChecks, context, "hiddenOutcomes");
+    validateExecution(
+      value.execution,
+      value.outcomes,
+      value.plan.checkAuthorizations.length,
+      context,
+    );
+    const completedOrder = value.outcomes.at(-1)?.order ?? 0;
+    outcomesMatchChecks(
+      value.hiddenOutcomes,
+      value.plan.hiddenChecks
+        .filter((check) => check.triggerAfterOrder <= completedOrder)
+        .map((check) => ({ order: check.order, probability: check.probability })),
+      context,
+      "hiddenOutcomes",
+    );
   });
 
 export const PlayerSafeConversationResponseSchema = z
@@ -441,20 +572,22 @@ export const PlayerSafeConversationResponseSchema = z
     responseId: OpaqueIdSchema,
     narration: z.string().trim().min(1).max(8_000),
     plan: ViewpointConversationPlanSchema,
+    execution: ConversationExecutionSchema,
     outcomes,
   })
   .strict()
   .superRefine((value, context) => {
-    if (
-      value.outcomes.length !== value.plan.checks.length ||
-      value.outcomes.some(({ order }, index) => order !== value.plan.checks[index]?.order)
-    ) {
-      context.addIssue({
-        code: "custom",
-        message: "Outcomes must correspond exactly to meaningful checks",
-        path: ["outcomes"],
-      });
-    }
+    outcomesMatchChecks(
+      value.outcomes,
+      value.plan.checks.map((check, index) => ({
+        order: check.order,
+        probability: value.outcomes[index]?.finalProbability ?? check.apparentProbability,
+      })),
+      context,
+      "outcomes",
+      false,
+    );
+    validateExecution(value.execution, value.outcomes, value.plan.checks.length, context);
   });
 
 export const AuthoritativeConversationHistoryEntrySchema = z

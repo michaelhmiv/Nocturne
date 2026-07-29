@@ -9,6 +9,17 @@ export const OutcomeGradeSchema = z.enum([
   "catastrophic_reversal",
 ]);
 
+export type OutcomeGrade = z.infer<typeof OutcomeGradeSchema>;
+
+export function outcomeGradeForMarginBasisPoints(marginBasisPoints: number): OutcomeGrade {
+  if (marginBasisPoints >= 2_000) return "complete_success";
+  if (marginBasisPoints >= 500) return "success_with_consequence";
+  if (marginBasisPoints >= 0) return "partial_success";
+  if (marginBasisPoints > -500) return "failure_with_progress";
+  if (marginBasisPoints > -2_000) return "failure";
+  return "catastrophic_reversal";
+}
+
 export const ResolutionModifierSchema = z.object({
   factorId: z.string().min(1),
   value: z.number().int().min(-5).max(5),
@@ -147,7 +158,6 @@ export const ResolutionResultSchema = z.object({
   narrativeConstraints: z.array(z.string()).default([]),
 });
 
-export type OutcomeGrade = z.infer<typeof OutcomeGradeSchema>;
 export type ResolutionModifier = z.infer<typeof ResolutionModifierSchema>;
 export type StateOperation = z.infer<typeof StateOperationSchema>;
 export type ConversationStateOperation = z.infer<typeof ConversationStateOperationSchema>;
