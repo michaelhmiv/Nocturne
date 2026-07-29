@@ -1,4 +1,5 @@
 export * from "./detection-operations.js";
+export * from "./probability.js";
 export * from "./score-derivation.js";
 
 import {
