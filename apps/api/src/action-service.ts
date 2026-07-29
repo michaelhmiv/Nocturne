@@ -35,7 +35,7 @@ export function createActionService(store: ActionStore, environment = process.en
   async function execute(
     userId: string,
     rawInput: unknown,
-    idempotencyKey = randomUUID(),
+    idempotencyKey: string = randomUUID(),
   ): Promise<ActionExecutionResponse> {
     const prior = await store.findByIdempotency(userId, idempotencyKey);
     if (prior) return prior;

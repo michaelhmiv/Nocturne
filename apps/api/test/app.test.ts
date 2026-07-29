@@ -26,6 +26,17 @@ describe("API boot paths", () => {
     await app.close();
   });
 
+  it("registers the consequential action routes", async () => {
+    process.env.DATABASE_URL = "postgresql://test:***@127.0.0.1:5432/test";
+    process.env.BETTER_AUTH_SECRET = "test-secret-at-least-32-characters";
+    process.env.BETTER_AUTH_URL = "http://localhost:3000";
+    const app = await buildApp();
+
+    expect(app.hasRoute({ method: "GET", url: "/v1/actions" })).toBe(true);
+    expect(app.hasRoute({ method: "POST", url: "/v1/actions" })).toBe(true);
+    await app.close();
+  });
+
   it("fails clearly at startup without required auth/database configuration", async () => {
     delete process.env.DATABASE_URL;
     delete process.env.BETTER_AUTH_SECRET;
