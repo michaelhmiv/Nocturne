@@ -93,11 +93,11 @@ export const RelationshipBindingSchema = z
 
 export const GeneratedDefinitionDraftSchema = z.object({
   definitionType: z.string().min(1),
-  name: z.string().min(1),
+  name: z.string().max(180).default("Unnamed device"),
   conceptSummary: z.string().min(1),
-  playerFantasy: z.string().min(1),
-  noveltyLevel: z.number().int().min(0).max(5),
-  originSource: z.string().min(1),
+  playerFantasy: z.string().max(4000).default(""),
+  noveltyLevel: z.number().int().min(0).max(5).default(1),
+  originSource: z.string().max(100).default("player-concept"),
   traits: z.array(TraitBindingSchema).default([]),
   effects: z.array(EffectBindingSchema).default([]),
   modes: z.array(ModeSchema).default([]),

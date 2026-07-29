@@ -20,11 +20,7 @@ const normalizedContentJsonSchema = {
         additionalProperties: false,
         required: [
           "definitionType",
-          "name",
           "conceptSummary",
-          "playerFantasy",
-          "noveltyLevel",
-          "originSource",
           "traits",
           "effects",
           "modes",
