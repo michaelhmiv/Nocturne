@@ -174,6 +174,7 @@ export async function executeConversationStateOperations(
       SELECT 1
       FROM game.entity_relations
       WHERE source_instance_id = ${input.viewpointId}
+         OR target_instance_id = ${input.viewpointId}
       FOR SHARE
     `;
     const context = await createAuthoritativeContextStore(database).buildContext(input.userId, sql);

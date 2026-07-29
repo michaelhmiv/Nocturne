@@ -402,8 +402,27 @@ describePostgres("conversation state operation executor (PostgreSQL)", () => {
     }
   });
 
-  it("rejects a cited movement authorization deleted while execution waits", async () => {
-    const { destinationId, characterId, turnId, locationFact, destinationFact } = await setupTurn();
+  it("rejects a cited incoming movement authorization deleted while execution waits", async () => {
+    const { destinationId, characterId, turnId, locationFact } = await setupTurn();
+    await database.client`
+      DELETE FROM game.entity_relations
+      WHERE source_instance_id = ${characterId}
+        AND target_instance_id = ${destinationId}
+        AND relation_type = 'can_enter'
+    `;
+    await database.client`
+      INSERT INTO game.entity_relations (
+        relation_id, source_instance_id, target_instance_id, relation_type, parameters
+      ) VALUES (
+        ${randomUUID()}, ${destinationId}, ${characterId}, 'can_enter',
+        ${JSON.stringify({ visibility: "player_known" })}::jsonb
+      )
+    `;
+    const context = await createAuthoritativeContextStore(database).buildContext("alice");
+    const destinationFact = context.playerKnownFacts.find(
+      (fact) => fact.claim === "relationship.can_enter" && fact.value === destinationId,
+    );
+    expect(destinationFact).toBeDefined();
     const blocker = postgres(databaseUrl, { max: 1 });
     const adminUrl = new URL(baseUrl!);
     adminUrl.pathname = "/postgres";
@@ -415,8 +434,8 @@ describePostgres("conversation state operation executor (PostgreSQL)", () => {
         await sql`
           SELECT 1
           FROM game.entity_relations
-          WHERE source_instance_id = ${characterId}
-            AND target_instance_id = ${destinationId}
+          WHERE source_instance_id = ${destinationId}
+            AND target_instance_id = ${characterId}
             AND relation_type = 'can_enter'
           FOR UPDATE
         `;
@@ -425,13 +444,13 @@ describePostgres("conversation state operation executor (PostgreSQL)", () => {
           viewpointId: characterId,
           turnId,
           eventId: randomUUID(),
-          declaredFactIds: [locationFact.factId, destinationFact.factId],
+          declaredFactIds: [locationFact.factId, destinationFact!.factId],
           operations: [
             {
               type: "move_entity",
               entityId: characterId,
               locationId: destinationId,
-              preconditionFactIds: [locationFact.factId, destinationFact.factId],
+              preconditionFactIds: [locationFact.factId, destinationFact!.factId],
             },
           ],
         });
@@ -451,8 +470,8 @@ describePostgres("conversation state operation executor (PostgreSQL)", () => {
         expect(blocked).toBe(true);
         await sql`
           DELETE FROM game.entity_relations
-          WHERE source_instance_id = ${characterId}
-            AND target_instance_id = ${destinationId}
+          WHERE source_instance_id = ${destinationId}
+            AND target_instance_id = ${characterId}
             AND relation_type = 'can_enter'
         `;
       });
