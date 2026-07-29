@@ -1,3 +1,4 @@
+import { OpenRouterError } from "@nocturne/ai-gm";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
 
@@ -34,6 +35,38 @@ describe("API boot paths", () => {
 
     expect(app.hasRoute({ method: "GET", url: "/v1/actions" })).toBe(true);
     expect(app.hasRoute({ method: "POST", url: "/v1/actions" })).toBe(true);
+    await app.close();
+  });
+
+  it("registers the conversational message and history routes", async () => {
+    process.env.DATABASE_URL = "postgresql://test:***@127.0.0.1:5432/test";
+    process.env.BETTER_AUTH_SECRET = "test-secret-at-least-32-characters";
+    process.env.BETTER_AUTH_URL = "http://localhost:3000";
+    const app = await buildApp();
+
+    expect(app.hasRoute({ method: "POST", url: "/v1/conversations/:id/messages" })).toBe(true);
+    expect(app.hasRoute({ method: "GET", url: "/v1/conversations/:id/messages" })).toBe(true);
+    await app.close();
+  });
+
+  it("does not expose provider error details", async () => {
+    process.env.DATABASE_URL = "postgresql://test:***@127.0.0.1:5432/test";
+    process.env.BETTER_AUTH_SECRET = "test-secret-at-least-32-characters";
+    process.env.BETTER_AUTH_URL = "http://localhost:3000";
+    const app = await buildApp();
+    const secret = "hidden-attacker-controlled-value";
+    app.get("/test-provider-error", async () => {
+      throw new OpenRouterError("validation", `Validation failed for ${secret}`);
+    });
+
+    const response = await app.inject({ method: "GET", url: "/test-provider-error" });
+
+    expect(response.statusCode).toBe(502);
+    expect(response.json()).toEqual({
+      error: "validation",
+      message: "AI provider request failed.",
+    });
+    expect(response.body).not.toContain(secret);
     await app.close();
   });
 

@@ -1,19 +1,26 @@
 import cors from "@fastify/cors";
-import { createModelPolicy } from "@nocturne/ai-gm";
+import { createModelPolicy, OpenRouterClient } from "@nocturne/ai-gm";
 import { closeAuthFromEnv, getAuthFromEnv, getSessionFromNodeHeaders } from "@nocturne/auth";
 import { validateGeneratedContent } from "@nocturne/content-engine";
 import {
   ActionStoreError,
+  AuthoritativeContextError,
   createActionStore,
+  createAuthoritativeContextStore,
+  createConversationStore,
   createDatabase,
   createInventionStore,
   createPersistentWorldStore,
+  executeConversationStateOperations,
   InventionStoreError,
   PersistentWorldError,
+  ConversationStoreError,
+  StateOperationExecutorError,
 } from "@nocturne/database";
 import Fastify from "fastify";
 import { z, ZodError } from "zod";
 import { createActionService } from "./action-service.js";
+import { ConversationServiceError, createConversationService } from "./conversation-service.js";
 import { createInventionService } from "./invention-service.js";
 import { createPersistentWorldService } from "./persistent-world.js";
 
@@ -25,6 +32,35 @@ export async function buildApp() {
   const world = createPersistentWorldService(createPersistentWorldStore(database));
   const inventions = createInventionService(createInventionStore(database));
   const actions = createActionService(createActionStore(database));
+  const conversationTurns = createConversationStore(database);
+  const context = createAuthoritativeContextStore(database);
+  const conversations = createConversationService({
+    client: new OpenRouterClient({
+      apiKey: process.env.OPENROUTER_API_KEY,
+      authoritativeModel: process.env.NOCTURNE_AUTHORITATIVE_MODEL,
+      creativeModel: process.env.NOCTURNE_CREATIVE_MODEL,
+    }),
+    turns: conversationTurns,
+    rollSecret: process.env.NOCTURNE_ROLL_SECRET || process.env.BETTER_AUTH_SECRET,
+    applyStateOperations: (input) => executeConversationStateOperations(database, input),
+    loadContext: async ({ userId }) => {
+      try {
+        const result = await context.buildContext(userId);
+        return {
+          viewpointId: result.viewpointId,
+          playerKnownFacts: result.playerKnownFacts,
+          hiddenFacts: result.authoritativeHiddenFacts,
+        };
+      } catch (error) {
+        if (
+          error instanceof AuthoritativeContextError &&
+          error.code === "selected_character_not_found"
+        )
+          return { playerKnownFacts: [], hiddenFacts: [] };
+        throw error;
+      }
+    },
+  });
   const app = Fastify({ logger: { level: process.env.LOG_LEVEL || "info" } });
   await app.register(cors, {
     origin: (process.env.BETTER_AUTH_TRUSTED_ORIGINS || "http://localhost:3000")
@@ -52,7 +88,11 @@ export async function buildApp() {
     if (
       error instanceof PersistentWorldError ||
       error instanceof InventionStoreError ||
-      error instanceof ActionStoreError
+      error instanceof ActionStoreError ||
+      error instanceof ConversationStoreError ||
+      error instanceof AuthoritativeContextError ||
+      error instanceof ConversationServiceError ||
+      error instanceof StateOperationExecutorError
     ) {
       const status =
         error.code === "not_found"
@@ -66,11 +106,13 @@ export async function buildApp() {
     }
     const providerCode =
       error instanceof Error && "code" in error ? String((error as { code: unknown }).code) : null;
-    if (providerCode)
+    if (providerCode) {
+      app.log.error(error);
       return reply.code(providerCode === "configuration" ? 503 : 502).send({
         error: providerCode,
-        message: error instanceof Error ? error.message : String(error),
+        message: "AI provider request failed.",
       });
+    }
     app.log.error(error);
     return reply.code(500).send({ error: "internal_error" });
   });
@@ -184,6 +226,26 @@ export async function buildApp() {
       request.body,
       request.headers["idempotency-key"] as string | undefined,
     );
+  });
+
+  app.post<{ Params: { id: string } }>("/v1/conversations/:id/messages", async (request) => {
+    const user = await requireUser(request.headers);
+    const idempotencyKey = z
+      .string()
+      .trim()
+      .min(1)
+      .max(256)
+      .parse(request.headers["idempotency-key"]);
+    return conversations.submitMessage({
+      userId: user.id,
+      conversationId: request.params.id,
+      idempotencyKey,
+      request: request.body,
+    });
+  });
+  app.get<{ Params: { id: string } }>("/v1/conversations/:id/messages", async (request) => {
+    const user = await requireUser(request.headers);
+    return { messages: await conversationTurns.listPlayerSafeHistory(user.id, request.params.id) };
   });
 
   app.addHook("onClose", async () => {

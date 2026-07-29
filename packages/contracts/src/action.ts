@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+export const ConversationMessageRequestSchema = z
+  .object({ message: z.string().trim().min(1).max(4_000) })
+  .strict();
+
 export const ActionIntentSchema = z.object({
   actorId: z.string().uuid(),
   rawText: z.string().min(1),
@@ -51,6 +55,7 @@ export const ActionExecutionResponseSchema = z.object({
 });
 
 export type ActionIntent = z.infer<typeof ActionIntentSchema>;
+export type ConversationMessageRequest = z.infer<typeof ConversationMessageRequestSchema>;
 export type ParsedActionEnvelope = z.infer<typeof ParsedActionEnvelopeSchema>;
 export type SubmitActionRequest = z.infer<typeof SubmitActionRequestSchema>;
 export type ActionExecutionResponse = z.infer<typeof ActionExecutionResponseSchema>;
