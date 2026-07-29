@@ -170,6 +170,12 @@ export async function executeConversationStateOperations(
     }
 
     await requireMutableEntity(sql, input.viewpointId, input.viewpointId);
+    await sql`
+      SELECT 1
+      FROM game.entity_relations
+      WHERE source_instance_id = ${input.viewpointId}
+      FOR SHARE
+    `;
     const context = await createAuthoritativeContextStore(database).buildContext(input.userId, sql);
     if (context.viewpointId !== input.viewpointId) {
       throw new StateOperationExecutorError(

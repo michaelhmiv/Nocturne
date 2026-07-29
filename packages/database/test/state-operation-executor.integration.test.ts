@@ -401,4 +401,68 @@ describePostgres("conversation state operation executor (PostgreSQL)", () => {
       await monitor.end({ timeout: 5 });
     }
   });
+
+  it("rejects a cited movement authorization deleted while execution waits", async () => {
+    const { destinationId, characterId, turnId, locationFact, destinationFact } = await setupTurn();
+    const blocker = postgres(databaseUrl, { max: 1 });
+    const adminUrl = new URL(baseUrl!);
+    adminUrl.pathname = "/postgres";
+    const monitor = postgres(adminUrl.toString(), { max: 1 });
+    let execution!: ReturnType<typeof executeConversationStateOperations>;
+
+    try {
+      await blocker.begin(async (sql) => {
+        await sql`
+          SELECT 1
+          FROM game.entity_relations
+          WHERE source_instance_id = ${characterId}
+            AND target_instance_id = ${destinationId}
+            AND relation_type = 'can_enter'
+          FOR UPDATE
+        `;
+        execution = executeConversationStateOperations(database, {
+          userId: "alice",
+          viewpointId: characterId,
+          turnId,
+          eventId: randomUUID(),
+          declaredFactIds: [locationFact.factId, destinationFact.factId],
+          operations: [
+            {
+              type: "move_entity",
+              entityId: characterId,
+              locationId: destinationId,
+              preconditionFactIds: [locationFact.factId, destinationFact.factId],
+            },
+          ],
+        });
+        let blocked = false;
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+          const [{ count }] = await monitor`
+            SELECT count(*)::int AS count
+            FROM pg_stat_activity
+            WHERE datname = ${databaseName} AND wait_event_type = 'Lock'
+          `;
+          if (count > 0) {
+            blocked = true;
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        expect(blocked).toBe(true);
+        await sql`
+          DELETE FROM game.entity_relations
+          WHERE source_instance_id = ${characterId}
+            AND target_instance_id = ${destinationId}
+            AND relation_type = 'can_enter'
+        `;
+      });
+
+      await expect(execution).rejects.toMatchObject({
+        code: "unmet_precondition",
+      } satisfies Partial<StateOperationExecutorError>);
+    } finally {
+      await blocker.end({ timeout: 5 });
+      await monitor.end({ timeout: 5 });
+    }
+  });
 });
