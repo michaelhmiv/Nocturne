@@ -1,0 +1,45 @@
+name: Apply DeepSeek Flash-only codemod
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  codemod:
+    if: github.head_ref == 'fix/deepseek-flash-only'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/deepseek-flash-only
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Execute codemod payload
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          source = Path('.github/workflows/deepseek-flash-codemod.yml').read_text(encoding='utf-8')
+          marker = "          python <<'PY'\n"
+          start = source.index(marker) + len(marker)
+          end = source.index("\n          PY\n", start)
+          payload = textwrap.dedent(source[start:end])
+          exec(compile(payload, 'deepseek-flash-codemod', 'exec'))
+          PY
+      - name: Commit completed provider migration
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -- .github/workflows/deepseek-flash-codemod.yml .github/workflows/deepseek-flash-codemod-pr.yml
+          git add -A
+          git commit -m "fix: use DeepSeek Flash directly"
+          git push origin HEAD:fix/deepseek-flash-only
