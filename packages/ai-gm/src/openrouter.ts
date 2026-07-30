@@ -169,15 +169,17 @@ export class OpenRouterClient {
         { role: "system", content: request.system },
         { role: "user", content: request.prompt },
       ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: request.jsonSchema.name,
-          description: request.jsonSchema.description,
-          strict: false,
-          schema: request.jsonSchema.schema,
-        },
-      },
+      response_format: isDeepSeek
+        ? { type: "json_object" }
+        : {
+            type: "json_schema",
+            json_schema: {
+              name: request.jsonSchema.name,
+              description: request.jsonSchema.description,
+              strict: false,
+              schema: request.jsonSchema.schema,
+            },
+          },
     };
     if (!isDeepSeek) {
       body.plugins = [{ id: "response-healing" }];
