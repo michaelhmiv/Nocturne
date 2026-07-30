@@ -72,7 +72,7 @@
 
 .scene-shell {
   min-height: 100vh;
-  padding-bottom: 160px;
+  padding-bottom: 148px;
   background:
     linear-gradient(#080a0ef0, #080a0ef0),
     repeating-linear-gradient(115deg, transparent 0 42px, #ffffff05 42px 43px);
@@ -83,7 +83,7 @@
   z-index: 20;
   top: 0;
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 22px;
   min-height: 76px;
@@ -93,11 +93,25 @@
   backdrop-filter: blur(18px);
 }
 
-.scene-topbar strong {
-  display: block;
+.scene-identity {
+  min-width: 0;
+}
+
+.scene-identity-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
   margin-top: 3px;
+}
+
+.scene-topbar strong {
+  min-width: 0;
+  overflow: hidden;
   font-family: Georgia, "Times New Roman", serif;
   font-size: 1.15rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .scene-vitals {
@@ -112,6 +126,7 @@
   border-radius: 999px;
   color: #c8ced8;
   font-size: 0.78rem;
+  white-space: nowrap;
 }
 
 .scene-vitals .scene-danger {
@@ -123,6 +138,10 @@
   border: 1px solid var(--scene-line);
   background: transparent;
   color: #c3cad4;
+}
+
+.scene-character-toggle {
+  min-width: 112px;
 }
 
 .scene-alert,
@@ -254,7 +273,7 @@
   color: #e6e8ec;
   font-family: Georgia, "Times New Roman", serif;
   font-size: 1.12rem;
-  line-height: 1.75;
+  line-height: 1.65;
 }
 
 .scene-discovery,
@@ -285,12 +304,17 @@
 
 .scene-pending {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 13px;
   padding: 15px 18px;
   border: 1px dashed #485467;
   background: #10141b;
   color: #c4cbd5;
+}
+
+.scene-pending-copy {
+  min-width: 0;
+  flex: 1;
 }
 
 .scene-pending p {
@@ -303,10 +327,32 @@
   border-color: #743b40;
 }
 
+.scene-pending-offline {
+  border-color: #8a633c;
+  background: #18140f;
+}
+
+.scene-pending-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.scene-pending-actions button {
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid #485467;
+  background: transparent;
+  color: #d2d8e1;
+  font-size: 0.78rem;
+}
+
 .scene-pulse {
   width: 10px;
   height: 10px;
   flex: none;
+  margin-top: 5px;
   border-radius: 50%;
   background: var(--scene-accent);
   box-shadow: 0 0 0 0 #d8b46a88;
@@ -394,7 +440,7 @@
 }
 
 .scene-composer textarea {
-  min-height: 60px;
+  min-height: 54px;
   max-height: 180px;
   border: 0;
   background: transparent;
@@ -423,58 +469,246 @@
   .scene-auth {
     grid-template-columns: 1fr;
   }
+
   .scene-auth-form {
     border-top: 1px solid var(--scene-line);
     border-left: 0;
   }
+
   .scene-layout {
     grid-template-columns: minmax(0, 780px);
   }
+
   .scene-character-panel {
     position: fixed;
     z-index: 40;
-    top: 70px;
-    right: 12px;
-    bottom: 12px;
-    left: 12px;
-    max-height: none;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    max-height: min(78vh, 720px);
+    max-height: min(78dvh, 720px);
     margin: 0;
-    box-shadow: 0 30px 100px #000d;
+    padding-bottom: max(22px, env(safe-area-inset-bottom));
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -20px 80px #000d;
   }
 }
 
 @media (max-width: 620px) {
+  .scene-shell {
+    padding-bottom: calc(102px + env(safe-area-inset-bottom));
+  }
+
   .scene-topbar {
-    grid-template-columns: 1fr auto;
-    gap: 10px;
-    min-height: 68px;
-    padding: 9px 12px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    min-height: 56px;
+    padding: 7px 10px;
   }
+
+  .scene-identity-row {
+    gap: 9px;
+    margin-top: 1px;
+  }
+
+  .scene-topbar .scene-kicker {
+    overflow: hidden;
+    font-size: 0.57rem;
+    letter-spacing: 0.12em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .scene-topbar strong {
+    font-size: 1rem;
+  }
+
   .scene-vitals {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    overflow-x: auto;
+    min-width: 0;
+    gap: 6px;
   }
+
+  .scene-vitals span {
+    padding: 0;
+    border: 0;
+    color: #aeb6c1;
+    font-size: 0.7rem;
+  }
+
+  .scene-vitals span + span::before {
+    margin-right: 6px;
+    color: #4f5968;
+    content: "·";
+  }
+
+  .scene-character-toggle {
+    min-width: 0;
+    min-height: 38px;
+    padding: 7px 10px;
+    font-size: 0.78rem;
+  }
+
+  .scene-alert {
+    top: 56px;
+    width: calc(100% - 20px);
+    margin-top: 8px;
+    padding: 9px 11px;
+    font-size: 0.82rem;
+  }
+
   .scene-layout {
-    width: min(100% - 20px, 780px);
+    width: 100%;
   }
+
   .scene-location {
-    min-height: 240px;
-    margin-top: 14px;
-    padding: 28px 22px;
+    min-height: 0;
+    margin: 0 0 12px;
+    padding: 11px 14px 12px;
+    border-width: 0 0 1px;
+    border-radius: 0;
+    background: linear-gradient(100deg, #0d1118, #17140f);
+    box-shadow: none;
   }
+
+  .scene-location::after {
+    display: none;
+  }
+
   .scene-location h1 {
-    font-size: clamp(2.7rem, 16vw, 5rem);
+    margin: 5px 0 3px;
+    font-size: 1.55rem;
+    line-height: 1.05;
+    letter-spacing: -0.025em;
   }
+
+  .scene-location > p:last-child {
+    display: -webkit-box;
+    margin: 0;
+    overflow: hidden;
+    color: #9ca5b2;
+    font-size: 0.78rem;
+    line-height: 1.35;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .scene-story {
+    gap: 12px;
+    padding: 0 10px;
+  }
+
+  .scene-turn {
+    gap: 6px;
+  }
+
+  .scene-player-line {
+    max-width: 92%;
+    padding: 6px 9px;
+    border-right-width: 2px;
+    font-size: 0.9rem;
+    line-height: 1.3;
+  }
+
   .scene-event,
   .scene-onboarding {
-    padding: 20px 18px;
+    padding: 13px 14px;
+    border-left-width: 3px;
   }
-  .scene-player-line {
-    max-width: 94%;
+
+  .scene-event .scene-kicker,
+  .scene-onboarding .scene-kicker {
+    font-size: 0.61rem;
+    letter-spacing: 0.13em;
   }
+
+  .scene-event h2,
+  .scene-onboarding h2 {
+    margin: 5px 0 7px;
+    font-size: 1.25rem;
+  }
+
+  .scene-narration {
+    margin-top: 7px;
+    font-size: 1rem;
+    line-height: 1.48;
+  }
+
+  .scene-discovery,
+  .scene-consequence,
+  .scene-success {
+    margin-top: 9px;
+    padding: 8px 10px;
+    font-size: 0.86rem;
+  }
+
+  .scene-pending {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .scene-pending strong {
+    font-size: 0.9rem;
+  }
+
+  .scene-pending p {
+    font-size: 0.78rem;
+    line-height: 1.35;
+  }
+
+  .scene-pending-actions {
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .scene-pending-actions button {
+    min-height: 32px;
+    padding: 5px 8px;
+    font-size: 0.72rem;
+  }
+
+  .scene-pulse {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scene-composer {
+    width: 100%;
+    margin: 0;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    border-width: 1px 0 0;
+    border-radius: 16px 16px 0 0;
+    background: #0c1016f7;
+  }
+
+  .scene-composer textarea {
+    min-height: 42px;
+    max-height: 96px;
+    padding: 10px 12px;
+    border: 1px solid #343d4c;
+    border-radius: 12px;
+    background: #111720;
+    font-size: 16px;
+    line-height: 1.35;
+    resize: none;
+  }
+
+  .scene-composer-footer {
+    gap: 8px;
+    padding-left: 0;
+  }
+
   .scene-composer-footer span {
-    max-width: 180px;
+    overflow: hidden;
+    font-size: 0.68rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .scene-composer-footer button {
+    min-width: 72px;
+    min-height: 40px;
+    padding: 8px 12px;
   }
 }
 
