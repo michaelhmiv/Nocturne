@@ -7,18 +7,31 @@ import type {
   ConsumptionCandidate,
   ConsumptionResult,
 } from "@nocturne/contracts";
-import type { ConsumptionMechanicsResult } from "@nocturne/rules-engine";
+type ConsumptionMechanicsResult = {
+  outcomeGrade:
+    | "complete_success"
+    | "success_with_consequence"
+    | "partial_success"
+    | "failure_with_progress"
+    | "failure"
+    | "catastrophic_reversal";
+  resourceDeltas: Array<{ resource: string; delta: number; rationale: string }>;
+  conditions: Array<{
+    name: string;
+    key: string;
+    intensity: number;
+    durationSeconds: number;
+    rationale: string;
+  }>;
+  risks: Array<{ description: string; occurred: boolean }>;
+  calculationTrace: string[];
+};
 import type { createDatabase } from "./index.js";
 import { serializeJson as json } from "./json.js";
 
 export class ConsumptionStoreError extends Error {
   constructor(
-    readonly code:
-      | "not_found"
-      | "forbidden"
-      | "unavailable"
-      | "invalid_analysis"
-      | "duplicate",
+    readonly code: "not_found" | "forbidden" | "unavailable" | "invalid_analysis" | "duplicate",
     message: string,
   ) {
     super(message);
@@ -89,9 +102,7 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
 
     const actorState = object(actor.state);
     const locationId = actor.location_id ? String(actor.location_id) : null;
-    const residenceId = actor.residence_instance_id
-      ? String(actor.residence_instance_id)
-      : null;
+    const residenceId = actor.residence_instance_id ? String(actor.residence_instance_id) : null;
 
     const entityRows = await database.client`
       SELECT item.instance_id, item.owner_id, item.location_id, item.state,
@@ -123,39 +134,38 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
       LIMIT 24
     `;
 
-    const candidates: ConsumptionCandidate[] = entityRows
-      .map((row) => {
-        const state = object(row.state);
-        const quantity = availableQuantity(state);
-        if (quantity <= 0) return null;
-        const owned = row.owner_id && String(row.owner_id) === input.actorId;
-        const carried =
-          (row.location_id && String(row.location_id) === input.actorId) ||
-          Boolean(row.related_to_actor);
-        const revisionPayload = object(row.payload);
-        const cachedProfile = object(state.semanticProfile);
-        return {
-          sourceType: "entity" as const,
-          sourceId: String(row.instance_id),
-          name: String(row.name),
-          description: [
-            String(row.concept_summary || row.name),
-            Object.keys(revisionPayload).length
-              ? `Definition: ${JSON.stringify(revisionPayload).slice(0, 1_000)}`
-              : "",
-            Object.keys(cachedProfile).length
-              ? `Existing semantic profile: ${JSON.stringify(cachedProfile).slice(0, 1_000)}`
-              : "",
-          ]
-            .filter(Boolean)
-            .join("\n"),
-          access: carried ? ("carried" as const) : owned ? ("owned" as const) : ("visible" as const),
-          quantity,
-          state,
-          constraints: arrayOfStrings(state.constraints),
-        };
-      })
-      .filter((candidate): candidate is ConsumptionCandidate => Boolean(candidate));
+    const candidates = entityRows.reduce<ConsumptionCandidate[]>((result, row) => {
+      const state = object(row.state);
+      const quantity = availableQuantity(state);
+      if (quantity <= 0) return result;
+      const owned = row.owner_id && String(row.owner_id) === input.actorId;
+      const carried =
+        (row.location_id && String(row.location_id) === input.actorId) ||
+        Boolean(row.related_to_actor);
+      const revisionPayload = object(row.payload);
+      const cachedProfile = object(state.semanticProfile);
+      result.push({
+        sourceType: "entity",
+        sourceId: String(row.instance_id),
+        name: String(row.name),
+        description: [
+          String(row.concept_summary || row.name),
+          Object.keys(revisionPayload).length
+            ? `Definition: ${JSON.stringify(revisionPayload).slice(0, 1_000)}`
+            : "",
+          Object.keys(cachedProfile).length
+            ? `Existing semantic profile: ${JSON.stringify(cachedProfile).slice(0, 1_000)}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        access: carried ? "carried" : owned ? "owned" : "visible",
+        quantity,
+        state,
+        constraints: arrayOfStrings(state.constraints),
+      });
+      return result;
+    }, []);
 
     const containers = [locationId, residenceId].filter((value): value is string => Boolean(value));
     if (containers.length) {
@@ -229,7 +239,10 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
       `;
       const actor = actorRows[0];
       if (!actor) {
-        throw new ConsumptionStoreError("forbidden", "Character is not controlled by this account.");
+        throw new ConsumptionStoreError(
+          "forbidden",
+          "Character is not controlled by this account.",
+        );
       }
 
       const intentId = randomUUID();
@@ -255,7 +268,8 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
             FOR UPDATE
           `;
           const item = itemRows[0];
-          if (!item) throw new ConsumptionStoreError("not_found", "Selected item no longer exists.");
+          if (!item)
+            throw new ConsumptionStoreError("not_found", "Selected item no longer exists.");
           const actorLocation = actor.location_id ? String(actor.location_id) : null;
           const accessible =
             (item.owner_id && String(item.owner_id) === input.actorId) ||
@@ -267,7 +281,10 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
           const itemState = object(item.state);
           const quantity = availableQuantity(itemState);
           if (quantity < input.analysis.consumeUnits) {
-            throw new ConsumptionStoreError("unavailable", "Selected item does not have enough remaining quantity.");
+            throw new ConsumptionStoreError(
+              "unavailable",
+              "Selected item does not have enough remaining quantity.",
+            );
           }
           remainingUnits = quantity - input.analysis.consumeUnits;
           await sql`
@@ -284,13 +301,17 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
             FOR UPDATE
           `;
           const pool = poolRows[0];
-          if (!pool) throw new ConsumptionStoreError("not_found", "Ambient resource no longer exists.");
+          if (!pool)
+            throw new ConsumptionStoreError("not_found", "Ambient resource no longer exists.");
           const allowedContainers = [
             actor.location_id ? String(actor.location_id) : null,
             actor.residence_instance_id ? String(actor.residence_instance_id) : null,
           ].filter(Boolean);
           if (!allowedContainers.includes(String(pool.container_instance_id))) {
-            throw new ConsumptionStoreError("forbidden", "Ambient resource is not accessible here.");
+            throw new ConsumptionStoreError(
+              "forbidden",
+              "Ambient resource is not accessible here.",
+            );
           }
           const proposal = input.analysis.materialization;
           if (!proposal) {

@@ -14,6 +14,7 @@ import {
 import {
   SubmitActionRequestSchema,
   type ActionExecutionResponse,
+  type OutcomeGrade,
   type ParsedActionEnvelope,
 } from "@nocturne/contracts";
 import type { ActionStore, ConsumptionStore } from "@nocturne/database";
@@ -37,6 +38,22 @@ import {
 } from "@nocturne/rules-engine";
 
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+
+const OUTCOME_GRADES = new Set<OutcomeGrade>([
+  "complete_success",
+  "success_with_consequence",
+  "partial_success",
+  "failure_with_progress",
+  "failure",
+  "catastrophic_reversal",
+]);
+
+function requireOutcomeGrade(value: string): OutcomeGrade {
+  if (!OUTCOME_GRADES.has(value as OutcomeGrade)) {
+    throw new Error(`Unknown committed outcome grade: ${value}`);
+  }
+  return value as OutcomeGrade;
+}
 
 type Pathfinder = {
   findShortestPath: (
@@ -425,7 +442,8 @@ export function createActionService(
 
     await store.saveNarration(committed.resolutionId, narration);
 
-    const xpGain = xpFromOutcome(committed.outcomeGrade);
+    const outcomeGrade = requireOutcomeGrade(committed.outcomeGrade);
+    const xpGain = xpFromOutcome(outcomeGrade);
     const xp = await store.applyActorSkillXp(input.actorId, skill, xpGain);
     if (xp) {
       committed.calculationTrace = [
@@ -497,7 +515,7 @@ export function createActionService(
     }
 
     let legal: { heat: number; warrant: boolean; jailed: boolean; jailSeconds: number } | undefined;
-    const heatGain = heatFromCrime(actionType, committed.outcomeGrade);
+    const heatGain = heatFromCrime(actionType, outcomeGrade);
     if (heatGain > 0) {
       const st = await store.readActorState(input.actorId);
       const prevHeat = Number(st.heat || 0);
@@ -549,7 +567,7 @@ export function createActionService(
       const st = await store.readActorState(input.actorId);
       const heat = Number(st.heat || 0);
       const roll = parseInt(seed.slice(0, 8), 16) / 0xffffffff;
-      const { intercepted, chance } = resolveIntercept(heat, committed.outcomeGrade, roll);
+      const { intercepted, chance } = resolveIntercept(heat, outcomeGrade, roll);
       const toName =
         /(?:to|call)\s+([A-Za-z][A-Za-z0-9 _-]{1,30})/i.exec(input.rawText)?.[1]?.trim() ||
         "Unknown";
