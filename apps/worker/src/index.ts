@@ -1,5 +1,6 @@
 import { hostname } from "node:os";
 import { createAiJobStore, createDatabase, type AiJob } from "@nocturne/database";
+import { aiJobErrorCode, aiJobRetryDelaySeconds } from "./ai-job-policy.js";
 
 const json = (value: unknown) => JSON.stringify(value);
 
@@ -160,11 +161,11 @@ async function tickAiJobs() {
         }),
       );
     } catch (error) {
-      const delaySeconds = Math.min(300, 5 * 2 ** Math.max(0, job.attempts - 1));
+      const delaySeconds = aiJobRetryDelaySeconds(job.attempts);
       const updated = await aiJobs.retryOrFail(
         workerId,
         job.jobId,
-        error instanceof Error ? error.name || "ai_job_failed" : "ai_job_failed",
+        aiJobErrorCode(error),
         delaySeconds,
       );
       console.error(
