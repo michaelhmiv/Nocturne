@@ -57,6 +57,7 @@ export function createActionService(
 
   const client = new OpenRouterClient({
     apiKey: environment.OPENROUTER_API_KEY,
+    deepseekApiKey: environment.DEEPSEEK_API_KEY,
     baseUrl: environment.OPENROUTER_BASE_URL,
     httpReferer: environment.OPENROUTER_HTTP_REFERER,
     appName: environment.OPENROUTER_APP_NAME,

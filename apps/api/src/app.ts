@@ -46,6 +46,7 @@ export async function buildApp() {
   const conversations = createConversationService({
     client: new OpenRouterClient({
       apiKey: process.env.OPENROUTER_API_KEY,
+      deepseekApiKey: process.env.DEEPSEEK_API_KEY,
     }),
     turns: conversationTurns,
     rollSecret: process.env.NOCTURNE_ROLL_SECRET || process.env.BETTER_AUTH_SECRET,

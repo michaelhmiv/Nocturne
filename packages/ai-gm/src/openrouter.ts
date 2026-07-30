@@ -15,6 +15,7 @@ export interface OpenRouterConfig {
   httpReferer?: string;
   appName?: string;
   timeoutMs?: number;
+  deepseekApiKey?: string;
 }
 
 export interface StructuredGenerationRequest<T> {
@@ -147,48 +148,53 @@ export class OpenRouterClient {
       requestedModel: request.requestedModel,
     });
 
-    if (!this.config.apiKey) {
+    const isDeepSeek = Boolean(this.config.deepseekApiKey);
+    if (!isDeepSeek && !this.config.apiKey) {
       throw new OpenRouterError("configuration", "OPENROUTER_API_KEY is not configured.");
     }
+
+    const apiKey = isDeepSeek ? this.config.deepseekApiKey! : this.config.apiKey!;
+    const baseUrl = isDeepSeek ? "https://api.deepseek.com" : (this.config.baseUrl || "https://openrouter.ai/api/v1");
 
     const timeoutSignal = AbortSignal.timeout(this.config.timeoutMs ?? 45_000);
     const signal = request.signal
       ? AbortSignal.any([request.signal, timeoutSignal])
       : timeoutSignal;
     let response: Response;
+    const body: Record<string, unknown> = {
+      model: policy.model,
+      temperature: policy.temperature,
+      max_tokens: 1024,
+      messages: [
+        { role: "system", content: request.system },
+        { role: "user", content: request.prompt },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: request.jsonSchema.name,
+          description: request.jsonSchema.description,
+          strict: false,
+          schema: request.jsonSchema.schema,
+        },
+      },
+    };
+    if (!isDeepSeek) {
+      body.plugins = [{ id: "response-healing" }];
+      body.provider = { require_parameters: true };
+    }
     try {
       response = await fetch(
-        `${this.config.baseUrl || "https://openrouter.ai/api/v1"}/chat/completions`,
+        `${baseUrl}/v1/chat/completions`,
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${this.config.apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             "Content-Type": "application/json",
-            ...(this.config.httpReferer ? { "HTTP-Referer": this.config.httpReferer } : {}),
-            ...(this.config.appName ? { "X-Title": this.config.appName } : {}),
+            ...(!isDeepSeek && this.config.httpReferer ? { "HTTP-Referer": this.config.httpReferer } : {}),
+            ...(!isDeepSeek && this.config.appName ? { "X-Title": this.config.appName } : {}),
           },
-          body: JSON.stringify({
-            model: policy.model,
-            temperature: policy.temperature,
-            max_tokens: 1024,
-            messages: [
-              { role: "system", content: request.system },
-              { role: "user", content: request.prompt },
-            ],
-            response_format: {
-              type: "json_schema",
-              json_schema: {
-                name: request.jsonSchema.name,
-                description: request.jsonSchema.description,
-                strict: false,
-                schema: request.jsonSchema.schema,
-              },
-            },
-            plugins: [{ id: "response-healing" }],
-            provider: {
-              require_parameters: true,
-            },
-          }),
+          body: JSON.stringify(body),
           signal,
         },
       );

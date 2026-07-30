@@ -37,7 +37,7 @@ describe("OpenRouterClient", () => {
     );
   });
 
-  it("requests provider-compatible JSON Schema, defaults to openrouter/free, and records the actual model", async () => {
+  it("requests provider-compatible JSON Schema, defaults to deepseek v4 flash, and records the actual model", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       Response.json({
         id: "run-1",
@@ -51,10 +51,12 @@ describe("OpenRouterClient", () => {
     const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
     const body = JSON.parse(String(init.body));
 
-    expect(body.model).toBe("openrouter/free");
+    expect(body.model).toBe("deepseek-v4-flash");
     expect(body.max_tokens).toBe(1024);
     expect(body.response_format.json_schema.strict).toBe(false);
-    expect(body.provider.require_parameters).toBe(true);
+    // provider fields present when using OpenRouter (no deepseek key)
+    expect(body.plugins).toEqual([{ id: "response-healing" }]);
+    expect(body.provider).toEqual({ require_parameters: true });
     expect(result.actualModel).toBe("provider/actual-free-model");
     expect(result.data).toEqual({ name: "Parallax Array", tags: [] });
     expect(result.providerRequestId).toBe("run-1");

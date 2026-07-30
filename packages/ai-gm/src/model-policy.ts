@@ -38,7 +38,7 @@ export function createModelPolicy(input: {
   return {
     task: input.task,
     authority,
-    model: "openrouter/free",
+    model: "deepseek-v4-flash",
     allowUserOverride: false,
     requireStructuredOutput: authority === "authoritative" || input.task === "brainstorm_content",
     temperature: authority === "authoritative" ? 0.1 : 0.8,
