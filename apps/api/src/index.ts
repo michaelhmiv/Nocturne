@@ -1,3 +1,4 @@
+import { registerAiJobRoutesFromEnv } from "./ai-job-routes.js";
 import { buildApp } from "./app.js";
 
 const app = await buildApp().catch((error: unknown) => {
@@ -11,6 +12,8 @@ const app = await buildApp().catch((error: unknown) => {
   );
   process.exit(1);
 });
+await registerAiJobRoutesFromEnv(app);
+
 const port = Number(process.env.PORT || 3001);
 let shuttingDown = false;
 

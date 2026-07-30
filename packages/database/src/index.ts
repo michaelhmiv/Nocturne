@@ -13,6 +13,7 @@ export function createDatabase(connectionString: string) {
 }
 export * from "./action-store.js";
 export * from "./agent-store.js";
+export * from "./ai-job-store.js";
 export * from "./context-store.js";
 export * from "./conversation-store.js";
 export * from "./game-store.js";
