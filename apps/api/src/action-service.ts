@@ -1,8 +1,10 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import {
   ACTION_PARSE_POLICY_VERSION,
+  CONSUMABLE_ANALYSIS_POLICY_VERSION,
   EVENT_NARRATION_POLICY_VERSION,
   OpenRouterClient,
+  analyzeConsumable,
   deterministicActionFallback,
   deterministicNarrationFallback,
   narrateCommittedEvent,
@@ -13,7 +15,7 @@ import {
   type ActionExecutionResponse,
   type ParsedActionEnvelope,
 } from "@nocturne/contracts";
-import type { ActionStore } from "@nocturne/database";
+import type { ActionStore, ConsumptionStore } from "@nocturne/database";
 import {
   ACTION_SKILL,
   applyStanding,
@@ -26,6 +28,7 @@ import {
   heatFromCrime,
   legalStatusAfterHeat,
   npcDialogue,
+  resolveConsumptionMechanics,
   resolveContest,
   resolveIntercept,
   xpFromOutcome,
@@ -46,6 +49,7 @@ export function createActionService(
   store: ActionStore,
   environment = process.env,
   locations?: Pathfinder | null,
+  consumptionStore?: ConsumptionStore | null,
 ) {
   const pathfind = async (from: string, to: string, speed: number) => {
     if (locations?.findShortestPath) {
@@ -61,7 +65,11 @@ export function createActionService(
     baseUrl: environment.OPENROUTER_BASE_URL,
     httpReferer: environment.OPENROUTER_HTTP_REFERER,
     appName: environment.OPENROUTER_APP_NAME,
+    fallbackModel: environment.OPENROUTER_FALLBACK_MODEL,
+    authoritativeModel: environment.AI_AUTHORITATIVE_MODEL || environment.DEEPSEEK_MODEL,
+    creativeModel: environment.AI_CREATIVE_MODEL || environment.DEEPSEEK_MODEL,
   });
+  const aiConfigured = Boolean(environment.DEEPSEEK_API_KEY || environment.OPENROUTER_API_KEY);
 
   async function execute(
     userId: string,
@@ -83,7 +91,7 @@ export function createActionService(
     const parseRun = await store.startAiRun({
       task: "parse_intent",
       authority: "authoritative",
-      requestedModel: "openrouter/free",
+      requestedModel: environment.AI_AUTHORITATIVE_MODEL || environment.DEEPSEEK_MODEL || "configured",
       policyVersion: ACTION_PARSE_POLICY_VERSION,
       inputHash: hash({ input, context: context.publicContext }),
       metadata: { actorId: input.actorId, idempotencyKey },
@@ -92,6 +100,7 @@ export function createActionService(
     try {
       if (
         !environment.OPENROUTER_API_KEY &&
+        !environment.DEEPSEEK_API_KEY &&
         environment.NOCTURNE_ALLOW_DETERMINISTIC_AI_FALLBACK === "true"
       ) {
         parsed = deterministicActionFallback(
@@ -129,6 +138,148 @@ export function createActionService(
       throw new Error("Parsed actor does not match the authenticated command actor.");
     }
     const actionType = parsed.intent.actionType as ActionType;
+    const secret = environment.NOCTURNE_RESOLUTION_SECRET || environment.BETTER_AUTH_SECRET;
+    if (!secret) {
+      throw new Error("NOCTURNE_RESOLUTION_SECRET or BETTER_AUTH_SECRET is required.");
+    }
+    const seed = createHmac("sha256", secret)
+      .update(
+        `${idempotencyKey}:${input.actorId}:${context.method.instanceId}:${context.targetLocation.id}`,
+      )
+      .digest("hex");
+
+    if (actionType === "consume") {
+      if (!consumptionStore) {
+        throw new Error("The authoritative consumption store is not configured.");
+      }
+      if (!aiConfigured) {
+        throw new Error("An AI provider is required to resolve open-ended consumable semantics.");
+      }
+
+      const consumptionContext = await consumptionStore.buildAnalysisRequest({
+        userId,
+        actorId: input.actorId,
+        rawText: input.rawText,
+      });
+      const analysisInputHash = hash(consumptionContext);
+      const analysisRun = await store.startAiRun({
+        task: "analyze_consumable",
+        authority: "authoritative",
+        requestedModel:
+          environment.AI_AUTHORITATIVE_MODEL || environment.DEEPSEEK_MODEL || "configured",
+        policyVersion: CONSUMABLE_ANALYSIS_POLICY_VERSION,
+        inputHash: analysisInputHash,
+        metadata: {
+          actorId: input.actorId,
+          idempotencyKey,
+          candidateCount: consumptionContext.candidates.length,
+        },
+      });
+
+      let analysis;
+      try {
+        const result = await analyzeConsumable(client, consumptionContext);
+        analysis = result.data;
+        await store.finishAiRun(
+          analysisRun,
+          result.actualModel,
+          result.providerRequestId,
+          hash(analysis),
+        );
+      } catch (error) {
+        await store.failAiRun(
+          analysisRun,
+          error instanceof Error && "code" in error
+            ? String((error as { code: unknown }).code)
+            : "consumable_analysis_failed",
+        );
+        throw error;
+      }
+
+      const mechanics = resolveConsumptionMechanics(analysis, seed);
+      let committed: ActionExecutionResponse;
+      try {
+        committed = await consumptionStore.commitConsumption({
+          userId,
+          actorId: input.actorId,
+          idempotencyKey,
+          rawText: input.rawText,
+          intent: parsed.intent,
+          seed,
+          analysis,
+          mechanics,
+          policyVersion: CONSUMABLE_ANALYSIS_POLICY_VERSION,
+          analysisInputHash,
+        });
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          "code" in error &&
+          (error as { code: unknown }).code === "duplicate"
+        ) {
+          const replay = await store.findByIdempotency(userId, idempotencyKey);
+          if (replay) return replay;
+        }
+        throw error;
+      }
+
+      let narration =
+        analysis.selection.sourceType === "none"
+          ? "You cannot find anything accessible here that matches what you tried to consume."
+          : !analysis.classification.consumable
+            ? `${analysis.selection.displayName} is not something you can consume as intended.`
+            : `You consume ${analysis.selection.displayName}.`;
+      if (aiConfigured) {
+        const narrationRun = await store.startAiRun({
+          task: "narrate_event",
+          authority: "creative",
+          requestedModel: environment.AI_CREATIVE_MODEL || environment.DEEPSEEK_MODEL || "configured",
+          policyVersion: EVENT_NARRATION_POLICY_VERSION,
+          inputHash: hash(committed),
+          metadata: { eventId: committed.eventId, actionType: "consume" },
+        });
+        try {
+          const result = await narrateCommittedEvent(client, {
+            ...committed,
+            factsToPreserve: [
+              `outcome:${committed.outcomeGrade}`,
+              `substance:${analysis.selection.displayName}`,
+              `classification:${analysis.classification.substanceKind}`,
+              `freshness:${analysis.classification.freshnessAssessment}`,
+              ...analysis.narrationFacts,
+              ...mechanics.resourceDeltas.map(
+                (effect) => `${effect.resource}:${effect.delta}:${effect.rationale}`,
+              ),
+              ...mechanics.conditions.map(
+                (effect) =>
+                  `${effect.name}:${effect.intensity}:${effect.durationSeconds}:${effect.rationale}`,
+              ),
+              ...mechanics.risks.map(
+                (risk) => `${risk.description}:${risk.occurred ? "occurred" : "did_not_occur"}`,
+              ),
+            ],
+            hiddenFactsToExclude: context.hiddenMechanics.hiddenFacts,
+          });
+          narration = result.data.narration;
+          await store.finishAiRun(
+            narrationRun,
+            result.actualModel,
+            result.providerRequestId,
+            hash(result.data),
+          );
+        } catch (error) {
+          await store.failAiRun(
+            narrationRun,
+            error instanceof Error && "code" in error
+              ? String((error as { code: unknown }).code)
+              : "narration_failed",
+          );
+        }
+      }
+      await store.saveNarration(committed.resolutionId, narration);
+      return { ...committed, narration };
+    }
+
     const skill = ACTION_SKILL[actionType] ?? "investigation";
     if (
       context.method.definitionId &&
@@ -141,7 +292,6 @@ export function createActionService(
     }
 
     const allowedFacts = new Set(context.publicFacts);
-    // ponytail: filter out AI-invented facts instead of rejecting the whole action
     parsed.relevantContextFacts = parsed.relevantContextFacts.filter((fact) =>
       allowedFacts.has(fact),
     );
@@ -170,16 +320,6 @@ export function createActionService(
       proposedModifiers: modifiers,
     });
 
-    const secret = environment.NOCTURNE_RESOLUTION_SECRET || environment.BETTER_AUTH_SECRET;
-    if (!secret) {
-      throw new Error("NOCTURNE_RESOLUTION_SECRET or BETTER_AUTH_SECRET is required.");
-    }
-    const seed = createHmac("sha256", secret)
-      .update(
-        `${idempotencyKey}:${input.actorId}:${context.method.instanceId}:${context.targetLocation.id}`,
-      )
-      .digest("hex");
-
     const resolution = resolveContest({
       actionType: parsed.intent.actionType,
       actorScore: derived.actorScore,
@@ -191,7 +331,7 @@ export function createActionService(
     resolution.calculationTrace = [...derived.trace, ...resolution.calculationTrace];
 
     const occurredAt = new Date().toISOString();
-    let operations =
+    const operations =
       actionType === "attack"
         ? buildCombatOperations({
             outcome: resolution.outcomeGrade,
@@ -213,7 +353,6 @@ export function createActionService(
       "Preserve the committed outcome and costs.",
     ];
 
-    // Talk: attach NPC dialogue when a nearby NPC exists
     let dialogue:
       | { speaker: string; line: string; disposition: string }
       | undefined;
@@ -258,11 +397,11 @@ export function createActionService(
     }
 
     let narration = deterministicNarrationFallback(committed.outcomeGrade);
-    if (environment.OPENROUTER_API_KEY) {
+    if (aiConfigured) {
       const narrationRun = await store.startAiRun({
         task: "narrate_event",
         authority: "creative",
-        requestedModel: "openrouter/free",
+        requestedModel: environment.AI_CREATIVE_MODEL || environment.DEEPSEEK_MODEL || "configured",
         policyVersion: EVENT_NARRATION_POLICY_VERSION,
         inputHash: hash(committed),
         metadata: { eventId: committed.eventId },
@@ -296,7 +435,6 @@ export function createActionService(
 
     await store.saveNarration(committed.resolutionId, narration);
 
-    // XP + death strip
     const xpGain = xpFromOutcome(committed.outcomeGrade);
     const xp = await store.applyActorSkillXp(input.actorId, skill, xpGain);
     if (xp) {
@@ -314,7 +452,6 @@ export function createActionService(
       ];
     }
 
-    // Work payout (cents) — legal cash loop
     let payday: { paidCents: number; cashOnPerson: number } | undefined;
     if (actionType === "work") {
       const mult =
@@ -324,16 +461,17 @@ export function createActionService(
               committed.outcomeGrade === "catastrophic_reversal"
             ? 0.4
             : 1;
-      const paidCents = Math.max(100, Math.round(1500 * mult)); // ~$15 base gig
+      const paidCents = Math.max(100, Math.round(1500 * mult));
       const st = await store.readActorState(input.actorId);
       const cash = Number(st.cashOnPerson || 0) + paidCents;
       await store.patchActorState(input.actorId, { cashOnPerson: cash });
       payday = { paidCents, cashOnPerson: cash };
       committed.calculationTrace.push(`payday=+${paidCents}`, `cash=${cash}`);
-      narration = `Gig pays $${(paidCents / 100).toFixed(2)}. Cash on hand: $${(cash / 100).toFixed(2)}.\n\n${narration}`;
+      narration = `Gig pays $${(paidCents / 100).toFixed(2)}. Cash on hand: $${(
+        cash / 100
+      ).toFixed(2)}.\n\n${narration}`;
     }
 
-    // --- Phase 4: move ---
     let travel:
       | { to: string; path: string[]; travelSeconds: number; scheduled: boolean }
       | undefined;
@@ -373,7 +511,6 @@ export function createActionService(
         : `You arrive at ${dest.name}.\n\n${narration}`;
     }
 
-    // --- Phase 4: legal/heat ---
     let legal:
       | { heat: number; warrant: boolean; jailed: boolean; jailSeconds: number }
       | undefined;
@@ -409,7 +546,6 @@ export function createActionService(
       }
     }
 
-    // --- Phase 4: factions ---
     const fDelta = factionShift(actionType);
     let standing: Record<string, number> | undefined;
     if (Object.keys(fDelta).length) {
@@ -424,16 +560,18 @@ export function createActionService(
       );
     }
 
-    // --- Phase 4: comms (message/call keywords) ---
     let comms:
       | { toName: string; intercepted: boolean; chance: number; messageId: string }
       | undefined;
     if (/message|text|call|radio|ping/i.test(input.rawText)) {
       const st = await store.readActorState(input.actorId);
       const heat = Number(st.heat || 0);
-      const roll =
-        parseInt(seed.slice(0, 8), 16) / 0xffffffff;
-      const { intercepted, chance } = resolveIntercept(committed.outcomeGrade ? heat : heat, committed.outcomeGrade, roll);
+      const roll = parseInt(seed.slice(0, 8), 16) / 0xffffffff;
+      const { intercepted, chance } = resolveIntercept(
+        heat,
+        committed.outcomeGrade,
+        roll,
+      );
       const toName =
         /(?:to|call)\s+([A-Za-z][A-Za-z0-9 _-]{1,30})/i.exec(input.rawText)?.[1]?.trim() ||
         "Unknown";
