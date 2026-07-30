@@ -161,7 +161,17 @@ function completionEndpoint(baseUrl: string): string {
 }
 
 export class AiProviderClient {
-  constructor(private readonly config: AiProviderConfig) {}
+  private readonly fallbackModel: string | undefined;
+  private readonly authoritativeModel: string | undefined;
+  private readonly creativeModel: string | undefined;
+
+  constructor(private readonly config: AiProviderConfig) {
+    this.fallbackModel = config.fallbackModel || process.env.OPENROUTER_FALLBACK_MODEL;
+    this.authoritativeModel =
+      config.authoritativeModel || process.env.AI_AUTHORITATIVE_MODEL || process.env.DEEPSEEK_MODEL;
+    this.creativeModel =
+      config.creativeModel || process.env.AI_CREATIVE_MODEL || process.env.DEEPSEEK_MODEL;
+  }
 
   async generateStructured<T>(
     request: StructuredGenerationRequest<T>,
@@ -169,13 +179,12 @@ export class AiProviderClient {
   ): Promise<StructuredGenerationResult<T>> {
     const policy = createModelPolicy({
       task: request.task,
-      authoritativeModel: this.config.authoritativeModel,
-      creativeModel: this.config.creativeModel,
+      authoritativeModel: this.authoritativeModel,
+      creativeModel: this.creativeModel,
       requestedModel: request.requestedModel,
     });
     const primary: ProviderName = this.config.deepseekApiKey ? "deepseek" : "openrouter";
-    const primaryModel =
-      primary === "deepseek" ? policy.model : this.config.fallbackModel || policy.model;
+    const primaryModel = primary === "deepseek" ? policy.model : this.fallbackModel || policy.model;
 
     try {
       return await this.generateWithProvider(request, policy, primary, primaryModel, retries);
@@ -183,14 +192,14 @@ export class AiProviderClient {
       const canFallback =
         primary === "deepseek" &&
         Boolean(this.config.apiKey) &&
-        Boolean(this.config.fallbackModel) &&
+        Boolean(this.fallbackModel) &&
         isTransientAiProviderError(error);
       if (!canFallback) throw error;
       return this.generateWithProvider(
         request,
         policy,
         "openrouter",
-        this.config.fallbackModel!,
+        this.fallbackModel!,
         retries,
       );
     }
