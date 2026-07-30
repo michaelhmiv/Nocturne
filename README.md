@@ -48,6 +48,19 @@ pnpm verify
 
 Run the additional checks applicable to the change in [`docs/PR_TESTING.md`](docs/PR_TESTING.md). A local agent such as Hermes may execute the same checklist against a Railway deployment.
 
+## Agent hookup
+
+External agents (Hermes, bots) use the official Agent API. See [`docs/AGENT_API.md`](docs/AGENT_API.md).
+
+```bash
+export NOCTURNE_API_URL=http://localhost:3001
+pnpm nocturne:agent bootstrap hermes
+pnpm nocturne:agent create-character "Rook" "A courier"
+pnpm nocturne:agent rent
+pnpm nocturne:agent say "I work a courier gig"
+pnpm nocturne:agent status
+```
+
 ## Status
 
-This repository currently establishes the architectural bones. The first vertical slice is documented in [`docs/VERTICAL_SLICE.md`](docs/VERTICAL_SLICE.md).
+Phases 1–4 playable loop is in main. Agent gateway + SDK: `@nocturne/agent-sdk`.

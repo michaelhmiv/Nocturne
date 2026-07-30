@@ -4,8 +4,10 @@ import { closeAuthFromEnv, getAuthFromEnv, getSessionFromNodeHeaders } from "@no
 import { validateGeneratedContent } from "@nocturne/content-engine";
 import {
   ActionStoreError,
+  AgentStoreError,
   AuthoritativeContextError,
   createActionStore,
+  createAgentStore,
   createAuthoritativeContextStore,
   createConversationStore,
   createDatabase,
@@ -22,6 +24,7 @@ import {
 } from "@nocturne/database";
 import Fastify from "fastify";
 import { z, ZodError } from "zod";
+import { registerAgentRoutes } from "./agent-routes.js";
 import { createActionService } from "./action-service.js";
 import { ConversationServiceError, createConversationService } from "./conversation-service.js";
 import { createInventionService } from "./invention-service.js";
@@ -37,6 +40,7 @@ export async function buildApp() {
   const locations = createLocationStore(database);
   const actions = createActionService(createActionStore(database), process.env, locations);
   const market = createMarketStore(database);
+  const agents = createAgentStore(database);
   const conversationTurns = createConversationStore(database);
   const context = createAuthoritativeContextStore(database);
   const conversations = createConversationService({
@@ -72,7 +76,21 @@ export async function buildApp() {
     credentials: true,
   });
 
+  async function tryAgent(headers: Record<string, string | string[] | undefined>) {
+    const auth = headers.authorization ?? headers.Authorization;
+    const value = Array.isArray(auth) ? auth[0] : auth;
+    return agents.authenticate(value);
+  }
+
   async function requireUser(headers: Record<string, string | string[] | undefined>) {
+    const agent = await tryAgent(headers);
+    if (agent) {
+      return {
+        id: agent.userId,
+        name: agent.label,
+        email: `${agent.userId}@agent.nocturne.local`,
+      };
+    }
     const guestHeader = headers["x-nocturne-guest-mode"];
     if (process.env.NOCTURNE_GUEST_MODE === "true" && guestHeader === "1") {
       return {
@@ -96,7 +114,8 @@ export async function buildApp() {
       error instanceof ConversationStoreError ||
       error instanceof AuthoritativeContextError ||
       error instanceof ConversationServiceError ||
-      error instanceof StateOperationExecutorError
+      error instanceof StateOperationExecutorError ||
+      error instanceof AgentStoreError
     ) {
       const status =
         error.code === "not_found"
@@ -293,6 +312,16 @@ export async function buildApp() {
     await requireUser(request.headers);
     const actorId = z.string().uuid().parse((request.query as { actorId?: string }).actorId);
     return { messages: await actions.listComms(actorId) };
+  });
+
+  registerAgentRoutes(app, {
+    agents,
+    world,
+    actions,
+    market,
+    locations,
+    requireUser,
+    tryAgent,
   });
 
   app.post<{ Params: { id: string } }>("/v1/conversations/:id/messages", async (request) => {
