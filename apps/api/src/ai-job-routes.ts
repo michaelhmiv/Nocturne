@@ -1,0 +1,183 @@
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import type { FastifyInstance, FastifyReply } from "fastify";
+import { getSessionFromNodeHeaders } from "@nocturne/auth";
+import {
+  AiJobStoreError,
+  createActionStore,
+  createAgentStore,
+  createAiJobStore,
+  createDatabase,
+  createInventionStore,
+  createLocationStore,
+  PersistentWorldError,
+  type AiJob,
+  type AiJobKind,
+} from "@nocturne/database";
+import { NormalizeContentRequestSchema, SubmitActionRequestSchema } from "@nocturne/contracts";
+import { z } from "zod";
+import { createActionService } from "./action-service.js";
+import { createInventionService } from "./invention-service.js";
+
+const idempotencySchema = z.string().trim().min(1).max(256);
+const jobIdSchema = z.string().uuid();
+
+function hash(value: unknown): string {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
+function safeEqual(left: string, right: string): boolean {
+  const a = Buffer.from(left);
+  const b = Buffer.from(right);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+function publicJob(job: AiJob) {
+  return {
+    jobId: job.jobId,
+    kind: job.kind,
+    status: job.status,
+    attempts: job.attempts,
+    maxAttempts: job.maxAttempts,
+    result: job.result,
+    errorCode: job.errorCode,
+    createdAt: job.createdAt.toISOString(),
+    updatedAt: job.updatedAt.toISOString(),
+    completedAt: job.completedAt?.toISOString() ?? null,
+  };
+}
+
+function sendStoreError(reply: FastifyReply, error: unknown) {
+  if (!(error instanceof AiJobStoreError)) throw error;
+  const status =
+    error.code === "not_found"
+      ? 404
+      : error.code === "forbidden"
+        ? 403
+        : error.code === "idempotency_conflict" || error.code === "invalid_transition"
+          ? 409
+          : 422;
+  return reply.code(status).send({ error: error.code, message: error.message });
+}
+
+export async function registerAiJobRoutesFromEnv(app: FastifyInstance) {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error("DATABASE_URL is required for AI job routes.");
+  const database = createDatabase(databaseUrl);
+  const jobs = createAiJobStore(database);
+  const agents = createAgentStore(database);
+  const locations = createLocationStore(database);
+  const actions = createActionService(createActionStore(database), process.env, locations);
+  const inventions = createInventionService(createInventionStore(database), process.env);
+
+  async function requireUser(headers: Record<string, string | string[] | undefined>) {
+    const authorization = headers.authorization;
+    const bearer = Array.isArray(authorization) ? authorization[0] : authorization;
+    const agent = await agents.authenticate(bearer);
+    if (agent) return { id: agent.userId };
+    if (
+      process.env.NOCTURNE_GUEST_MODE === "true" &&
+      headers["x-nocturne-guest-mode"] === "1"
+    ) {
+      return { id: process.env.NOCTURNE_GUEST_USER_ID || "nocturne-test-guest" };
+    }
+    const session = await getSessionFromNodeHeaders(headers);
+    if (!session) throw new PersistentWorldError("forbidden", "Authentication is required.");
+    return session.user;
+  }
+
+  async function enqueue(
+    userId: string,
+    kind: AiJobKind,
+    idempotencyKey: string,
+    input: Record<string, unknown>,
+    maxAttempts: number,
+  ) {
+    return jobs.enqueue({
+      userId,
+      kind,
+      idempotencyKey,
+      requestHash: hash({ kind, input }),
+      payload: { userId, input, idempotencyKey },
+      maxAttempts,
+    });
+  }
+
+  app.post("/v1/ai-jobs/actions", async (request, reply) => {
+    const user = await requireUser(request.headers);
+    const input = SubmitActionRequestSchema.parse(request.body);
+    const idempotencyKey = idempotencySchema.parse(request.headers["idempotency-key"]);
+    try {
+      const reserved = await enqueue(
+        user.id,
+        "action_resolution",
+        idempotencyKey,
+        input,
+        3,
+      );
+      return reply.code(reserved.job.status === "completed" ? 200 : 202).send(publicJob(reserved.job));
+    } catch (error) {
+      return sendStoreError(reply, error);
+    }
+  });
+
+  app.post("/v1/ai-jobs/inventions", async (request, reply) => {
+    const user = await requireUser(request.headers);
+    const input = NormalizeContentRequestSchema.parse(request.body);
+    const idempotencyKey = idempotencySchema.parse(
+      request.headers["idempotency-key"] || randomUUID(),
+    );
+    try {
+      const reserved = await enqueue(
+        user.id,
+        "invention_normalization",
+        idempotencyKey,
+        input,
+        1,
+      );
+      return reply.code(reserved.job.status === "completed" ? 200 : 202).send(publicJob(reserved.job));
+    } catch (error) {
+      return sendStoreError(reply, error);
+    }
+  });
+
+  app.get<{ Params: { jobId: string } }>("/v1/ai-jobs/:jobId", async (request, reply) => {
+    const user = await requireUser(request.headers);
+    const jobId = jobIdSchema.parse(request.params.jobId);
+    try {
+      return publicJob(await jobs.getForUser(user.id, jobId));
+    } catch (error) {
+      return sendStoreError(reply, error);
+    }
+  });
+
+  app.post<{ Params: { jobId: string } }>(
+    "/v1/internal/ai-jobs/:jobId/run",
+    async (request, reply) => {
+      jobIdSchema.parse(request.params.jobId);
+      const configuredSecret = process.env.AI_JOB_WORKER_SECRET;
+      const supplied = request.headers["x-nocturne-worker-secret"];
+      const suppliedSecret = Array.isArray(supplied) ? supplied[0] : supplied;
+      if (!configuredSecret || !suppliedSecret || !safeEqual(configuredSecret, suppliedSecret)) {
+        return reply.code(403).send({ error: "forbidden" });
+      }
+
+      const body = z
+        .object({
+          kind: z.enum(["action_resolution", "invention_normalization"]),
+          payload: z.object({
+            userId: z.string().min(1).max(256),
+            input: z.record(z.string(), z.unknown()),
+            idempotencyKey: z.string().min(1).max(256),
+          }),
+        })
+        .parse(request.body);
+
+      if (body.kind === "action_resolution") {
+        return actions.execute(body.payload.userId, body.payload.input, body.payload.idempotencyKey);
+      }
+      return inventions.normalize(body.payload.userId, body.payload.input);
+    },
+  );
+
+  app.addHook("onClose", async () => database.close());
+}
