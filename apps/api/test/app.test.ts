@@ -1,4 +1,4 @@
-import { AiProviderError } from "@nocturne/ai-gm";
+import { AiProviderError, DEEPSEEK_FLASH_MODEL } from "@nocturne/ai-gm";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
 
@@ -9,13 +9,11 @@ afterEach(() => {
 });
 
 describe("API boot paths", () => {
-  it("boots and reports AI provider configuration", async () => {
+  it("boots and reports DeepSeek Flash configuration", async () => {
     process.env.DATABASE_URL = "postgresql://test:test@127.0.0.1:5432/test";
     process.env.BETTER_AUTH_SECRET = "test-secret-at-least-32-characters";
     process.env.BETTER_AUTH_URL = "http://localhost:3000";
     delete process.env.DEEPSEEK_API_KEY;
-    delete process.env.DEEPSEEK_API_KEY;
-    delete process.env.DEEPSEEK_MODEL;
     const app = await buildApp();
 
     const response = await app.inject({ method: "GET", url: "/health" });
@@ -27,7 +25,7 @@ describe("API boot paths", () => {
       ai: {
         primaryProvider: "deepseek",
         primaryConfigured: false,
-        fallbackConfigured: false,
+        model: DEEPSEEK_FLASH_MODEL,
       },
     });
     expect(app.hasRoute({ method: "GET", url: "/ready" })).toBe(true);
