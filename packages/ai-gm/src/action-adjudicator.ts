@@ -7,7 +7,7 @@ import {
 } from "@nocturne/contracts";
 import { OpenRouterClient, type StructuredGenerationResult } from "./openrouter.js";
 
-export const ACTION_PARSE_POLICY_VERSION = "action-parse-v2";
+export const ACTION_PARSE_POLICY_VERSION = "action-parse-v3";
 export const EVENT_NARRATION_POLICY_VERSION = "event-narration-v2";
 
 const actionSchema = {
@@ -71,7 +71,7 @@ export async function parseActionWithAi(
 ): Promise<StructuredGenerationResult<ParsedActionEnvelope>> {
   return client.generateStructured({
     task: "parse_intent",
-    system: `You are Nocturne's authoritative intent parser. Policy ${ACTION_PARSE_POLICY_VERSION}. Use only supplied viewpoint facts. Never invent capabilities or hidden targets. Routine eating or drinking of ordinary available food is a heal action, not a consume action and not an opposed contest. Do not place opaque database identifiers in the objective or assumptions.`,
+    system: `You are Nocturne's authoritative intent parser. Policy ${ACTION_PARSE_POLICY_VERSION}. Use only supplied viewpoint facts. Never invent capabilities, possessions, available objects, or hidden targets. Eating, drinking, swallowing, ingesting, tasting, or otherwise taking a substance into the body is a consume action. It is not automatically a heal action. The authoritative consumption resolver will determine whether the referenced thing exists, is accessible, is consumable, and what effects it has. Do not place opaque database identifiers in the objective or assumptions.`,
     prompt: `PLAYER ACTION:\n${input.rawText}\n\nPUBLIC CONTEXT:\n${JSON.stringify(publicContext)}`,
     jsonSchema: actionSchema,
     validator: ParsedActionEnvelopeSchema,
@@ -92,7 +92,7 @@ export function deterministicActionFallback(
     : /\b(message|text|call|radio|ping)\b/.test(text) ? "talk"
     : /\b(talk|chat|conversation|ask)\b/.test(text) ? "talk"
     : /\b(sneak|silently|stealth)\b/.test(text) ? "sneak"
-    : /\b(eat|drink|consume|food|meal|cake|snack)\b/.test(text) ? "heal"
+    : /\b(eat|drink|consume|swallow|ingest|taste|food|meal|cake|snack)\b/.test(text) ? "consume"
     : /\b(heal|bandage|first aid|medkit)\b/.test(text) ? "heal"
     : /\b(drive|vehicle|bike|car)\b/.test(text) ? "drive"
     : /\b(move|walk|go to|travel)\b/.test(text) ? "move"
@@ -151,19 +151,15 @@ export async function narrateCommittedEvent(
 export function deterministicNarrationFallback(outcome: string): string {
   const narration: Record<string, string> = {
     complete_success:
-      "The array settles into a clean rhythm. A human-sized contact resolves in the rear alley, moving with enough consistency for a reliable track.",
+      "The action lands cleanly and produces the intended result without an obvious complication.",
     success_with_consequence:
-      "The alley resolves into a steady contact, but the scan runs hot enough that anyone watching the spectrum may notice the system at work.",
+      "You get what you were after, though the result carries a consequence you cannot ignore.",
     partial_success:
-      "Several channels converge on movement in the alley. The presence is credible, though its exact position and identity remain uncertain.",
+      "The attempt works well enough to move things forward, but the result is incomplete.",
     failure_with_progress:
-      "The display catches a brief, inconsistent anomaly from the alley—too weak for a track, but too coherent to dismiss outright.",
-    failure:
-      "The attempt does not produce a useful result, but nothing in the scene exposes the system's internal mechanics.",
-    catastrophic_reversal:
-      "The attempt goes badly and creates a new problem, while the underlying mechanics remain hidden from view.",
+      "The attempt falls short, though it reveals enough to leave you with a way forward.",
+    failure: "The attempt does not produce the result you intended.",
+    catastrophic_reversal: "The attempt goes badly and leaves you with a new problem.",
   };
-  return (
-    narration[outcome] || "The action resolves, but the system cannot produce a fuller account."
-  );
+  return narration[outcome] || "The action resolves, but the result is difficult to read.";
 }
