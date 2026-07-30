@@ -29,95 +29,62 @@ jobs:
 
           consumption = Path('packages/database/src/consumption-store.ts')
           text = consumption.read_text(encoding='utf-8')
-          old = '''    const candidates: ConsumptionCandidate[] = entityRows
-              .map((row) => {
-                const state = object(row.state);
-                const quantity = availableQuantity(state);
-                if (quantity <= 0) return null;
-                const owned = row.owner_id && String(row.owner_id) === input.actorId;
-                const carried =
-                  (row.location_id && String(row.location_id) === input.actorId) ||
-                  Boolean(row.related_to_actor);
-                const revisionPayload = object(row.payload);
-                const cachedProfile = object(state.semanticProfile);
-                return {
-                  sourceType: "entity" as const,
-                  sourceId: String(row.instance_id),
-                  name: String(row.name),
-                  description: [
-                    String(row.concept_summary || row.name),
-                    Object.keys(revisionPayload).length
-                      ? `Definition: ${JSON.stringify(revisionPayload).slice(0, 1_000)}`
-                      : "",
-                    Object.keys(cachedProfile).length
-                      ? `Existing semantic profile: ${JSON.stringify(cachedProfile).slice(0, 1_000)}`
-                      : "",
-                  ]
-                    .filter(Boolean)
-                    .join("\\n"),
-                  access: carried ? ("carried" as const) : owned ? ("owned" as const) : ("visible" as const),
-                  quantity,
-                  state,
-                  constraints: arrayOfStrings(state.constraints),
-                };
-              })
-              .filter((candidate): candidate is ConsumptionCandidate => Boolean(candidate));'''
-          old = '\n'.join(line[10:] if line.startswith('          ') else line for line in old.splitlines())
-          new = '''    const candidates = entityRows.reduce<ConsumptionCandidate[]>((result, row) => {
-              const state = object(row.state);
-              const quantity = availableQuantity(state);
-              if (quantity <= 0) return result;
-              const owned = row.owner_id && String(row.owner_id) === input.actorId;
-              const carried =
-                (row.location_id && String(row.location_id) === input.actorId) ||
-                Boolean(row.related_to_actor);
-              const revisionPayload = object(row.payload);
-              const cachedProfile = object(state.semanticProfile);
-              result.push({
-                sourceType: "entity",
-                sourceId: String(row.instance_id),
-                name: String(row.name),
-                description: [
-                  String(row.concept_summary || row.name),
-                  Object.keys(revisionPayload).length
-                    ? `Definition: ${JSON.stringify(revisionPayload).slice(0, 1_000)}`
-                    : "",
-                  Object.keys(cachedProfile).length
-                    ? `Existing semantic profile: ${JSON.stringify(cachedProfile).slice(0, 1_000)}`
-                    : "",
-                ]
-                  .filter(Boolean)
-                  .join("\\n"),
-                access: carried ? "carried" : owned ? "owned" : "visible",
-                quantity,
-                state,
-                constraints: arrayOfStrings(state.constraints),
-              });
-              return result;
-            }, []);'''
-          new = '\n'.join(line[10:] if line.startswith('          ') else line for line in new.splitlines())
-          if old not in text:
-              raise SystemExit('Consumption candidate block not found')
-          consumption.write_text(text.replace(old, new), encoding='utf-8')
+          start_marker = '    const candidates: ConsumptionCandidate[] = entityRows'
+          end_marker = '      .filter((candidate): candidate is ConsumptionCandidate => Boolean(candidate));'
+          start = text.index(start_marker)
+          end = text.index(end_marker, start) + len(end_marker)
+          replacement = '''    const candidates = entityRows.reduce<ConsumptionCandidate[]>((result, row) => {
+            const state = object(row.state);
+            const quantity = availableQuantity(state);
+            if (quantity <= 0) return result;
+            const owned = row.owner_id && String(row.owner_id) === input.actorId;
+            const carried =
+              (row.location_id && String(row.location_id) === input.actorId) ||
+              Boolean(row.related_to_actor);
+            const revisionPayload = object(row.payload);
+            const cachedProfile = object(state.semanticProfile);
+            result.push({
+              sourceType: "entity",
+              sourceId: String(row.instance_id),
+              name: String(row.name),
+              description: [
+                String(row.concept_summary || row.name),
+                Object.keys(revisionPayload).length
+                  ? `Definition: ${JSON.stringify(revisionPayload).slice(0, 1_000)}`
+                  : "",
+                Object.keys(cachedProfile).length
+                  ? `Existing semantic profile: ${JSON.stringify(cachedProfile).slice(0, 1_000)}`
+                  : "",
+              ]
+                .filter(Boolean)
+                .join("\\n"),
+              access: carried ? "carried" : owned ? "owned" : "visible",
+              quantity,
+              state,
+              constraints: arrayOfStrings(state.constraints),
+            });
+            return result;
+          }, []);'''
+          replacement = '\n'.join(line[10:] if line.startswith('          ') else line for line in replacement.splitlines())
+          consumption.write_text(text[:start] + replacement + text[end:], encoding='utf-8')
 
           game = Path('packages/database/src/game-store.ts')
           text = game.read_text(encoding='utf-8')
-          old = '''        createdAt,
-              };'''
-          old = '\n'.join(line[10:] if line.startswith('          ') else line for line in old.splitlines())
+          create_start = text.index('  async function createCharacter(')
+          return_start = text.index('      return {\n        characterId,', create_start)
+          old = '        createdAt,\n      };'
+          position = text.index(old, return_start)
           new = '''        createdAt,
-                cashOnPerson: 50_000,
-                heat: 0,
-                warrant: false,
-                status: "active",
-                factionStanding: {},
-                skills: {},
-                inventory: [],
-              };'''
+              cashOnPerson: 50_000,
+              heat: 0,
+              warrant: false,
+              status: "active",
+              factionStanding: {},
+              skills: {},
+              inventory: [],
+            };'''
           new = '\n'.join(line[10:] if line.startswith('          ') else line for line in new.splitlines())
-          if old not in text:
-              raise SystemExit('Created character summary block not found')
-          game.write_text(text.replace(old, new, 1), encoding='utf-8')
+          game.write_text(text[:position] + new + text[position + len(old):], encoding='utf-8')
           PY
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
