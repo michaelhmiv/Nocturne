@@ -1,5 +1,5 @@
-import GameClient from "./game-client";
+import SceneGameClient from "./scene-game-client";
 
 export default function HomePage() {
-  return <GameClient />;
+  return <SceneGameClient />;
 }

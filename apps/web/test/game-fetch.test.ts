@@ -31,4 +31,31 @@ describe("gameFetch", () => {
 
     await expect(gameFetch("actions")).rejects.toThrow("upstream unavailable");
   });
+
+  it("renders validation issue paths instead of an issue count", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          { error: "invalid_request", issues: [{ path: ["rawConcept"], message: "Required" }] },
+          { status: 400 },
+        ),
+      ),
+    );
+
+    await expect(gameFetch("ai-jobs/inventions")).rejects.toThrow("rawConcept: Required");
+  });
+
+  it("hides provider terminology behind a game-safe message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({ error: "provider_failure", message: "secret provider detail" }, { status: 502 }),
+      ),
+    );
+
+    await expect(gameFetch("ai-jobs/actions")).rejects.toThrow(
+      "Nocturne could not resolve this turn yet",
+    );
+  });
 });
