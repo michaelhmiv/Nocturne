@@ -1,6 +1,13 @@
+export * from "./actions.js";
+export * from "./combat.js";
+export * from "./comms.js";
 export * from "./detection-operations.js";
+export * from "./factions.js";
+export * from "./legal.js";
+export * from "./npc.js";
 export * from "./probability.js";
 export * from "./score-derivation.js";
+export * from "./skills.js";
 
 import {
   ResolutionModifierSchema,

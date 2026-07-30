@@ -11,6 +11,13 @@ type Character = {
   conceptSummary: string;
   selected: boolean;
   residenceId: string | null;
+  cashOnPerson?: number;
+  heat?: number;
+  warrant?: boolean;
+  status?: string;
+  factionStanding?: Record<string, number>;
+  skills?: Record<string, number>;
+  inventory?: Array<{ title?: string; instanceId?: string }>;
 };
 type StarterWorld = {
   neighborhood: { name: string };
@@ -38,15 +45,42 @@ type ActionResult = {
   informationGained: Array<{ informationId: string; content: string; confidence: number }>;
   costs: Array<{ resource: string; amount: number }>;
   createdAt: string;
+  travel?: { travelSeconds: number; scheduled: boolean };
+  legal?: { heat: number; warrant: boolean; jailed: boolean };
+  payday?: { paidCents: number; cashOnPerson: number };
+  comms?: { toName: string; intercepted: boolean };
+};
+type Listing = {
+  listingId: string;
+  title: string;
+  priceCents: number;
+  description: string;
+};
+type Vehicle = {
+  vehicleId: string;
+  name: string;
+  speedFactor: number;
+  ownerId: string | null;
+  forSale: boolean;
+  priceCents: number;
+};
+type CommsMsg = {
+  messageId: string;
+  toName: string;
+  body: string;
+  intercepted: boolean;
+  createdAt: string;
 };
 
 type View = "chat" | "dashboard";
 type ComposerMode = "act" | "invent";
 
+const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
 export default function GameClient() {
   const { data: session, isPending } = authClient.useSession();
   const [view, setView] = useState<View>("chat");
-  const [mode, setMode] = useState<ComposerMode>("invent");
+  const [mode, setMode] = useState<ComposerMode>("act");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -56,6 +90,9 @@ export default function GameClient() {
   const [world, setWorld] = useState<StarterWorld | null>(null);
   const [inventions, setInventions] = useState<Invention[]>([]);
   const [actions, setActions] = useState<ActionResult[]>([]);
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [comms, setComms] = useState<CommsMsg[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const guestMode = process.env.NEXT_PUBLIC_NOCTURNE_GUEST_MODE === "true";
@@ -70,23 +107,34 @@ export default function GameClient() {
 
   async function refresh() {
     if (!session && !guestMode) return;
-    const [characterResponse, worldResponse, inventionResponse] = await Promise.all([
-      gameFetch<{ characters: Character[] }>("characters"),
-      gameFetch<StarterWorld>("world/start"),
-      gameFetch<{ inventions: Invention[] }>("inventions"),
-    ]);
+    const [characterResponse, worldResponse, inventionResponse, marketResponse, vehicleResponse] =
+      await Promise.all([
+        gameFetch<{ characters: Character[] }>("characters"),
+        gameFetch<StarterWorld>("world/start"),
+        gameFetch<{ inventions: Invention[] }>("inventions"),
+        gameFetch<{ listings: Listing[] }>("market/listings").catch(() => ({ listings: [] })),
+        gameFetch<{ vehicles: Vehicle[] }>("vehicles").catch(() => ({ vehicles: [] })),
+      ]);
     const active =
       characterResponse.characters.find((character) => character.selected) ||
       characterResponse.characters[0];
-    const actionResponse = active
-      ? await gameFetch<{ actions: ActionResult[] }>(
-          `actions?actorId=${encodeURIComponent(active.characterId)}`,
-        )
-      : { actions: [] };
+    const [actionResponse, commsResponse] = active
+      ? await Promise.all([
+          gameFetch<{ actions: ActionResult[] }>(
+            `actions?actorId=${encodeURIComponent(active.characterId)}`,
+          ),
+          gameFetch<{ messages: CommsMsg[] }>(
+            `comms?actorId=${encodeURIComponent(active.characterId)}`,
+          ).catch(() => ({ messages: [] })),
+        ])
+      : [{ actions: [] }, { messages: [] }];
     setCharacters(characterResponse.characters);
     setWorld(worldResponse);
     setInventions(inventionResponse.inventions);
     setActions(actionResponse.actions);
+    setListings(marketResponse.listings || []);
+    setVehicles(vehicleResponse.vehicles || []);
+    setComms(commsResponse.messages || []);
   }
 
   async function run(task: () => Promise<void>) {
@@ -109,7 +157,7 @@ export default function GameClient() {
     if (view === "chat") window.scrollTo(0, document.body.scrollHeight);
   }, [view, actions.length, inventions.length]);
 
-  if (isPending) return <main className="centered">Loading Nocturne…</main>;
+  if (isPending && !guestMode) return <main className="centered">Loading Nocturne…</main>;
 
   if (!session && !guestMode) {
     async function authenticate(create: boolean) {
@@ -209,6 +257,14 @@ export default function GameClient() {
         <div>
           <p className="eyebrow">NOCTURNE · FOUNDRY ROW</p>
           <strong>{selected?.name || "New arrival"}</strong>
+          {selected && (
+            <p className="status-strip">
+              {money(selected.cashOnPerson ?? 0)}
+              {" · "}heat {selected.heat ?? 0}
+              {selected.warrant ? " · WARRANT" : ""}
+              {selected.status === "jailed" ? " · JAILED" : ""}
+            </p>
+          )}
         </div>
         <nav aria-label="Primary">
           <button
@@ -375,6 +431,31 @@ export default function GameClient() {
                   <article className="bubble gm">
                     <span className="speaker">{result.outcomeGrade.replaceAll("_", " ")}</span>
                     <p>{result.narration}</p>
+                    {result.travel && (
+                      <p className="intel">
+                        Travel {result.travel.travelSeconds}s
+                        {result.travel.scheduled ? " (en route)" : " (arrived)"}
+                      </p>
+                    )}
+                    {result.legal && (
+                      <p className="intel">
+                        Heat {result.legal.heat}
+                        {result.legal.warrant ? " · warrant" : ""}
+                        {result.legal.jailed ? " · jailed" : ""}
+                      </p>
+                    )}
+                    {result.payday && (
+                      <p className="success">
+                        Paid {money(result.payday.paidCents)} · wallet{" "}
+                        {money(result.payday.cashOnPerson)}
+                      </p>
+                    )}
+                    {result.comms && (
+                      <p className="intel">
+                        Msg → {result.comms.toName}
+                        {result.comms.intercepted ? " · INTERCEPTED" : ""}
+                      </p>
+                    )}
                     {result.informationGained.map((information) => (
                       <p className="intel" key={information.informationId}>
                         {information.content}
@@ -400,12 +481,7 @@ export default function GameClient() {
                 >
                   Invent
                 </button>
-                <button
-                  type="button"
-                  aria-pressed={mode === "act"}
-                  disabled={!hasInstalledSystem}
-                  onClick={() => setMode("act")}
-                >
+                <button type="button" aria-pressed={mode === "act"} onClick={() => setMode("act")}>
                   Act
                 </button>
               </div>
@@ -421,7 +497,7 @@ export default function GameClient() {
                 placeholder={
                   mode === "invent"
                     ? "Describe anything you want to create…"
-                    : "How do you scan the rear alley?"
+                    : "Act, move, work a gig, message someone…"
                 }
               />
               <button disabled={busy || !message.trim()} type="submit" aria-label="Send message">
@@ -460,6 +536,46 @@ export default function GameClient() {
             </div>
           </div>
           <div className="dashboard-grid">
+            <article className="dashboard-card">
+              <p className="card-label">Street status</p>
+              <h2>{money(selected?.cashOnPerson ?? 0)}</h2>
+              <p>
+                Heat {selected?.heat ?? 0}
+                {selected?.warrant ? " · WARRANT" : ""}
+                {selected?.status === "jailed" ? " · JAILED" : ""}
+              </p>
+              {selected?.factionStanding && Object.keys(selected.factionStanding).length > 0 && (
+                <div className="capacity-grid">
+                  {Object.entries(selected.factionStanding).map(([k, v]) => (
+                    <div key={k}>
+                      <strong>{v > 0 ? `+${v}` : v}</strong>
+                      <span>{k}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {selected?.characterId && (
+                <button
+                  disabled={busy}
+                  className="secondary"
+                  onClick={() =>
+                    void run(async () => {
+                      await gameFetch("actions", {
+                        method: "POST",
+                        headers: { "idempotency-key": crypto.randomUUID() },
+                        body: JSON.stringify({
+                          actorId: selected.characterId,
+                          rawText: "I work a courier gig across Foundry Row",
+                        }),
+                      });
+                      await refresh();
+                    })
+                  }
+                >
+                  Work a gig
+                </button>
+              )}
+            </article>
             <article className="dashboard-card wide">
               <p className="card-label">Identity</p>
               <h2>{selected?.name || "Not established"}</h2>
@@ -486,6 +602,103 @@ export default function GameClient() {
                     </div>
                   ))}
               </div>
+            </article>
+            <article className="dashboard-card wide">
+              <p className="card-label">Marketplace</p>
+              {listings.length ? (
+                listings.slice(0, 8).map((listing) => (
+                  <div className="dashboard-row" key={listing.listingId}>
+                    <div>
+                      <strong>{listing.title}</strong>
+                      <span>{money(listing.priceCents)}</span>
+                    </div>
+                    {selected?.characterId && (
+                      <button
+                        disabled={busy || (selected.cashOnPerson ?? 0) < listing.priceCents}
+                        className="secondary"
+                        onClick={() =>
+                          void run(async () => {
+                            await gameFetch("market/buy", {
+                              method: "POST",
+                              body: JSON.stringify({
+                                buyerId: selected.characterId,
+                                listingId: listing.listingId,
+                              }),
+                            });
+                            await refresh();
+                          })
+                        }
+                      >
+                        Buy
+                      </button>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p className="empty">No active listings.</p>
+              )}
+            </article>
+            <article className="dashboard-card">
+              <p className="card-label">Vehicles</p>
+              {vehicles.length ? (
+                vehicles.map((v) => (
+                  <div className="dashboard-row compact" key={v.vehicleId}>
+                    <span>
+                      {v.name} · ×{v.speedFactor}
+                      {v.ownerId ? " · owned" : ""}
+                    </span>
+                    {!v.ownerId && selected?.characterId && (
+                      <button
+                        disabled={busy}
+                        className="secondary"
+                        onClick={() =>
+                          void run(async () => {
+                            await gameFetch("vehicles/claim", {
+                              method: "POST",
+                              body: JSON.stringify({
+                                ownerId: selected.characterId,
+                                vehicleId: v.vehicleId,
+                              }),
+                            });
+                            await refresh();
+                          })
+                        }
+                      >
+                        Claim
+                      </button>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p className="empty">No vehicles around.</p>
+              )}
+            </article>
+            <article className="dashboard-card">
+              <p className="card-label">Inventory</p>
+              {(selected?.inventory?.length || 0) > 0 ? (
+                selected!.inventory!.map((item, idx) => (
+                  <div className="dashboard-row compact" key={item.instanceId || idx}>
+                    <span>{item.title || "item"}</span>
+                  </div>
+                ))
+              ) : (
+                <p className="empty">Empty pockets. Buy from the market.</p>
+              )}
+            </article>
+            <article className="dashboard-card">
+              <p className="card-label">Comms</p>
+              {comms.length ? (
+                comms.slice(0, 6).map((m) => (
+                  <div className="dashboard-row compact" key={m.messageId}>
+                    <span>
+                      → {m.toName}
+                      {m.intercepted ? " ⚠" : ""}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <p className="empty">No messages yet. Act: &quot;I message Rook…&quot;</p>
+              )}
             </article>
             <article className="dashboard-card wide">
               <p className="card-label">Systems</p>

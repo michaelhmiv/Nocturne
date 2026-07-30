@@ -69,6 +69,13 @@ p {
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
+.status-strip {
+  margin: 4px 0 0;
+  color: #a1a1aa;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
 .sr-only {
   position: absolute;
   width: 1px;

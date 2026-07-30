@@ -83,22 +83,39 @@ export function deterministicActionFallback(
   methodDefinitionId: string,
   targetLocationId: string,
 ): ParsedActionEnvelope {
+  const text = input.rawText.toLowerCase();
+  // ponytail: keyword map for offline/dev. Word boundaries; crime before location nouns.
+  const actionType =
+    /\b(steal|pickpocket|theft)\b/.test(text) ? "steal"
+    : /\b(attack|punch|fight|hit)\b/.test(text) ? "attack"
+    : /\b(hack|security panel|disable camera)\b/.test(text) ? "hack"
+    : /\b(message|text|call|radio|ping)\b/.test(text) ? "talk"
+    : /\b(talk|chat|conversation|ask)\b/.test(text) ? "talk"
+    : /\b(sneak|silently|stealth)\b/.test(text) ? "sneak"
+    : /\b(heal|bandage|first aid|medkit)\b/.test(text) ? "heal"
+    : /\b(drive|vehicle|bike|car)\b/.test(text) ? "drive"
+    : /\b(move|walk|go to|travel)\b/.test(text) ? "move"
+    : /\b(search|look through|scan|look around)\b/.test(text) ? "search"
+    : /\b(work|gig|shift|job|courier run)\b/.test(text) ? "work"
+    : /\b(look|detect|cameras?)\b/.test(text) ? "detect"
+    : "detect";
+
   return {
     intent: {
       actorId: input.actorId,
       rawText: input.rawText,
-      actionType: "detect",
+      actionType,
       targetIds: [targetLocationId],
-      methodDefinitionIds: [methodDefinitionId],
-      objective: "Detect and classify suspicious movement in the rear alley.",
-      intensity: /careful|quiet/i.test(input.rawText) ? "careful" : "normal",
-      assumptions: ["Use the installed system's ordinary local-scan mode."],
-      confidence: 0.95,
+      methodDefinitionIds: methodDefinitionId ? [methodDefinitionId] : [],
+      objective: input.rawText.slice(0, 120),
+      intensity: /careful|quiet|slowly/i.test(input.rawText) ? "careful" : "normal",
+      assumptions: [],
+      confidence: 0.9,
     },
     proposedModifiers: [],
     relevantContextFacts: [
-      "The selected system is installed in the actor's residence.",
-      "The rear alley is adjacent to the residence.",
+      "The rear alley is directly adjacent to the residence.",
+      "The rear alley has dim lighting and moderate clutter.",
     ],
   };
 }

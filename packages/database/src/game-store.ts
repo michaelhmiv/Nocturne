@@ -285,7 +285,14 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
       await sql`
         INSERT INTO game.entity_instances (
           instance_id, definition_id, location_id, condition, state
-        ) VALUES (${characterId}, ${definitionId}, ${STARTER_WORLD_IDS.neighborhood}, 100, ${json({ active: true })})
+        ) VALUES (${characterId}, ${definitionId}, ${STARTER_WORLD_IDS.neighborhood}, 100, ${json({
+          active: true,
+          skills: {},
+          cashOnPerson: 50_000, // $500 starter — market usable without SQL
+          heat: 0,
+          warrant: false,
+          factionStanding: {},
+        })})
       `;
       const hasSelected = await sql`
         SELECT 1 FROM game.player_characters WHERE user_id = ${userId} AND selected LIMIT 1
@@ -324,7 +331,7 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
     const rows = await database.client`
       SELECT pc.character_instance_id, pc.selected, pc.created_at,
              d.definition_id, d.name, d.concept_summary, d.origin_source,
-             i.location_id, o.residence_instance_id
+             i.location_id, i.state, o.residence_instance_id
       FROM game.player_characters pc
       JOIN game.entity_instances i ON i.instance_id = pc.character_instance_id
       JOIN game.entity_definitions d ON d.definition_id = i.definition_id
@@ -333,17 +340,29 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
       WHERE pc.user_id = ${userId}
       ORDER BY pc.created_at ASC
     `;
-    return rows.map((row) => ({
-      characterId: String(row.character_instance_id),
-      definitionId: String(row.definition_id),
-      name: String(row.name),
-      conceptSummary: String(row.concept_summary),
-      originSource: row.origin_source ? String(row.origin_source) : null,
-      selected: Boolean(row.selected),
-      locationId: row.location_id ? String(row.location_id) : null,
-      residenceId: row.residence_instance_id ? String(row.residence_instance_id) : null,
-      createdAt: asIso(row.created_at as Date),
-    }));
+    return rows.map((row) => {
+      const state = (row.state as Record<string, unknown>) || {};
+      const skills = (state.skills as Record<string, number>) || {};
+      const factions = (state.factionStanding as Record<string, number>) || {};
+      return {
+        characterId: String(row.character_instance_id),
+        definitionId: String(row.definition_id),
+        name: String(row.name),
+        conceptSummary: String(row.concept_summary),
+        originSource: row.origin_source ? String(row.origin_source) : null,
+        selected: Boolean(row.selected),
+        locationId: row.location_id ? String(row.location_id) : null,
+        residenceId: row.residence_instance_id ? String(row.residence_instance_id) : null,
+        createdAt: asIso(row.created_at as Date),
+        cashOnPerson: Number(state.cashOnPerson ?? 0),
+        heat: Number(state.heat ?? 0),
+        warrant: Boolean(state.warrant),
+        status: String(state.status || "active"),
+        factionStanding: factions,
+        skills,
+        inventory: Array.isArray(state.inventory) ? state.inventory : [],
+      };
+    });
   }
 
   async function getCharacter(

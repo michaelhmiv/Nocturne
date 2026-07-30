@@ -17,6 +17,14 @@ export const CharacterSummarySchema = z.object({
   locationId: z.string().uuid().nullable(),
   residenceId: z.string().uuid().nullable(),
   createdAt: z.string().datetime(),
+  // Phase UI/cash
+  cashOnPerson: z.number().int().nonnegative().default(0),
+  heat: z.number().int().nonnegative().default(0),
+  warrant: z.boolean().default(false),
+  status: z.string().default("active"),
+  factionStanding: z.record(z.string(), z.number()).default({}),
+  skills: z.record(z.string(), z.number()).default({}),
+  inventory: z.array(z.record(z.string(), z.unknown())).default([]),
 });
 
 export type CreateCharacterInput = z.infer<typeof CreateCharacterInputSchema>;

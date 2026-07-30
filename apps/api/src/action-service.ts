@@ -15,14 +15,46 @@ import {
 } from "@nocturne/contracts";
 import type { ActionStore } from "@nocturne/database";
 import {
+  ACTION_SKILL,
+  applyStanding,
+  buildCombatOperations,
   buildDetectionOperations,
+  commsNarration,
   deriveDetectionContest,
+  factionShift,
+  getSkillLevel,
+  heatFromCrime,
+  legalStatusAfterHeat,
+  npcDialogue,
   resolveContest,
+  resolveIntercept,
+  xpFromOutcome,
+  type ActionType,
 } from "@nocturne/rules-engine";
 
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
-export function createActionService(store: ActionStore, environment = process.env) {
+type Pathfinder = {
+  findShortestPath: (
+    from: string,
+    to: string,
+    speed?: number,
+  ) => Promise<{ path: string[]; totalTimeSeconds: number } | null>;
+};
+
+export function createActionService(
+  store: ActionStore,
+  environment = process.env,
+  locations?: Pathfinder | null,
+) {
+  const pathfind = async (from: string, to: string, speed: number) => {
+    if (locations?.findShortestPath) {
+      const p = await locations.findShortestPath(from, to, speed);
+      if (p) return p;
+    }
+    return { path: [from, to], totalTimeSeconds: Math.max(1, Math.round(60 / speed)) };
+  };
+
   const client = new OpenRouterClient({
     apiKey: environment.OPENROUTER_API_KEY,
     baseUrl: environment.OPENROUTER_BASE_URL,
@@ -95,15 +127,12 @@ export function createActionService(store: ActionStore, environment = process.en
     if (parsed.intent.actorId !== input.actorId) {
       throw new Error("Parsed actor does not match the authenticated command actor.");
     }
-    // ponytail: override AI mistakes for the single supported action type in v0.1
-    if (parsed.intent.actionType !== "detect") {
-      parsed = deterministicActionFallback(
-        input,
-        context.method.definitionId,
-        context.targetLocation.id,
-      );
-    }
-    if (!parsed.intent.methodDefinitionIds.includes(context.method.definitionId)) {
+    const actionType = parsed.intent.actionType as ActionType;
+    const skill = ACTION_SKILL[actionType] ?? "investigation";
+    if (
+      context.method.definitionId &&
+      !parsed.intent.methodDefinitionIds.includes(context.method.definitionId)
+    ) {
       parsed.intent.methodDefinitionIds = [context.method.definitionId];
     }
     if (!parsed.intent.targetIds.includes(context.targetLocation.id)) {
@@ -136,7 +165,7 @@ export function createActionService(store: ActionStore, environment = process.en
         concealment: context.hiddenMechanics.concealment,
         countermeasure: context.hiddenMechanics.countermeasure,
       },
-      operator: { competence: 1 },
+      operator: { competence: getSkillLevel(context.actor.state, skill) },
       proposedModifiers: modifiers,
     });
 
@@ -161,19 +190,44 @@ export function createActionService(store: ActionStore, environment = process.en
     resolution.calculationTrace = [...derived.trace, ...resolution.calculationTrace];
 
     const occurredAt = new Date().toISOString();
-    const operations = buildDetectionOperations({
-      outcome: resolution.outcomeGrade,
-      actorId: input.actorId,
-      methodInstanceId: context.method.instanceId,
-      targetId: context.hiddenMechanics.targetId,
-      occurredAt,
-    });
+    let operations =
+      actionType === "attack"
+        ? buildCombatOperations({
+            outcome: resolution.outcomeGrade,
+            actorId: input.actorId,
+            targetId: context.hiddenMechanics.targetId,
+            occurredAt,
+          })
+        : buildDetectionOperations({
+            outcome: resolution.outcomeGrade,
+            actorId: input.actorId,
+            methodInstanceId: context.method.instanceId,
+            targetId: context.hiddenMechanics.targetId,
+            occurredAt,
+          });
     resolution.stateOperations = operations;
     resolution.narrativeConstraints = [
       "Do not reveal the contact's identity.",
       "Do not claim more certainty than the information asset provides.",
       "Preserve the committed outcome and costs.",
     ];
+
+    // Talk: attach NPC dialogue when a nearby NPC exists
+    let dialogue:
+      | { speaker: string; line: string; disposition: string }
+      | undefined;
+    if (actionType === "talk") {
+      const npc = await store.findNearbyNpc(input.actorId);
+      if (npc) {
+        dialogue = npcDialogue({
+          npcName: npc.name,
+          schedule: npc.schedule,
+          rawText: input.rawText,
+          outcome: resolution.outcomeGrade,
+        });
+        resolution.calculationTrace.push(`npc=${npc.name}`);
+      }
+    }
 
     let committed: ActionExecutionResponse;
     try {
@@ -240,12 +294,191 @@ export function createActionService(store: ActionStore, environment = process.en
     }
 
     await store.saveNarration(committed.resolutionId, narration);
-    return { ...committed, narration };
+
+    // XP + death strip
+    const xpGain = xpFromOutcome(committed.outcomeGrade);
+    const xp = await store.applyActorSkillXp(input.actorId, skill, xpGain);
+    if (xp) {
+      committed.calculationTrace = [
+        ...committed.calculationTrace,
+        `xp_${skill}=+${xpGain}`,
+        `skill_${skill}_level=${xp.level}${xp.leveledUp ? " (level up)" : ""}`,
+      ];
+    }
+    if (actionType === "attack" && committed.outcomeGrade === "catastrophic_reversal") {
+      const dropped = await store.stripCarriedOnDeath(input.actorId);
+      committed.calculationTrace = [
+        ...committed.calculationTrace,
+        `death_strip_items=${dropped}`,
+      ];
+    }
+
+    // Work payout (cents) — legal cash loop
+    let payday: { paidCents: number; cashOnPerson: number } | undefined;
+    if (actionType === "work") {
+      const mult =
+        committed.outcomeGrade === "complete_success"
+          ? 1.5
+          : committed.outcomeGrade === "failure" ||
+              committed.outcomeGrade === "catastrophic_reversal"
+            ? 0.4
+            : 1;
+      const paidCents = Math.max(100, Math.round(1500 * mult)); // ~$15 base gig
+      const st = await store.readActorState(input.actorId);
+      const cash = Number(st.cashOnPerson || 0) + paidCents;
+      await store.patchActorState(input.actorId, { cashOnPerson: cash });
+      payday = { paidCents, cashOnPerson: cash };
+      committed.calculationTrace.push(`payday=+${paidCents}`, `cash=${cash}`);
+      narration = `Gig pays $${(paidCents / 100).toFixed(2)}. Cash on hand: $${(cash / 100).toFixed(2)}.\n\n${narration}`;
+    }
+
+    // --- Phase 4: move ---
+    let travel:
+      | { to: string; path: string[]; travelSeconds: number; scheduled: boolean }
+      | undefined;
+    if (actionType === "move" || actionType === "drive") {
+      const from = (await store.getActorLocation(input.actorId)) || context.targetLocation.id;
+      const destHint =
+        /(?:to|toward|into)\s+([a-z0-9 .'/-]{3,40})/i.exec(input.rawText)?.[1] || "alley";
+      const dest =
+        (await store.resolvePlaceByName(destHint)) || {
+          id: context.targetLocation.id,
+          name: context.targetLocation.name,
+        };
+      const speed = await store.getOwnedVehicleSpeed(input.actorId);
+      const route = await pathfind(from, dest.id, speed);
+      const travelSeconds = route.totalTimeSeconds;
+      if (travelSeconds <= 5) {
+        await store.moveActor(input.actorId, dest.id);
+        travel = { to: dest.id, path: route.path, travelSeconds, scheduled: false };
+      } else {
+        const arrives = new Date(Date.now() + travelSeconds * 1000);
+        await store.scheduleJob({
+          kind: "move",
+          resolvesAt: arrives,
+          payload: { actorId: input.actorId, locationId: dest.id, path: route.path },
+          intentId: committed.intentId,
+        });
+        travel = { to: dest.id, path: route.path, travelSeconds, scheduled: true };
+      }
+      committed.calculationTrace = [
+        ...committed.calculationTrace,
+        `travel_to=${dest.name}`,
+        `travel_seconds=${travelSeconds}`,
+        `speed_factor=${speed}`,
+      ];
+      narration = travel.scheduled
+        ? `You set out for ${dest.name}. ETA ~${travelSeconds}s.\n\n${narration}`
+        : `You arrive at ${dest.name}.\n\n${narration}`;
+    }
+
+    // --- Phase 4: legal/heat ---
+    let legal:
+      | { heat: number; warrant: boolean; jailed: boolean; jailSeconds: number }
+      | undefined;
+    const heatGain = heatFromCrime(actionType, committed.outcomeGrade);
+    if (heatGain > 0) {
+      const st = await store.readActorState(input.actorId);
+      const prevHeat = Number(st.heat || 0);
+      const status = legalStatusAfterHeat(prevHeat + heatGain, Boolean(st.warrant));
+      await store.patchActorState(input.actorId, {
+        heat: status.heat,
+        warrant: status.warrant,
+        status: status.jailed ? "jailed" : st.status || "active",
+      });
+      if (status.jailed && status.jailSeconds > 0) {
+        await store.scheduleJob({
+          kind: "jail_release",
+          resolvesAt: new Date(Date.now() + status.jailSeconds * 1000),
+          payload: { actorId: input.actorId },
+        });
+      }
+      legal = status;
+      committed.calculationTrace = [
+        ...committed.calculationTrace,
+        `heat=+${heatGain}`,
+        `heat_total=${status.heat}`,
+        status.warrant ? "warrant=true" : "warrant=false",
+        status.jailed ? `jailed=${status.jailSeconds}s` : "jailed=false",
+      ];
+      if (status.jailed) {
+        narration = `Sirens. You're cuffed and hauled in (${status.jailSeconds}s).\n\n${narration}`;
+      } else if (status.warrant) {
+        narration = `Your heat draws a warrant.\n\n${narration}`;
+      }
+    }
+
+    // --- Phase 4: factions ---
+    const fDelta = factionShift(actionType);
+    let standing: Record<string, number> | undefined;
+    if (Object.keys(fDelta).length) {
+      const st = await store.readActorState(input.actorId);
+      const prev = (st.factionStanding as Record<string, number>) || {};
+      standing = applyStanding(prev, fDelta);
+      await store.patchActorState(input.actorId, { factionStanding: standing });
+      committed.calculationTrace.push(
+        `faction=${Object.entries(fDelta)
+          .map(([k, v]) => `${k}:${v > 0 ? "+" : ""}${v}`)
+          .join(",")}`,
+      );
+    }
+
+    // --- Phase 4: comms (message/call keywords) ---
+    let comms:
+      | { toName: string; intercepted: boolean; chance: number; messageId: string }
+      | undefined;
+    if (/message|text|call|radio|ping/i.test(input.rawText)) {
+      const st = await store.readActorState(input.actorId);
+      const heat = Number(st.heat || 0);
+      const roll =
+        parseInt(seed.slice(0, 8), 16) / 0xffffffff;
+      const { intercepted, chance } = resolveIntercept(committed.outcomeGrade ? heat : heat, committed.outcomeGrade, roll);
+      const toName =
+        /(?:to|call)\s+([A-Za-z][A-Za-z0-9 _-]{1,30})/i.exec(input.rawText)?.[1]?.trim() ||
+        "Unknown";
+      const body = input.rawText.slice(0, 400);
+      const msg = await store.sendComms({
+        fromId: input.actorId,
+        toName,
+        body,
+        intercepted,
+        chance,
+      });
+      comms = {
+        toName,
+        intercepted,
+        chance,
+        messageId: msg.messageId,
+      };
+      narration = `${commsNarration({ toName, body, intercepted })}\n\n${narration}`;
+      committed.calculationTrace.push(
+        `comms_intercept=${intercepted}`,
+        `comms_chance=${chance.toFixed(2)}`,
+      );
+    }
+
+    if (dialogue) {
+      narration = `${dialogue.line}\n\n${narration}`;
+    }
+    await store.saveNarration(committed.resolutionId, narration);
+
+    return {
+      ...committed,
+      narration,
+      ...(dialogue ? { dialogue } : {}),
+      ...(xp ? { skillProgress: { skill, ...xp, xpGain } } : {}),
+      ...(travel ? { travel } : {}),
+      ...(legal ? { legal } : {}),
+      ...(standing ? { factionStanding: standing } : {}),
+      ...(comms ? { comms } : {}),
+      ...(payday ? { payday } : {}),
+    } as ActionExecutionResponse;
   }
 
   return {
     execute,
     list: (userId: string, actorId: string) => store.list(userId, actorId),
+    listComms: (actorId: string) => store.listComms(actorId),
   };
 }
 

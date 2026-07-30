@@ -10,9 +10,12 @@ import {
   createConversationStore,
   createDatabase,
   createInventionStore,
+  createLocationStore,
+  createMarketStore,
   createPersistentWorldStore,
   executeConversationStateOperations,
   InventionStoreError,
+  MarketStoreError,
   PersistentWorldError,
   ConversationStoreError,
   StateOperationExecutorError,
@@ -31,7 +34,9 @@ export async function buildApp() {
   const database = createDatabase(databaseUrl);
   const world = createPersistentWorldService(createPersistentWorldStore(database));
   const inventions = createInventionService(createInventionStore(database));
-  const actions = createActionService(createActionStore(database));
+  const locations = createLocationStore(database);
+  const actions = createActionService(createActionStore(database), process.env, locations);
+  const market = createMarketStore(database);
   const conversationTurns = createConversationStore(database);
   const context = createAuthoritativeContextStore(database);
   const conversations = createConversationService({
@@ -87,6 +92,7 @@ export async function buildApp() {
       error instanceof PersistentWorldError ||
       error instanceof InventionStoreError ||
       error instanceof ActionStoreError ||
+      error instanceof MarketStoreError ||
       error instanceof ConversationStoreError ||
       error instanceof AuthoritativeContextError ||
       error instanceof ConversationServiceError ||
@@ -97,7 +103,9 @@ export async function buildApp() {
           ? 404
           : error.code === "forbidden"
             ? 403
-            : error.code === "installation_failed" || error.code === "residence_unavailable"
+            : error.code === "installation_failed" ||
+                error.code === "residence_unavailable" ||
+                error.code === "insufficient_funds"
               ? 409
               : 422;
       return reply.code(status).send({ error: error.code, message: error.message });
@@ -218,6 +226,73 @@ export async function buildApp() {
       request.body,
       request.headers["idempotency-key"] as string | undefined,
     );
+  });
+
+  // --- Marketplace ---
+  app.get("/v1/market/listings", async (request) => {
+    await requireUser(request.headers);
+    return { listings: await market.listActive() };
+  });
+  app.post("/v1/market/listings", async (request, reply) => {
+    const user = await requireUser(request.headers);
+    const body = z
+      .object({
+        sellerId: z.string().uuid(),
+        title: z.string().min(1).max(200),
+        description: z.string().max(2000).optional(),
+        priceCents: z.number().int().min(0),
+        itemInstanceId: z.string().uuid().optional(),
+      })
+      .parse(request.body);
+    return reply.code(201).send(await market.createListing(body));
+  });
+  app.post("/v1/market/buy", async (request) => {
+    const user = await requireUser(request.headers);
+    const body = z
+      .object({ buyerId: z.string().uuid(), listingId: z.string().uuid() })
+      .parse(request.body);
+    return market.buy(body);
+  });
+  app.post("/v1/market/cancel", async (request) => {
+    await requireUser(request.headers);
+    const body = z
+      .object({ sellerId: z.string().uuid(), listingId: z.string().uuid() })
+      .parse(request.body);
+    return market.cancel(body);
+  });
+
+  // --- Vehicles ---
+  app.get("/v1/vehicles", async (request) => {
+    await requireUser(request.headers);
+    const ownerId = (request.query as { ownerId?: string }).ownerId;
+    return { vehicles: await locations.listVehicles(ownerId) };
+  });
+  app.post("/v1/vehicles/claim", async (request, reply) => {
+    await requireUser(request.headers);
+    const body = z
+      .object({ ownerId: z.string().uuid(), vehicleId: z.string().uuid() })
+      .parse(request.body);
+    const claimed = await locations.claimVehicle(body.ownerId, body.vehicleId);
+    if (!claimed) return reply.code(409).send({ error: "unavailable", message: "Vehicle not free." });
+    return reply.code(201).send(claimed);
+  });
+  app.get("/v1/travel/path", async (request) => {
+    await requireUser(request.headers);
+    const q = z
+      .object({
+        from: z.string().uuid(),
+        to: z.string().uuid(),
+        speedFactor: z.coerce.number().positive().optional(),
+      })
+      .parse(request.query);
+    const path = await locations.findShortestPath(q.from, q.to, q.speedFactor ?? 1);
+    return path || { path: null, totalTimeSeconds: null };
+  });
+
+  app.get("/v1/comms", async (request) => {
+    await requireUser(request.headers);
+    const actorId = z.string().uuid().parse((request.query as { actorId?: string }).actorId);
+    return { messages: await actions.listComms(actorId) };
   });
 
   app.post<{ Params: { id: string } }>("/v1/conversations/:id/messages", async (request) => {

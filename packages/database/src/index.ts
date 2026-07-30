@@ -18,5 +18,6 @@ export * from "./game-store.js";
 export * from "./invention-store.js";
 export * from "./json.js";
 export * from "./location-store.js";
+export * from "./market-store.js";
 export * from "./state-operation-executor.js";
 export * from "./schema.js";
