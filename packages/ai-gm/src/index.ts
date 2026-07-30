@@ -5,8 +5,8 @@ export * from "./content-normalizer.js";
 export * from "./conversation-adjudicator.js";
 export * from "./model-policy.js";
 export {
-  AiProviderClient as OpenRouterClient,
-  AiProviderError as OpenRouterError,
-  type AiProviderConfig as OpenRouterConfig,
-  type AiProviderErrorCode as OpenRouterErrorCode,
-} from "./ai-provider.js";
+  OpenRouterClient,
+  OpenRouterError,
+  type OpenRouterConfig,
+  type OpenRouterErrorCode,
+} from "./openrouter.js";
