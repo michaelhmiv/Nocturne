@@ -7,6 +7,7 @@ import {
   type StarterWorld,
 } from "@nocturne/contracts";
 import type { PersistentWorldStore } from "@nocturne/database";
+import { getCharacterBoundMutationAgent, requireBoundCharacter } from "./agent-scope.js";
 
 export interface PersistentWorldService {
   createCharacter(
@@ -37,7 +38,10 @@ export function createPersistentWorldService(store: PersistentWorldStore): Persi
       );
     },
     listCharacters: (userId) => store.listCharacters(userId),
-    getCharacter: (userId, characterId) => store.getCharacter(userId, characterId),
+    getCharacter: (userId, characterId) => {
+      requireBoundCharacter(getCharacterBoundMutationAgent(), characterId);
+      return store.getCharacter(userId, characterId);
+    },
     selectCharacter: (userId, characterId) => store.selectCharacter(userId, characterId),
     async getStarterWorld() {
       await store.seedStarterWorld();
