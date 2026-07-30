@@ -4,9 +4,7 @@
 
 **Goal:** Replace Nocturne's form-shaped vertical slice with one tested conversational game command path that can create characters, invent arbitrary content, resolve general actions with LLM-proposed probabilities, preserve viewpoint-limited knowledge, and commit persistent multiplayer world state.
 
-**Architecture:** The API is the product. One conversational service receives ordinary language, assembles authoritative and viewpoint-limited context, asks the LLM for a structured adjudication proposal, validates fact citations/probability bounds/state operations, rolls and commits results, then narrates only the player's permitted result. A thin native Node CLI calls that same API for interactive and scripted testing; it contains no game logic. Existing definition/revision/instance, event-ledger, OpenRouter, and content-normalization code is reused where it holds and replaced only where the detection-only assumptions block the product contract.
 
-**Tech Stack:** TypeScript, Fastify, Zod, PostgreSQL/postgres-js, existing OpenRouter client, Vitest, Node `readline`/`fetch`, pnpm/turbo. No new runtime dependency unless repository discovery proves the installed stack cannot cover a requirement.
 
 ---
 
@@ -33,7 +31,6 @@
 - `located_within` relations and starter location instances as the initial place hierarchy.
 - Separate residence occupancy from physical presence.
 - Append-only `game.event_ledger`, AI-run audit records, idempotency pattern, and atomic action commits.
-- OpenRouter strict structured-output client and server-controlled authoritative model policy.
 - General content vocabulary: traits, effects, requirements, costs, limitations, risks, signatures, counters, modes, relationships, and extension payloads.
 - Existing authentication and same-origin API proxy.
 

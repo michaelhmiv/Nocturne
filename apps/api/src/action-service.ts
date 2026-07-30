@@ -2,8 +2,9 @@ import { createHash, createHmac, randomUUID } from "node:crypto";
 import {
   ACTION_PARSE_POLICY_VERSION,
   CONSUMABLE_ANALYSIS_POLICY_VERSION,
+  DEEPSEEK_FLASH_MODEL,
   EVENT_NARRATION_POLICY_VERSION,
-  OpenRouterClient,
+  AiProviderClient,
   analyzeConsumable,
   deterministicActionFallback,
   deterministicNarrationFallback,
@@ -59,17 +60,10 @@ export function createActionService(
     return { path: [from, to], totalTimeSeconds: Math.max(1, Math.round(60 / speed)) };
   };
 
-  const client = new OpenRouterClient({
-    apiKey: environment.OPENROUTER_API_KEY,
-    deepseekApiKey: environment.DEEPSEEK_API_KEY,
-    baseUrl: environment.OPENROUTER_BASE_URL,
-    httpReferer: environment.OPENROUTER_HTTP_REFERER,
-    appName: environment.OPENROUTER_APP_NAME,
-    fallbackModel: environment.OPENROUTER_FALLBACK_MODEL,
-    authoritativeModel: environment.AI_AUTHORITATIVE_MODEL || environment.DEEPSEEK_MODEL,
-    creativeModel: environment.AI_CREATIVE_MODEL || environment.DEEPSEEK_MODEL,
-  });
-  const aiConfigured = Boolean(environment.DEEPSEEK_API_KEY || environment.OPENROUTER_API_KEY);
+  const client = new AiProviderClient({
+      deepseekApiKey: environment.DEEPSEEK_API_KEY,
+    });
+    const aiConfigured = Boolean(environment.DEEPSEEK_API_KEY);
 
   async function execute(
     userId: string,
@@ -91,7 +85,7 @@ export function createActionService(
     const parseRun = await store.startAiRun({
       task: "parse_intent",
       authority: "authoritative",
-      requestedModel: environment.AI_AUTHORITATIVE_MODEL || environment.DEEPSEEK_MODEL || "configured",
+      requestedModel: DEEPSEEK_FLASH_MODEL,
       policyVersion: ACTION_PARSE_POLICY_VERSION,
       inputHash: hash({ input, context: context.publicContext }),
       metadata: { actorId: input.actorId, idempotencyKey },
@@ -99,7 +93,6 @@ export function createActionService(
 
     try {
       if (
-        !environment.OPENROUTER_API_KEY &&
         !environment.DEEPSEEK_API_KEY &&
         environment.NOCTURNE_ALLOW_DETERMINISTIC_AI_FALLBACK === "true"
       ) {
@@ -166,7 +159,7 @@ export function createActionService(
         task: "analyze_consumable",
         authority: "authoritative",
         requestedModel:
-          environment.AI_AUTHORITATIVE_MODEL || environment.DEEPSEEK_MODEL || "configured",
+          DEEPSEEK_FLASH_MODEL,
         policyVersion: CONSUMABLE_ANALYSIS_POLICY_VERSION,
         inputHash: analysisInputHash,
         metadata: {
@@ -233,7 +226,7 @@ export function createActionService(
         const narrationRun = await store.startAiRun({
           task: "narrate_event",
           authority: "creative",
-          requestedModel: environment.AI_CREATIVE_MODEL || environment.DEEPSEEK_MODEL || "configured",
+          requestedModel: DEEPSEEK_FLASH_MODEL,
           policyVersion: EVENT_NARRATION_POLICY_VERSION,
           inputHash: hash(committed),
           metadata: { eventId: committed.eventId, actionType: "consume" },
@@ -401,7 +394,7 @@ export function createActionService(
       const narrationRun = await store.startAiRun({
         task: "narrate_event",
         authority: "creative",
-        requestedModel: environment.AI_CREATIVE_MODEL || environment.DEEPSEEK_MODEL || "configured",
+        requestedModel: DEEPSEEK_FLASH_MODEL,
         policyVersion: EVENT_NARRATION_POLICY_VERSION,
         inputHash: hash(committed),
         metadata: { eventId: committed.eventId },

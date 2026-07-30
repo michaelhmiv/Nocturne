@@ -4,7 +4,7 @@ import type {
   FactReference,
   ViewpointConversationPlan,
 } from "@nocturne/contracts";
-import type { StructuredGenerationRequest, StructuredGenerationResult } from "../src/openrouter.js";
+import type { StructuredGenerationRequest, StructuredGenerationResult } from "../src/ai-provider.js";
 import {
   authorizeConversation,
   narratePlayerSafeConversation,

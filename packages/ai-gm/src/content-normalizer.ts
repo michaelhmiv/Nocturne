@@ -3,7 +3,7 @@ import {
   type NormalizeContentRequest,
   type NormalizedContentEnvelope,
 } from "@nocturne/contracts";
-import { OpenRouterClient, type StructuredGenerationResult } from "./openrouter.js";
+import { AiProviderClient, type StructuredGenerationResult } from "./ai-provider.js";
 
 export const CONTENT_NORMALIZATION_POLICY_VERSION = "content-normalization-v1";
 
@@ -198,7 +198,7 @@ export function buildContentNormalizationPrompt(input: NormalizeContentRequest):
 }
 
 export async function normalizeGeneratedContent(
-  client: OpenRouterClient,
+  client: AiProviderClient,
   input: NormalizeContentRequest,
 ): Promise<StructuredGenerationResult<NormalizedContentEnvelope>> {
   return client.generateStructured({

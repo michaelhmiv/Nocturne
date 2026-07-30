@@ -14,17 +14,17 @@ import {
   type ViewpointConversationPlan,
 } from "@nocturne/contracts";
 import {
-  OpenRouterError,
+  AiProviderError,
   type JsonSchemaDefinition,
-  type OpenRouterClient,
+  type AiProviderClient,
   type StructuredGenerationResult,
-} from "./openrouter.js";
+} from "./ai-provider.js";
 
 export const VIEWPOINT_ADJUDICATION_POLICY_VERSION = "conversation-viewpoint-v1";
 export const AUTHORITATIVE_ADJUDICATION_POLICY_VERSION = "conversation-authoritative-v1";
 export const PLAYER_SAFE_NARRATION_POLICY_VERSION = "conversation-narration-v1";
 
-type Generator = Pick<OpenRouterClient, "generateStructured">;
+type Generator = Pick<AiProviderClient, "generateStructured">;
 
 const PlayerSafeNarrationSchema = z
   .object({ narration: z.string().trim().min(1).max(8_000) })
@@ -57,7 +57,7 @@ function validatedResult<T>(
 ): StructuredGenerationResult<T> {
   const parsed = schema.safeParse(result.data);
   if (!parsed.success) {
-    throw new OpenRouterError(
+    throw new AiProviderError(
       "validation",
       `Structured model output failed validation: ${parsed.error.message}`,
     );

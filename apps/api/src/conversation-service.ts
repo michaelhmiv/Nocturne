@@ -11,7 +11,7 @@ import {
   authorizeConversation,
   narratePlayerSafeConversation,
   proposeViewpointConversation,
-  type OpenRouterClient,
+  type AiProviderClient,
 } from "@nocturne/ai-gm";
 import { resolveProbabilityCheck } from "@nocturne/rules-engine";
 import { redactConversationResponse } from "./context-service.js";
@@ -63,7 +63,7 @@ export class ConversationServiceError extends Error {
 }
 
 export function createConversationService(dependencies: {
-  client: Pick<OpenRouterClient, "generateStructured">;
+  client: Pick<AiProviderClient, "generateStructured">;
   turns: Turns;
   rollSecret?: string | Buffer;
   applyStateOperations?(input: {

@@ -5,7 +5,7 @@ import {
   type ParsedActionEnvelope,
   type SubmitActionRequest,
 } from "@nocturne/contracts";
-import { OpenRouterClient, type StructuredGenerationResult } from "./openrouter.js";
+import { AiProviderClient, type StructuredGenerationResult } from "./ai-provider.js";
 
 export const ACTION_PARSE_POLICY_VERSION = "action-parse-v3";
 export const EVENT_NARRATION_POLICY_VERSION = "event-narration-v2";
@@ -65,7 +65,7 @@ const actionSchema = {
 } as const;
 
 export async function parseActionWithAi(
-  client: OpenRouterClient,
+  client: AiProviderClient,
   input: SubmitActionRequest,
   publicContext: Record<string, unknown>,
 ): Promise<StructuredGenerationResult<ParsedActionEnvelope>> {
@@ -133,7 +133,7 @@ const narrationSchema = {
 } as const;
 
 export async function narrateCommittedEvent(
-  client: OpenRouterClient,
+  client: AiProviderClient,
   input: Omit<ActionExecutionResponse, "narration" | "idempotentReplay"> & {
     factsToPreserve: string[];
     hiddenFactsToExclude: string[];

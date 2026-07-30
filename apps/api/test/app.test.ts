@@ -14,8 +14,8 @@ describe("API boot paths", () => {
     process.env.BETTER_AUTH_SECRET = "test-secret-at-least-32-characters";
     process.env.BETTER_AUTH_URL = "http://localhost:3000";
     delete process.env.DEEPSEEK_API_KEY;
-    delete process.env.OPENROUTER_API_KEY;
-    delete process.env.OPENROUTER_FALLBACK_MODEL;
+    delete process.env.DEEPSEEK_API_KEY;
+    delete process.env.DEEPSEEK_MODEL;
     const app = await buildApp();
 
     const response = await app.inject({ method: "GET", url: "/health" });
@@ -25,7 +25,7 @@ describe("API boot paths", () => {
       status: "ok",
       service: "api",
       ai: {
-        primaryProvider: "openrouter",
+        primaryProvider: "deepseek",
         primaryConfigured: false,
         fallbackConfigured: false,
       },

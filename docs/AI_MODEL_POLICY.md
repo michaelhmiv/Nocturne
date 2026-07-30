@@ -2,15 +2,12 @@
 
 ## Default provider
 
-OpenRouter is the initial provider. The default model slug is `openrouter/free`, configured through environment variables.
 
-The API key is never committed. Set `OPENROUTER_API_KEY` in Railway.
 
 ## Central policy versus user selection
 
 Nocturne requires a central model policy for shared-world fairness, but it does not require one permanent model for every task.
 
-Authoritative tasks do not permit user overrides. Creative tasks may accept a user-selected OpenRouter model later. The model router records the actual model reported by the provider for auditability.
 
 ## Task policy
 
@@ -31,4 +28,3 @@ Mechanical AI calls must request strict JSON Schema output and then validate the
 
 ## Free-router limitation
 
-`openrouter/free` is appropriate for development and early low-volume use. Production policy can pin or allowlist models per authoritative task without changing domain code.

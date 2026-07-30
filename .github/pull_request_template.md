@@ -30,7 +30,6 @@ State explicitly:
 
 - whether real PostgreSQL was used;
 - whether Railway was deployed/tested; and
-- whether OpenRouter was called live or only mocked.
 
 ## Notes
 

@@ -12,4 +12,3 @@ This branch adds authoritative AI normalization, backend validation, residence-c
 6. Persist a provisional definition and immutable revision when mechanically valid.
 7. Install a specific instance only through a separate authorized command.
 
-The OpenRouter model never writes world state. A deterministic fallback exists only when `NOCTURNE_ALLOW_DETERMINISTIC_AI_FALLBACK=true` and is intended for local development and tests.

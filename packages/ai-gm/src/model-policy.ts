@@ -10,12 +10,13 @@ export type AiTask =
   | "private_assistant";
 
 export type AiAuthority = "authoritative" | "creative";
+export const DEEPSEEK_FLASH_MODEL = "deepseek-v4-flash" as const;
 
 export interface ModelPolicy {
   task: AiTask;
   authority: AiAuthority;
-  model: string;
-  allowUserOverride: boolean;
+  model: typeof DEEPSEEK_FLASH_MODEL;
+  allowUserOverride: false;
   requireStructuredOutput: boolean;
   temperature: number;
 }
@@ -35,14 +36,13 @@ export function createModelPolicy(input: {
   creativeModel?: string;
   requestedModel?: string;
 }): ModelPolicy {
-  const authority: AiAuthority = authoritativeTasks.has(input.task) ? "authoritative" : "creative";
-  const configuredModel =
-    authority === "authoritative" ? input.authoritativeModel : input.creativeModel;
-
+  const authority: AiAuthority = authoritativeTasks.has(input.task)
+    ? "authoritative"
+    : "creative";
   return {
     task: input.task,
     authority,
-    model: input.requestedModel || configuredModel || "deepseek-v4-flash",
+    model: DEEPSEEK_FLASH_MODEL,
     allowUserOverride: false,
     requireStructuredOutput: authority === "authoritative" || input.task === "brainstorm_content",
     temperature: authority === "authoritative" ? 0.1 : 0.8,

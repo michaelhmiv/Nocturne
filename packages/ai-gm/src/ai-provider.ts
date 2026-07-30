@@ -1,5 +1,9 @@
 import type { ZodType } from "zod";
-import { createModelPolicy, type AiTask, type ModelPolicy } from "./model-policy.js";
+import {
+  DEEPSEEK_FLASH_MODEL,
+  createModelPolicy,
+  type AiTask,
+} from "./model-policy.js";
 
 export interface JsonSchemaDefinition {
   name: string;
@@ -9,8 +13,8 @@ export interface JsonSchemaDefinition {
 
 export interface AiProviderTelemetry {
   task: AiTask;
-  provider: "deepseek" | "openrouter";
-  model: string;
+  provider: "deepseek";
+  model: typeof DEEPSEEK_FLASH_MODEL;
   attempt: number;
   latencyMs: number;
   status: "success" | "error";
@@ -18,15 +22,8 @@ export interface AiProviderTelemetry {
 }
 
 export interface AiProviderConfig {
-  apiKey?: string;
-  baseUrl?: string;
-  authoritativeModel?: string;
-  creativeModel?: string;
-  fallbackModel?: string;
-  httpReferer?: string;
-  appName?: string;
-  timeoutMs?: number;
   deepseekApiKey?: string;
+  timeoutMs?: number;
   logger?: (entry: AiProviderTelemetry) => void;
 }
 
@@ -42,9 +39,9 @@ export interface StructuredGenerationRequest<T> {
 
 export interface StructuredGenerationResult<T> {
   data: T;
-  requestedModel: string;
+  requestedModel: typeof DEEPSEEK_FLASH_MODEL;
   actualModel: string;
-  provider: "deepseek" | "openrouter";
+  provider: "deepseek";
   providerRequestId?: string;
   attempts: number;
   latencyMs: number;
@@ -86,12 +83,14 @@ export function isTransientAiProviderError(error: unknown): error is AiProviderE
 interface ProviderResponse {
   id?: string;
   model?: string;
-  choices?: Array<{ message?: { content?: string } }>;
-  error?: { message?: string };
+  choices?: Array<{
+    finish_reason?: string | null;
+    message?: { content?: string | null };
+  }>;
+  error?: { message?: string; type?: string; code?: string | number };
 }
 
 type JsonObject = Record<string, unknown>;
-type ProviderName = "deepseek" | "openrouter";
 
 function object(value: unknown): value is JsonObject {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -115,27 +114,30 @@ function allowsNull(schema: unknown, root: JsonObject): boolean {
   if (resolved.type === "null") return true;
   if (Array.isArray(resolved.type) && resolved.type.includes("null")) return true;
   return [resolved.anyOf, resolved.oneOf].some(
-    (variants) => Array.isArray(variants) && variants.some((variant) => allowsNull(variant, root)),
+    (variants) =>
+      Array.isArray(variants) && variants.some((variant) => allowsNull(variant, root)),
   );
 }
 
 function omitUnexpectedNulls(value: unknown, schema: unknown, root: JsonObject): unknown {
   const resolved = resolveSchema(schema, root);
   if (!resolved) return value;
-  if (Array.isArray(value))
+  if (Array.isArray(value)) {
     return value.map((item) => omitUnexpectedNulls(item, resolved.items, root));
+  }
   if (!object(value)) return value;
   const variants = Array.isArray(resolved.anyOf)
     ? resolved.anyOf
     : Array.isArray(resolved.oneOf)
       ? resolved.oneOf
       : [];
-  if (variants.length)
+  if (variants.length) {
     return omitUnexpectedNulls(
       value,
       variants.find((variant) => !allowsNull(variant, root)),
       root,
     );
+  }
   if (!object(resolved.properties)) return value;
   const cleaned: JsonObject = { ...value };
   const required = new Set(Array.isArray(resolved.required) ? resolved.required : []);
@@ -148,228 +150,208 @@ function omitUnexpectedNulls(value: unknown, schema: unknown, root: JsonObject):
     if (cleaned[key] === null && !allowsNull(propertySchema, root)) {
       if (required.has(key) && property?.type === "array") cleaned[key] = [];
       else if (!required.has(key)) delete cleaned[key];
-    } else cleaned[key] = omitUnexpectedNulls(cleaned[key], propertySchema, root);
+    } else {
+      cleaned[key] = omitUnexpectedNulls(cleaned[key], propertySchema, root);
+    }
   }
   return cleaned;
 }
 
-function completionEndpoint(baseUrl: string): string {
-  const normalized = baseUrl.replace(/\/$/, "");
-  return normalized.endsWith("/v1")
-    ? `${normalized}/chat/completions`
-    : `${normalized}/v1/chat/completions`;
+function exampleFromSchema(schema: unknown, root: JsonObject, depth = 0): unknown {
+  if (depth > 8) return null;
+  const resolved = resolveSchema(schema, root);
+  if (!resolved) return null;
+  if (Array.isArray(resolved.enum) && resolved.enum.length > 0) return resolved.enum[0];
+  const variants = Array.isArray(resolved.anyOf)
+    ? resolved.anyOf
+    : Array.isArray(resolved.oneOf)
+      ? resolved.oneOf
+      : [];
+  if (variants.length) {
+    const nonNull = variants.find((variant) => !allowsNull(variant, root));
+    return exampleFromSchema(nonNull ?? variants[0], root, depth + 1);
+  }
+  const type = Array.isArray(resolved.type)
+    ? resolved.type.find((value) => value !== "null")
+    : resolved.type;
+  if (type === "object" || object(resolved.properties)) {
+    const properties = object(resolved.properties) ? resolved.properties : {};
+    const required = new Set(Array.isArray(resolved.required) ? resolved.required : []);
+    return Object.fromEntries(
+      Object.entries(properties)
+        .filter(([key]) => required.has(key))
+        .map(([key, value]) => [key, exampleFromSchema(value, root, depth + 1)]),
+    );
+  }
+  if (type === "array") return [];
+  if (type === "integer" || type === "number") return 0;
+  if (type === "boolean") return false;
+  if (type === "null") return null;
+  return "<string>";
 }
 
-export class AiProviderClient {
-  private readonly fallbackModel: string | undefined;
-  private readonly authoritativeModel: string | undefined;
-  private readonly creativeModel: string | undefined;
+const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
 
-  constructor(private readonly config: AiProviderConfig) {
-    this.fallbackModel = config.fallbackModel || process.env.OPENROUTER_FALLBACK_MODEL;
-    this.authoritativeModel =
-      config.authoritativeModel || process.env.AI_AUTHORITATIVE_MODEL || process.env.DEEPSEEK_MODEL;
-    this.creativeModel =
-      config.creativeModel || process.env.AI_CREATIVE_MODEL || process.env.DEEPSEEK_MODEL;
-  }
+export class AiProviderClient {
+  constructor(private readonly config: AiProviderConfig) {}
 
   async generateStructured<T>(
     request: StructuredGenerationRequest<T>,
-    retries = 2,
+    retries = 1,
   ): Promise<StructuredGenerationResult<T>> {
-    const policy = createModelPolicy({
-      task: request.task,
-      authoritativeModel: this.authoritativeModel,
-      creativeModel: this.creativeModel,
-      requestedModel: request.requestedModel,
-    });
-    const primary: ProviderName = this.config.deepseekApiKey ? "deepseek" : "openrouter";
-    const primaryModel = primary === "deepseek" ? policy.model : this.fallbackModel || policy.model;
-
-    try {
-      return await this.generateWithProvider(request, policy, primary, primaryModel, retries);
-    } catch (error) {
-      const canFallback =
-        primary === "deepseek" &&
-        Boolean(this.config.apiKey) &&
-        Boolean(this.fallbackModel) &&
-        isTransientAiProviderError(error);
-      if (!canFallback) throw error;
-      return this.generateWithProvider(
-        request,
-        policy,
-        "openrouter",
-        this.fallbackModel!,
-        retries,
-      );
-    }
-  }
-
-  private async generateWithProvider<T>(
-    request: StructuredGenerationRequest<T>,
-    policy: ModelPolicy,
-    provider: ProviderName,
-    model: string,
-    retries: number,
-  ): Promise<StructuredGenerationResult<T>> {
+    const policy = createModelPolicy({ task: request.task });
     const startedAt = Date.now();
     let lastError: unknown;
 
     for (let attempt = 1; attempt <= retries + 1; attempt += 1) {
       const attemptStartedAt = Date.now();
       try {
-        const result = await this.callProvider(request, policy, provider, model);
+        const result = await this.callDeepSeek(request, policy.temperature);
         this.config.logger?.({
-          task: request.task,
-          provider,
-          model,
-          attempt,
-          latencyMs: Date.now() - attemptStartedAt,
-          status: "success",
+task: request.task,
+provider: "deepseek",
+model: DEEPSEEK_FLASH_MODEL,
+attempt,
+latencyMs: Date.now() - attemptStartedAt,
+status: "success",
         });
         return {
-          ...result,
-          provider,
-          attempts: attempt,
-          latencyMs: Date.now() - startedAt,
+...result,
+provider: "deepseek",
+attempts: attempt,
+latencyMs: Date.now() - startedAt,
         };
       } catch (error) {
         lastError = error;
         const code = error instanceof AiProviderError ? error.code : "provider_failure";
         this.config.logger?.({
-          task: request.task,
-          provider,
-          model,
-          attempt,
-          latencyMs: Date.now() - attemptStartedAt,
-          status: "error",
-          errorCode: code,
+task: request.task,
+provider: "deepseek",
+model: DEEPSEEK_FLASH_MODEL,
+attempt,
+latencyMs: Date.now() - attemptStartedAt,
+status: "error",
+errorCode: code,
         });
         if (!isTransientAiProviderError(error) || attempt > retries) throw error;
       }
     }
-
     throw lastError;
   }
 
-  private async callProvider<T>(
+  private async callDeepSeek<T>(
     request: StructuredGenerationRequest<T>,
-    policy: ModelPolicy,
-    provider: ProviderName,
-    model: string,
+    temperature: number,
   ): Promise<Omit<StructuredGenerationResult<T>, "provider" | "attempts" | "latencyMs">> {
-    const isDeepSeek = provider === "deepseek";
-    const apiKey = isDeepSeek ? this.config.deepseekApiKey : this.config.apiKey;
+    const apiKey = this.config.deepseekApiKey;
     if (!apiKey) {
-      throw new AiProviderError(
-        "configuration",
-        `${isDeepSeek ? "DEEPSEEK_API_KEY" : "OPENROUTER_API_KEY"} is not configured.`,
-      );
+      throw new AiProviderError("configuration", "DEEPSEEK_API_KEY is not configured.");
     }
 
-    const baseUrl = isDeepSeek
-      ? "https://api.deepseek.com"
-      : this.config.baseUrl || "https://openrouter.ai/api/v1";
-    const timeoutSignal = AbortSignal.timeout(this.config.timeoutMs ?? 45_000);
+    const timeoutSignal = AbortSignal.timeout(this.config.timeoutMs ?? 60_000);
     const signal = request.signal
       ? AbortSignal.any([request.signal, timeoutSignal])
       : timeoutSignal;
-    const body: Record<string, unknown> = {
-      model,
-      temperature: policy.temperature,
-      max_tokens: 1024,
-      messages: [
-        {
-          role: "system",
-          content: isDeepSeek
-            ? `${request.system}\nReturn exactly one valid JSON object. Do not use Markdown or explanatory text.`
-            : request.system,
-        },
-        { role: "user", content: request.prompt },
-      ],
-      response_format: isDeepSeek
-        ? { type: "json_object" }
-        : {
-            type: "json_schema",
-            json_schema: {
-              name: request.jsonSchema.name,
-              description: request.jsonSchema.description,
-              strict: false,
-              schema: request.jsonSchema.schema,
-            },
-          },
-    };
-    if (!isDeepSeek) {
-      body.plugins = [{ id: "response-healing" }];
-      body.provider = { require_parameters: true };
-    }
+    const example = exampleFromSchema(request.jsonSchema.schema, request.jsonSchema.schema);
+    const system = [
+      request.system,
+      "Return exactly one valid JSON object and no Markdown or explanatory text.",
+      `JSON schema name: ${request.jsonSchema.name}`,
+      request.jsonSchema.description
+        ? `JSON schema description: ${request.jsonSchema.description}`
+        : "",
+      `JSON schema: ${JSON.stringify(request.jsonSchema.schema)}`,
+      `Example JSON shape: ${JSON.stringify(example)}`,
+      "Use the supplied facts for real values; do not copy placeholder example values.",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
 
     let response: Response;
     try {
-      response = await fetch(completionEndpoint(baseUrl), {
+      response = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          ...(!isDeepSeek && this.config.httpReferer
-            ? { "HTTP-Referer": this.config.httpReferer }
-            : {}),
-          ...(!isDeepSeek && this.config.appName ? { "X-Title": this.config.appName } : {}),
+Authorization: `Bearer ${apiKey}`,
+"Content-Type": "application/json",
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+model: DEEPSEEK_FLASH_MODEL,
+thinking: { type: "disabled" },
+temperature,
+max_tokens: 4096,
+messages: [
+  { role: "system", content: system },
+  { role: "user", content: request.prompt },
+],
+response_format: { type: "json_object" },
+        }),
         signal,
       });
     } catch (error) {
       if (request.signal?.aborted) {
-        throw new AiProviderError("aborted", "AI provider request was aborted.", { cause: error });
+        throw new AiProviderError("aborted", "DeepSeek request was aborted.", {
+cause: error,
+        });
       }
       if (timeoutSignal.aborted) {
-        throw new AiProviderError("timeout", "AI provider request timed out.", { cause: error });
+        throw new AiProviderError("timeout", "DeepSeek request timed out.", {
+cause: error,
+        });
       }
-      throw new AiProviderError("provider_failure", "AI provider request failed.", {
+      throw new AiProviderError("provider_failure", "DeepSeek request failed.", {
         cause: error,
       });
     }
 
+    const responseText = await response.text();
     let payload: ProviderResponse;
     try {
-      payload = JSON.parse(await response.text()) as ProviderResponse;
+      payload = JSON.parse(responseText) as ProviderResponse;
     } catch (error) {
-      throw new AiProviderError("malformed_response", "AI provider returned malformed JSON.", {
-        cause: error,
-      });
+      throw new AiProviderError(
+        "malformed_response",
+        `DeepSeek returned malformed JSON: ${responseText.slice(0, 500)}`,
+        { cause: error },
+      );
     }
 
     if (!response.ok) {
       const code: AiProviderErrorCode =
         response.status === 429
-          ? "rate_limited"
-          : response.status >= 500
-            ? "provider_failure"
-            : "provider_rejected";
+? "rate_limited"
+: response.status >= 500
+  ? "provider_failure"
+  : "provider_rejected";
+      const providerMessage = payload.error?.message || responseText.slice(0, 500);
       throw new AiProviderError(
         code,
-        payload.error?.message || `AI provider request failed with ${response.status}.`,
+        `DeepSeek rejected the request (${response.status}): ${providerMessage}`,
         { cause: payload.error },
       );
     }
 
-    const content = payload.choices?.[0]?.message?.content;
-    if (!content || !payload.model) {
+    const choice = payload.choices?.[0];
+    const content = choice?.message?.content;
+    if (!content) {
       throw new AiProviderError(
         "malformed_response",
-        "AI provider returned no structured content or actual model identifier.",
+        `DeepSeek returned empty structured content (finish_reason=${choice?.finish_reason ?? "unknown"}).`,
       );
     }
 
     let decoded: unknown;
     try {
       decoded = JSON.parse(content);
-      decoded = omitUnexpectedNulls(decoded, request.jsonSchema.schema, request.jsonSchema.schema);
+      decoded = omitUnexpectedNulls(
+        decoded,
+        request.jsonSchema.schema,
+        request.jsonSchema.schema,
+      );
     } catch (error) {
       throw new AiProviderError(
         "malformed_response",
-        "AI provider returned invalid structured JSON.",
+        "DeepSeek returned invalid structured JSON.",
         { cause: error },
       );
     }
@@ -378,14 +360,14 @@ export class AiProviderClient {
     if (!validated.success) {
       throw new AiProviderError(
         "validation",
-        `Structured model output failed validation: ${validated.error.message}`,
+        `DeepSeek structured output failed validation: ${validated.error.message}`,
       );
     }
 
     return {
       data: validated.data,
-      requestedModel: model,
-      actualModel: payload.model,
+      requestedModel: DEEPSEEK_FLASH_MODEL,
+      actualModel: payload.model || DEEPSEEK_FLASH_MODEL,
       providerRequestId: payload.id,
     };
   }

@@ -27,9 +27,9 @@ describe("createModelPolicy", () => {
     const policy = createModelPolicy({
       task: "parse_intent",
       authoritativeModel: "deepseek-v4-flash",
-      requestedModel: "deepseek-v4-pro",
+      requestedModel: "deepseek-v4-flash",
     });
 
-    expect(policy.model).toBe("deepseek-v4-pro");
+    expect(policy.model).toBe("deepseek-v4-flash");
   });
 });
