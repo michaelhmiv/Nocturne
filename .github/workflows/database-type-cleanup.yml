@@ -29,6 +29,32 @@ jobs:
 
           consumption = Path('packages/database/src/consumption-store.ts')
           text = consumption.read_text(encoding='utf-8')
+          dependency = 'import type { ConsumptionMechanicsResult } from "@nocturne/rules-engine";\n'
+          local_type = '''type ConsumptionMechanicsResult = {
+            outcomeGrade:
+              | "complete_success"
+              | "success_with_consequence"
+              | "partial_success"
+              | "failure_with_progress"
+              | "failure"
+              | "catastrophic_reversal";
+            resourceDeltas: Array<{ resource: string; delta: number; rationale: string }>;
+            conditions: Array<{
+              name: string;
+              key: string;
+              intensity: number;
+              durationSeconds: number;
+              rationale: string;
+            }>;
+            risks: Array<{ description: string; occurred: boolean }>;
+            calculationTrace: string[];
+          };
+          '''
+          local_type = '\n'.join(line[10:] if line.startswith('          ') else line for line in local_type.splitlines()) + '\n'
+          if dependency not in text:
+              raise SystemExit('Rules-engine type import not found')
+          text = text.replace(dependency, local_type)
+
           start_marker = '    const candidates: ConsumptionCandidate[] = entityRows'
           end_marker = '      .filter((candidate): candidate is ConsumptionCandidate => Boolean(candidate));'
           start = text.index(start_marker)
@@ -67,6 +93,10 @@ jobs:
           }, []);'''
           replacement = '\n'.join(line[10:] if line.startswith('          ') else line for line in replacement.splitlines())
           consumption.write_text(text[:start] + replacement + text[end:], encoding='utf-8')
+
+          obsolete = Path('packages/database/src/rules-engine-types.d.ts')
+          if obsolete.exists():
+              obsolete.unlink()
 
           game = Path('packages/database/src/game-store.ts')
           text = game.read_text(encoding='utf-8')
