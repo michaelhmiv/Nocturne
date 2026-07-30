@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateGeneratedContent } from "../src/index.js";
+import { normalizeGeneratedMechanics, validateGeneratedContent } from "../src/index.js";
 
 const baseDraft = {
   definitionType: "installed_sensor_system",
@@ -34,7 +34,7 @@ function invention(overrides: Record<string, unknown>) {
   return { ...baseDraft, ...overrides };
 }
 
-describe("validateGeneratedContent", () => {
+describe("invention mechanics pipeline", () => {
   it.each([
     ["satellite-linked dimensional radar", {}],
     [
@@ -102,12 +102,38 @@ describe("validateGeneratedContent", () => {
         ],
       },
     ],
-  ])("accepts an original %s", (_name, overrides) => {
-    expect(validateGeneratedContent(invention(overrides)).status).not.toBe("invalid");
+  ])("accepts an original %s after mechanics normalization", (_name, overrides) => {
+    const normalized = normalizeGeneratedMechanics(invention(overrides) as never).draft;
+    expect(validateGeneratedContent(normalized).status).not.toBe("invalid");
+  });
+
+  it("maps familiar creation verbs to canonical mechanics", () => {
+    const normalized = normalizeGeneratedMechanics(
+      invention({ effects: [{ effectId: "bake", target: "food", strength: 3, parameters: {} }] }) as never,
+    ).draft;
+
+    expect(normalized.effects[0]?.effectId).toBe("heat");
+    expect(normalized.extensionPayload.mechanicsCatalogueVersion).toBe("invention-mechanics-v1");
+  });
+
+  it("preserves an unknown original effect while routing it through bounded support mechanics", () => {
+    const normalized = normalizeGeneratedMechanics(
+      invention({
+        effects: [
+          { effectId: "phase_through_matter", target: "vehicle_and_rider", strength: 6, parameters: {} },
+        ],
+      }) as never,
+    ).draft;
+
+    expect(normalized.effects[0]?.effectId).toBe("support");
+    expect(normalized.effects[0]?.parameters.originalEffectId).toBe("phase_through_matter");
+    expect(validateGeneratedContent(normalized).issues.map((issue) => issue.code)).not.toContain(
+      "mechanics.unknown_effect",
+    );
   });
 
   it("returns structured remediation for an unbounded omniscient detector", () => {
-    const result = validateGeneratedContent(
+    const normalized = normalizeGeneratedMechanics(
       invention({
         definitionType: "device.omniscient_detector",
         name: "Everyone Everywhere Detector",
@@ -127,8 +153,9 @@ describe("validateGeneratedContent", () => {
         costs: [],
         signatures: [],
         acquisitionPath: { type: "immediate", parameters: {} },
-      }),
-    );
+      }) as never,
+    ).draft;
+    const result = validateGeneratedContent(normalized);
 
     expect(result.status).toBe("invalid");
     expect(result.issues.map((issue) => issue.code)).toEqual(
