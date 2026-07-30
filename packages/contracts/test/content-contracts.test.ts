@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { ActionExecutionResponseSchema, GeneratedDefinitionDraftSchema } from "../src/index.js";
+import {
+  ActionExecutionResponseSchema,
+  GeneratedDefinitionDraftSchema,
+  NormalizeContentRequestSchema,
+} from "../src/index.js";
 
 const concepts = [
   ["character", "character.player"],
@@ -51,6 +55,28 @@ describe("GeneratedDefinitionDraftSchema", () => {
     expect(parsed.definitionType).toBe(definitionType);
     expect(parsed.relationships).toHaveLength(1);
     expect(parsed.extensionPayload).toEqual({ unknownPlayerSubtype: "kept" });
+  });
+});
+
+describe("NormalizeContentRequestSchema", () => {
+  it("accepts concise player invention concepts", () => {
+    const parsed = NormalizeContentRequestSchema.parse({
+      characterId: "10000000-0000-4000-8000-000000000001",
+      residenceId: "10000000-0000-4000-8000-000000000002",
+      rawConcept: "A pie oven",
+      intendedUse: "Support the character's current goals",
+    });
+
+    expect(parsed.rawConcept).toBe("A pie oven");
+  });
+
+  it("still rejects an empty invention concept", () => {
+    expect(() =>
+      NormalizeContentRequestSchema.parse({
+        characterId: "10000000-0000-4000-8000-000000000001",
+        rawConcept: "   ",
+      }),
+    ).toThrow();
   });
 });
 
