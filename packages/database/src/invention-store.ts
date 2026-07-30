@@ -348,6 +348,45 @@ export function createInventionStore(database: ReturnType<typeof createDatabase>
     return rows.map((row) => mapRequest(row as Record<string, unknown>));
   }
 
+  async function getCharacterSkillLevel(
+    userId: string,
+    characterId: string,
+    skill: string,
+  ): Promise<number> {
+    await assertControlled(userId, characterId);
+    const rows = await database.client`
+      SELECT state FROM game.entity_instances WHERE instance_id = ${characterId}
+    `;
+    const skills =
+      ((rows[0]?.state as Record<string, unknown> | undefined)?.skills as
+        | Record<string, number>
+        | undefined) ?? {};
+    const xp = skills[skill] ?? 0;
+    return Math.min(100, Math.max(0, Math.floor(Math.sqrt(Math.max(0, xp) / 10))));
+  }
+
+  async function scheduleCraftJob(input: {
+    requestId: string;
+    characterId: string;
+    buildSeconds: number;
+  }) {
+    const id = randomUUID();
+    const resolvesAt = new Date(Date.now() + Math.max(1, input.buildSeconds) * 1000);
+    await database.client`
+      INSERT INTO game.scheduled_actions (schedule_id, intent_id, resolves_at, status, kind, payload)
+      VALUES (
+        ${id}, NULL, ${resolvesAt.toISOString()}, 'pending', 'craft_complete',
+        ${json({ requestId: input.requestId, characterId: input.characterId })}
+      )
+    `;
+    await database.client`
+      UPDATE game.generated_content_requests
+      SET validation_status = 'crafting', updated_at = now()
+      WHERE request_id = ${input.requestId}
+    `;
+    return id;
+  }
+
   return {
     createRequest,
     startAiRun,
@@ -359,6 +398,8 @@ export function createInventionStore(database: ReturnType<typeof createDatabase>
     getResidenceCapacities,
     getRequest,
     listRequests,
+    getCharacterSkillLevel,
+    scheduleCraftJob,
   };
 }
 

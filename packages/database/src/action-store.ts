@@ -18,8 +18,8 @@ const ALLEY_TARGET = {
 };
 
 export interface ActionRuntimeContext {
-  actor: { id: string; name: string };
-  residence: { id: string; name: string };
+  actor: { id: string; name: string; state: Record<string, unknown> };
+  residence: { id: string; name: string } | null;
   targetLocation: {
     id: string;
     name: string;
@@ -104,7 +104,7 @@ export function createActionStore(database: ReturnType<typeof createDatabase>) {
   ): Promise<ActionRuntimeContext> {
     await seedAlleyScenario();
     const actorRows = await database.client`
-      SELECT d.name, o.residence_instance_id, rd.name AS residence_name
+      SELECT d.name, actor.state, o.residence_instance_id, rd.name AS residence_name
       FROM game.player_characters pc
       JOIN game.entity_instances actor ON actor.instance_id = pc.character_instance_id
       JOIN game.entity_definitions d ON d.definition_id = actor.definition_id
@@ -118,22 +118,12 @@ export function createActionStore(database: ReturnType<typeof createDatabase>) {
     if (!actor) {
       throw new ActionStoreError("forbidden", "Character is not controlled by this account.");
     }
-    if (!actor.residence_instance_id) {
-      throw new ActionStoreError(
-        "invalid_method",
-        "Character has no residence for an installed-system action.",
-      );
-    }
 
     const targetLocationId = requestedTargetId || STARTER_WORLD_IDS.alley;
-    if (targetLocationId !== STARTER_WORLD_IDS.alley) {
-      throw new ActionStoreError(
-        "forbidden",
-        "The first action slice is limited to the residence's rear alley.",
-      );
-    }
 
-    const methods = await database.client`
+    // ponytail: method optional. Bare actions use a synthetic body-method.
+    const methods = actor.residence_instance_id
+      ? await database.client`
       SELECT i.instance_id, i.definition_id, i.condition, i.state, d.name, r.payload
       FROM game.entity_instances i
       JOIN game.entity_definitions d ON d.definition_id = i.definition_id
@@ -145,61 +135,78 @@ export function createActionStore(database: ReturnType<typeof createDatabase>) {
         AND (${requestedMethodId || null}::uuid IS NULL OR i.instance_id = ${requestedMethodId || null})
       ORDER BY i.created_at ASC
       LIMIT 1
-    `;
-    const method = methods[0];
-    if (!method) {
-      throw new ActionStoreError(
-        "invalid_method",
-        "No authorized installed system is available for this action.",
-      );
-    }
+    `
+      : [];
+    const methodRow = methods[0] ?? null;
+
+    const bareDraft = {
+      name: "Bare hands / senses",
+      effects: [{ id: "bare", label: "Unaided action", strength: 2 }],
+      modes: [{ id: "default", label: "Default", effects: [] }],
+      constraints: [],
+    } as unknown as GeneratedDefinitionDraft;
+
+    const method = methodRow
+      ? {
+          instanceId: String(methodRow.instance_id),
+          definitionId: String(methodRow.definition_id),
+          name: String(methodRow.name),
+          condition: Number(methodRow.condition),
+          state: methodRow.state as Record<string, unknown>,
+          draft: methodRow.payload as GeneratedDefinitionDraft,
+          installed: true,
+        }
+      : {
+          instanceId: actorId,
+          definitionId: "BARE-ACTION",
+          name: "Bare hands / senses",
+          condition: 100,
+          state: {},
+          draft: bareDraft,
+          installed: false,
+        };
 
     const targetRows = await database.client`
       SELECT state FROM game.entity_instances WHERE instance_id = ${ALLEY_TARGET.instanceId}
     `;
     const targetState = (targetRows[0]?.state as Record<string, unknown>) || {};
     const environment = { clutter: 1, darkness: 2, coverageSupport: 1 };
-    const draft = method.payload as GeneratedDefinitionDraft;
     const publicFacts = [
-      "The selected system is installed in the actor's residence.",
       "The rear alley is directly adjacent to the residence.",
       "The rear alley has dim lighting and moderate clutter.",
+      ...(method.installed ? ["The selected system is installed in the actor's residence."] : []),
     ];
 
     return {
-      actor: { id: actorId, name: String(actor.name) },
-      residence: {
-        id: String(actor.residence_instance_id),
-        name: String(actor.residence_name),
-      },
+      actor: { id: actorId, name: String(actor.name), state: (actor.state as Record<string, unknown>) ?? {} },
+      residence: actor.residence_instance_id
+        ? {
+            id: String(actor.residence_instance_id),
+            name: String(actor.residence_name ?? "Residence"),
+          }
+        : null,
       targetLocation: { id: STARTER_WORLD_IDS.alley, name: "Rear Alley", environment },
-      method: {
-        instanceId: String(method.instance_id),
-        definitionId: String(method.definition_id),
-        name: String(method.name),
-        condition: Number(method.condition),
-        state: method.state as Record<string, unknown>,
-        draft,
-        installed: true,
-      },
+      method,
       publicFacts,
       publicContext: {
         facts: publicFacts,
         actor: { id: actorId, name: String(actor.name) },
-        residence: {
-          id: String(actor.residence_instance_id),
-          name: String(actor.residence_name),
-        },
+        residence: actor.residence_instance_id
+          ? {
+              id: String(actor.residence_instance_id),
+              name: String(actor.residence_name ?? "Residence"),
+            }
+          : null,
         targetLocation: {
           id: STARTER_WORLD_IDS.alley,
           name: "Rear Alley",
           environment: { lighting: "dim", clutter: "moderate", adjacency: "direct" },
         },
         method: {
-          instanceId: String(method.instance_id),
-          definitionId: String(method.definition_id),
-          name: String(method.name),
-          declaredEffects: [...draft.effects, ...draft.modes.flatMap((mode) => mode.effects)],
+          instanceId: method.instanceId,
+          definitionId: method.definitionId,
+          name: method.name,
+          installed: method.installed,
         },
       },
       hiddenMechanics: {
@@ -461,6 +468,216 @@ export function createActionStore(database: ReturnType<typeof createDatabase>) {
     return results.filter((result): result is ActionExecutionResponse => Boolean(result));
   }
 
+  async function applyActorSkillXp(
+    actorId: string,
+    skill: string,
+    xpGain: number,
+  ): Promise<{ xp: number; level: number; leveledUp: boolean } | null> {
+    const rows = await database.client`
+      SELECT state FROM game.entity_instances WHERE instance_id = ${actorId}
+    `;
+    if (!rows[0]) return null;
+    const state = { ...((rows[0].state as Record<string, unknown>) || {}) };
+    const skills = { ...((state.skills as Record<string, number>) || {}) };
+    const oldXp = skills[skill] ?? 0;
+    const oldLevel = Math.floor(Math.sqrt(oldXp / 10));
+    const newXp = oldXp + xpGain;
+    const newLevel = Math.min(100, Math.floor(Math.sqrt(newXp / 10)));
+    skills[skill] = newXp;
+    state.skills = skills;
+    await database.client`
+      UPDATE game.entity_instances SET state = ${json(state)}, updated_at = now()
+      WHERE instance_id = ${actorId}
+    `;
+    return { xp: newXp, level: newLevel, leveledUp: newLevel > oldLevel };
+  }
+
+  /** Death: strip items owned by actor that are located_at actor (carried/equipped). */
+  async function stripCarriedOnDeath(actorId: string): Promise<number> {
+    const dropped = await database.client`
+      UPDATE game.entity_instances i
+      SET owner_id = NULL,
+          location_id = (SELECT location_id FROM game.entity_instances WHERE instance_id = ${actorId}),
+          state = coalesce(state, '{}'::jsonb) || '{"dropped":true}'::jsonb,
+          updated_at = now()
+      WHERE i.owner_id = ${actorId}
+        AND i.instance_id <> ${actorId}
+        AND (
+          i.location_id = ${actorId}
+          OR i.location_id = (SELECT location_id FROM game.entity_instances WHERE instance_id = ${actorId})
+          OR EXISTS (
+            SELECT 1 FROM game.entity_relations r
+            WHERE r.source_instance_id = i.instance_id
+              AND r.target_instance_id = ${actorId}
+              AND r.relation_type IN ('equipped_by', 'carried_by', 'located_at')
+          )
+        )
+      RETURNING instance_id
+    `;
+    await database.client`
+      UPDATE game.entity_instances
+      SET state = coalesce(state, '{}'::jsonb)
+            || '{"status":"dead","pendingDeath":false,"cashOnPerson":0}'::jsonb,
+          condition = 0,
+          updated_at = now()
+      WHERE instance_id = ${actorId}
+    `;
+    return dropped.length;
+  }
+
+  async function findNearbyNpc(actorId: string): Promise<
+    { instanceId: string; name: string; schedule?: Record<string, string> } | null
+  > {
+    // ponytail: any NPC; co-location match later.
+    const any = await database.client`
+      SELECT npc.instance_id, d.name, npc.state
+      FROM game.entity_instances npc
+      JOIN game.entity_definitions d ON d.definition_id = npc.definition_id
+      WHERE d.definition_type = 'npc'
+        AND npc.instance_id <> ${actorId}
+      LIMIT 1
+    `;
+    if (!any[0]) return null;
+    const st = (any[0].state as Record<string, unknown>) || {};
+    return {
+      instanceId: String(any[0].instance_id),
+      name: String(any[0].name),
+      schedule: st.schedule as Record<string, string> | undefined,
+    };
+  }
+
+  async function scheduleJob(input: {
+    kind: string;
+    resolvesAt: Date;
+    payload: Record<string, unknown>;
+    intentId?: string | null;
+  }): Promise<string> {
+    const id = randomUUID();
+    await database.client`
+      INSERT INTO game.scheduled_actions (schedule_id, intent_id, resolves_at, status, kind, payload)
+      VALUES (
+        ${id}, ${input.intentId || null}, ${input.resolvesAt.toISOString()},
+        'pending', ${input.kind}, ${json(input.payload)}
+      )
+    `;
+    return id;
+  }
+
+  async function moveActor(actorId: string, locationId: string): Promise<boolean> {
+    const rows = await database.client`
+      UPDATE game.entity_instances
+      SET location_id = ${locationId}, updated_at = now()
+      WHERE instance_id = ${actorId}
+      RETURNING instance_id
+    `;
+    return rows.length === 1;
+  }
+
+  async function getActorLocation(actorId: string): Promise<string | null> {
+    const rows = await database.client`
+      SELECT location_id FROM game.entity_instances WHERE instance_id = ${actorId}
+    `;
+    return rows[0]?.location_id ? String(rows[0].location_id) : null;
+  }
+
+  async function getOwnedVehicleSpeed(ownerId: string): Promise<number> {
+    const rows = await database.client`
+      SELECT state FROM game.entity_instances
+      WHERE definition_id = 'vehicle' AND owner_id = ${ownerId}
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `;
+    if (!rows[0]) return 1;
+    const st = (rows[0].state as Record<string, unknown>) || {};
+    return Math.max(0.1, Number(st.speedFactor || 1));
+  }
+
+  async function patchActorState(
+    actorId: string,
+    patch: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const rows = await database.client`
+      SELECT state FROM game.entity_instances WHERE instance_id = ${actorId}
+    `;
+    const state = { ...((rows[0]?.state as Record<string, unknown>) || {}), ...patch };
+    await database.client`
+      UPDATE game.entity_instances SET state = ${json(state)}, updated_at = now()
+      WHERE instance_id = ${actorId}
+    `;
+    return state;
+  }
+
+  async function readActorState(actorId: string): Promise<Record<string, unknown>> {
+    const rows = await database.client`
+      SELECT state FROM game.entity_instances WHERE instance_id = ${actorId}
+    `;
+    return { ...((rows[0]?.state as Record<string, unknown>) || {}) };
+  }
+
+  async function sendComms(input: {
+    fromId: string;
+    toId?: string | null;
+    toName: string;
+    body: string;
+    intercepted: boolean;
+    chance: number;
+  }) {
+    const id = randomUUID();
+    await database.client`
+      INSERT INTO game.comms_messages (
+        message_id, from_id, to_id, to_name, body, intercepted, intercept_chance
+      ) VALUES (
+        ${id}, ${input.fromId}, ${input.toId || null}, ${input.toName},
+        ${input.body}, ${input.intercepted}, ${input.chance}
+      )
+    `;
+    return { messageId: id, ...input };
+  }
+
+  async function listComms(fromId: string) {
+    const rows = await database.client`
+      SELECT message_id, from_id, to_id, to_name, body, intercepted, intercept_chance, created_at
+      FROM game.comms_messages
+      WHERE from_id = ${fromId}
+      ORDER BY created_at DESC
+      LIMIT 50
+    `;
+    return rows.map((r) => ({
+      messageId: String(r.message_id),
+      fromId: String(r.from_id),
+      toId: r.to_id ? String(r.to_id) : null,
+      toName: String(r.to_name),
+      body: String(r.body),
+      intercepted: Boolean(r.intercepted),
+      interceptChance: Number(r.intercept_chance),
+      createdAt: new Date(r.created_at as Date).toISOString(),
+    }));
+  }
+
+  async function resolvePlaceByName(nameHint: string): Promise<{ id: string; name: string } | null> {
+    const q = `%${nameHint.toLowerCase()}%`;
+    const rows = await database.client`
+      SELECT i.instance_id, d.name
+      FROM game.entity_instances i
+      JOIN game.entity_definitions d ON d.definition_id = i.definition_id
+      WHERE d.definition_type IN ('location', 'residence', 'place')
+        AND lower(d.name) LIKE ${q}
+      LIMIT 1
+    `;
+    if (!rows[0]) {
+      // fallback rear alley
+      const alley = await database.client`
+        SELECT i.instance_id, d.name FROM game.entity_instances i
+        JOIN game.entity_definitions d ON d.definition_id = i.definition_id
+        WHERE i.instance_id = '10000000-0000-4000-8000-000000000006'
+        LIMIT 1
+      `;
+      if (!alley[0]) return null;
+      return { id: String(alley[0].instance_id), name: String(alley[0].name) };
+    }
+    return { id: String(rows[0].instance_id), name: String(rows[0].name) };
+  }
+
   return {
     getContext,
     findByIdempotency,
@@ -470,6 +687,18 @@ export function createActionStore(database: ReturnType<typeof createDatabase>) {
     commit,
     saveNarration,
     list,
+    applyActorSkillXp,
+    stripCarriedOnDeath,
+    findNearbyNpc,
+    scheduleJob,
+    moveActor,
+    getActorLocation,
+    getOwnedVehicleSpeed,
+    patchActorState,
+    readActorState,
+    sendComms,
+    listComms,
+    resolvePlaceByName,
   };
 }
 
