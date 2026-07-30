@@ -1,22 +1,7 @@
 import type {
   ConsumableAnalysis,
-  ConsumptionConditionEffect,
-  ConsumptionResourceDelta,
+  ConsumptionMechanicsResult,
 } from "@nocturne/contracts";
-import type { OutcomeGrade } from "@nocturne/contracts";
-
-export interface AppliedConsumptionRisk {
-  description: string;
-  occurred: boolean;
-}
-
-export interface ConsumptionMechanicsResult {
-  outcomeGrade: OutcomeGrade;
-  resourceDeltas: ConsumptionResourceDelta[];
-  conditions: ConsumptionConditionEffect[];
-  risks: AppliedConsumptionRisk[];
-  calculationTrace: string[];
-}
 
 function hashSeed(seed: string): number {
   let hash = 2166136261;
