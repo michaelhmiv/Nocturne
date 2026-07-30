@@ -1,6 +1,5 @@
 import {
   GeneratedDefinitionDraftSchema,
-  type EffectBinding,
   type GeneratedDefinitionDraft,
 } from "@nocturne/contracts";
 
@@ -90,6 +89,9 @@ const capacityAliases: Record<string, string> = {
   "installation.access": "capacity.access",
 };
 
+type Effect = GeneratedDefinitionDraft["effects"][number];
+type Requirement = GeneratedDefinitionDraft["requirements"][number];
+
 function token(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "_");
 }
@@ -108,7 +110,7 @@ export function canonicalEffectId(effectId: string): string {
   return effectAliases[normalized] || "support";
 }
 
-function normalizeEffect(effect: EffectBinding): EffectBinding {
+function normalizeEffect(effect: Effect): Effect {
   const originalEffectId = effect.effectId;
   const effectId = canonicalEffectId(originalEffectId);
   return {
@@ -127,7 +129,7 @@ export function normalizeGeneratedMechanics(input: GeneratedDefinitionDraft): {
 } {
   const parsed = GeneratedDefinitionDraftSchema.parse(input);
   const warnings: string[] = [];
-  const normalizeRequirement = (requirement: GeneratedDefinitionDraft["requirements"][number]) => {
+  const normalizeRequirement = (requirement: Requirement): Requirement => {
     if (requirement.phase !== "installation") return requirement;
     const originalRuleId = requirement.ruleId;
     const normalizedRuleId = capacityAliases[token(originalRuleId)] || originalRuleId;
