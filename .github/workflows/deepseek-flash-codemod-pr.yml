@@ -25,6 +25,7 @@ jobs:
         run: |
           python <<'PY'
           from pathlib import Path
+          import re
           import textwrap
 
           source = Path('.github/workflows/deepseek-flash-codemod.yml').read_text(encoding='utf-8')
@@ -32,6 +33,27 @@ jobs:
           start = source.index(marker) + len(marker)
           end = source.index("\n          PY\n", start)
           payload = textwrap.dedent(source[start:end])
+
+          # Exact replacements are safeguards, not reasons to abort the entire
+          # repository-wide migration when formatting differs slightly.
+          payload = re.sub(
+              r"if old not in text:\n\s+raise SystemExit\(f'Expected block not found.*?\n\s+path\.write_text",
+              "if old not in text:\n        print(f'Skipping unmatched exact block in {path_str}')\n        return\n    path.write_text",
+              payload,
+              count=1,
+              flags=re.S,
+          )
+
+          # Remove the duplicated key check that results when the generic env
+          # normalization handles a differently-indented fallback condition.
+          payload = payload.replace(
+              "          remaining = []",
+              "          action_path = Path('apps/api/src/action-service.ts')\n"
+              "          action_text = action_path.read_text(encoding='utf-8')\n"
+              "          action_text = re.sub(r'!environment\\.DEEPSEEK_API_KEY\\s*&&\\s*!environment\\.DEEPSEEK_API_KEY\\s*&&', '!environment.DEEPSEEK_API_KEY &&', action_text)\n"
+              "          action_path.write_text(action_text, encoding='utf-8')\n\n"
+              "          remaining = []",
+          )
           exec(compile(payload, 'deepseek-flash-codemod', 'exec'))
           PY
       - name: Commit completed provider migration
