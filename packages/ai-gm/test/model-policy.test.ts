@@ -1,35 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { createModelPolicy } from "../src/index.js";
+import { DEEPSEEK_FLASH_MODEL, createModelPolicy } from "../src/index.js";
 
 describe("createModelPolicy", () => {
-  it("uses the configured authoritative model", () => {
-    const policy = createModelPolicy({
-      task: "parse_intent",
-      authoritativeModel: "deepseek-v4-flash",
-    });
+  it("pins authoritative tasks to DeepSeek Flash", () => {
+    const policy = createModelPolicy({ task: "parse_intent" });
 
-    expect(policy.model).toBe("deepseek-v4-flash");
+    expect(policy.model).toBe(DEEPSEEK_FLASH_MODEL);
     expect(policy.authority).toBe("authoritative");
     expect(policy.allowUserOverride).toBe(false);
   });
 
-  it("uses the configured creative model", () => {
-    const policy = createModelPolicy({
-      task: "narrate_event",
-      creativeModel: "deepseek-v4-flash",
-    });
+  it("pins creative tasks to DeepSeek Flash", () => {
+    const policy = createModelPolicy({ task: "narrate_event" });
 
-    expect(policy.model).toBe("deepseek-v4-flash");
+    expect(policy.model).toBe(DEEPSEEK_FLASH_MODEL);
     expect(policy.authority).toBe("creative");
+    expect(policy.allowUserOverride).toBe(false);
   });
 
-  it("allows an internal requested model to override the configured default", () => {
+  it("ignores attempted model overrides", () => {
     const policy = createModelPolicy({
       task: "parse_intent",
-      authoritativeModel: "deepseek-v4-flash",
-      requestedModel: "deepseek-v4-flash",
+      authoritativeModel: "not-allowed",
+      requestedModel: "not-allowed",
     });
 
-    expect(policy.model).toBe("deepseek-v4-flash");
+    expect(policy.model).toBe(DEEPSEEK_FLASH_MODEL);
   });
 });
