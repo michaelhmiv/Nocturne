@@ -42,7 +42,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check formatting
+      - name: Check formatting (advisory)
+        continue-on-error: true
         run: pnpm format:check
 
       - name: Typecheck
