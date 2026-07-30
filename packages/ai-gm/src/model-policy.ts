@@ -1,6 +1,7 @@
 export type AiTask =
   | "parse_intent"
   | "normalize_content"
+  | "analyze_consumable"
   | "propose_adjudication"
   | "plan_npc"
   | "summarize_memory"
@@ -22,6 +23,7 @@ export interface ModelPolicy {
 const authoritativeTasks = new Set<AiTask>([
   "parse_intent",
   "normalize_content",
+  "analyze_consumable",
   "propose_adjudication",
   "plan_npc",
   "summarize_memory",
