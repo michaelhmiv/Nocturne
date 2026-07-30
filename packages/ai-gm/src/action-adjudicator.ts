@@ -8,7 +8,7 @@ import {
 import { AiProviderClient, type StructuredGenerationResult } from "./ai-provider.js";
 
 export const ACTION_PARSE_POLICY_VERSION = "action-parse-v3";
-export const EVENT_NARRATION_POLICY_VERSION = "event-narration-v2";
+export const EVENT_NARRATION_POLICY_VERSION = "event-narration-v3";
 
 const actionSchema = {
   name: "nocturne_action_intent",
@@ -144,20 +144,132 @@ const narrationSchema = {
   },
 } as const;
 
+type NarrationInput = Omit<ActionExecutionResponse, "narration" | "idempotentReplay"> & {
+  factsToPreserve: string[];
+  hiddenFactsToExclude: string[];
+};
+
+export class NarrationConsistencyError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NarrationConsistencyError";
+  }
+}
+
+const numberWords: Record<string, number> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+};
+
+function numericClaim(value: string): number | null {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed)) return parsed;
+  return numberWords[value.toLowerCase()] ?? null;
+}
+
+function committedConsequenceEvidence(input: NarrationInput): string {
+  const consumption = input.consumption;
+  return [
+    ...input.factsToPreserve,
+    ...(consumption?.conditions ?? []).flatMap((effect) => [effect.name, effect.key, effect.rationale]),
+    ...(consumption?.risks ?? [])
+      .filter((risk) => risk.occurred)
+      .map((risk) => risk.description),
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+export function assertNarrationConsistentWithCommittedEvent(
+  narration: string,
+  input: NarrationInput,
+): void {
+  const text = narration.toLowerCase();
+  const evidence = committedConsequenceEvidence(input);
+  const consumption = input.consumption;
+
+  const unsupportedConsequences = [
+    {
+      claim: /\b(die[sd]?|dead|death|killed|fatal|lifeless)\b/i,
+      support: /\b(die[sd]?|dead|death|killed|fatal|lethal)\b/i,
+      label: "death",
+    },
+    {
+      claim: /\b(collaps(?:e|es|ed|ing)|unconscious|blacks? out|incapacitat(?:e|ed|ion))\b/i,
+      support: /\b(collaps(?:e|es|ed|ing)|unconscious|blackout|incapacitat(?:e|ed|ion))\b/i,
+      label: "incapacitation",
+    },
+    {
+      claim: /\b(broken bone|fractur(?:e|ed)|severed|amputat(?:e|ed|ion))\b/i,
+      support: /\b(broken bone|fractur(?:e|ed)|severed|amputat(?:e|ed|ion))\b/i,
+      label: "major injury",
+    },
+  ];
+  for (const rule of unsupportedConsequences) {
+    if (rule.claim.test(text) && !rule.support.test(evidence)) {
+      throw new NarrationConsistencyError(
+        `Narration introduced unsupported ${rule.label} outside the committed event.`,
+      );
+    }
+  }
+
+  if (consumption) {
+    if (/\bmission\b/i.test(text) && !/\bmission[:=_ -]/i.test(evidence)) {
+      throw new NarrationConsistencyError(
+        "Narration introduced mission state for an event with no committed mission.",
+      );
+    }
+    if (
+      /\b(arrive[sd]?|reach(?:es|ed)? the|halfway|set(?:s)? out|walk(?:s|ed|ing)? to|drive(?:s|d|n|ing)? to)\b/i.test(
+        text,
+      ) &&
+      !/\b(travel|destination|arrival|location_transition)[:=_ -]/i.test(evidence)
+    ) {
+      throw new NarrationConsistencyError(
+        "Narration introduced travel progress outside the committed consumption event.",
+      );
+    }
+
+    const activeConsumptionClaims = [
+      ...text.matchAll(
+        /\b(?:eat|ate|eaten|consume|consumed|drink|drank|swallow|swallowed)\s+(?:all\s+)?(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:units?|servings?|portions?|bowls?|packets?|cans?|bottles?|pieces?)\b/gi,
+      ),
+      ...text.matchAll(
+        /\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:units?|servings?|portions?|bowls?|packets?|cans?|bottles?|pieces?)\s+(?:were|was|are|is)\s+(?:eaten|consumed|drunk|swallowed)\b/gi,
+      ),
+    ];
+    for (const claim of activeConsumptionClaims) {
+      const amount = numericClaim(claim[1] ?? "");
+      if (amount !== null && amount > consumption.unitsConsumed) {
+        throw new NarrationConsistencyError(
+          `Narration claimed ${amount} consumed units, but only ${consumption.unitsConsumed} were committed.`,
+        );
+      }
+    }
+  }
+}
+
 export async function narrateCommittedEvent(
   client: AiProviderClient,
-  input: Omit<ActionExecutionResponse, "narration" | "idempotentReplay"> & {
-    factsToPreserve: string[];
-    hiddenFactsToExclude: string[];
-  },
+  input: NarrationInput,
 ): Promise<StructuredGenerationResult<{ narration: string }>> {
-  return client.generateStructured({
+  const result = await client.generateStructured({
     task: "narrate_event",
-    system: `Narrate only the committed Nocturne event. Policy ${EVENT_NARRATION_POLICY_VERSION}. Preserve every supplied fact and never reveal excluded facts. Write immersive player-facing prose. Never mention actor IDs, target IDs, database IDs, enum names, raw intent structures, calculation traces, JSON, truncation, or internal implementation terms. Refer to the player as "you" and use supplied human-readable names when available.`,
+    system: `Narrate only the committed Nocturne event. Policy ${EVENT_NARRATION_POLICY_VERSION}. Preserve every supplied fact and never reveal excluded facts. The structured event is the sole authority: do not add travel, location progress, mission results, inventory use, death, collapse, injury, unconsciousness, or other state changes that are not explicitly committed. Write immersive player-facing prose. Never mention actor IDs, target IDs, database IDs, enum names, raw intent structures, calculation traces, JSON, truncation, or internal implementation terms. Refer to the player as "you" and use supplied human-readable names when available.`,
     prompt: JSON.stringify(input),
     jsonSchema: narrationSchema,
     validator: NarrationEnvelopeSchema,
   });
+  assertNarrationConsistentWithCommittedEvent(result.data.narration, input);
+  return result;
 }
 
 export function deterministicNarrationFallback(outcome: string): string {
