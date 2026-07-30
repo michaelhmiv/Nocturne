@@ -42,15 +42,9 @@ jobs:
               flags=re.S,
           )
 
-          # The temporary workflow payload contains the legacy terms by design;
-          # exclude workflow source files from the repository reference audit.
           payload = payload.replace(
               "if not path.is_file() or '.git' in path.parts:",
               "if not path.is_file() or '.git' in path.parts or ('.github' in path.parts and 'workflows' in path.parts):",
-          )
-          payload = payload.replace(
-              "text = text.replace('./openrouter.js', './ai-provider.js')",
-              "text = text.replace('./openrouter.js', './ai-provider.js')\n              text = text.replace('openrouter.js', 'ai-provider.js')",
           )
 
           cleanup = r'''
