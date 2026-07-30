@@ -1,9 +1,7 @@
 import type { SkillName } from "./skills.js";
 
-// ponytail: each action type maps to a skill and a contest derivation.
-// Reuse the existing DetectionContext/DerivedContest pattern.
-// Add more as they're needed.
-
+// Action verbs are intentionally broad. Domain-specific resolvers decide whether
+// an action is an opposed contest, a deterministic state transition, or a timed task.
 export const ACTION_TYPES = [
   "detect",
   "move",
@@ -15,6 +13,7 @@ export const ACTION_TYPES = [
   "lockpick",
   "hack",
   "heal",
+  "consume",
   "craft",
   "drive",
   "bribe",
@@ -33,8 +32,10 @@ export const ACTION_TYPES = [
 
 export type ActionType = (typeof ACTION_TYPES)[number];
 
-/** Map action types to their primary skill. */
-export const ACTION_SKILL: Record<ActionType, SkillName> = {
+/** Map contest-driven action types to their primary skill.
+ * Deterministic actions such as routine consumption intentionally have no skill.
+ */
+export const ACTION_SKILL: Partial<Record<ActionType, SkillName>> = {
   detect: "investigation",
   move: "athletics",
   search: "investigation",
