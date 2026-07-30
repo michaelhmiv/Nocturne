@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { authClient } from "../lib/auth-client";
 import { gameFetch } from "./game-fetch";
 import { buildTimeline } from "./game-state";
@@ -63,6 +63,16 @@ type AiJob = {
   errorCode: string | null;
 };
 
+type AiQueueHealth = {
+  workerOnline: boolean;
+  workerConfigured: boolean;
+  workerId: string | null;
+  lastSeenAt: string | null;
+  queuedCount: number;
+  processingCount: number;
+  oldestQueuedAt: string | null;
+};
+
 type PendingTurn = {
   localId: string;
   text: string;
@@ -70,6 +80,7 @@ type PendingTurn = {
   jobId?: string;
   status: "capturing" | AiJob["status"];
   error?: string;
+  queueOffline?: boolean;
 };
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
@@ -81,12 +92,30 @@ function inferJobKind(text: string): AiJob["kind"] {
     : "action_resolution";
 }
 
+function queueErrorMessage(errorCode: string | null): string | undefined {
+  if (!errorCode) return undefined;
+  if (errorCode === "worker_secret_rejected") {
+    return "The resolver cannot authenticate with the game API. The action remains safely stored.";
+  }
+  if (errorCode === "worker_api_unreachable") {
+    return "The resolver cannot reach the game API. The action remains safely stored.";
+  }
+  if (errorCode === "worker_request_timeout") {
+    return "The resolver timed out and will retry automatically.";
+  }
+  if (errorCode === "worker_configuration_missing") {
+    return "The resolver is missing its production configuration. The action remains safely stored.";
+  }
+  return errorCode.replaceAll("_", " ");
+}
+
 function pendingLabel(turn: PendingTurn): string {
-  if (turn.status === "capturing") return "Capturing action";
+  if (turn.status === "capturing") return "Saving action";
+  if (turn.queueOffline) return "Resolver offline";
   if (turn.status === "pending") return "Queued";
-  if (turn.status === "processing") return "Nocturne is resolving the scene";
-  if (turn.status === "retrying") return "Resolution delayed · retrying";
-  if (turn.status === "failed") return "Resolution delayed";
+  if (turn.status === "processing") return "Resolving";
+  if (turn.status === "retrying") return "Retrying";
+  if (turn.status === "failed") return "Resolution failed";
   return "Resolved";
 }
 
@@ -109,6 +138,7 @@ export default function SceneGameClient() {
   const [submitting, setSubmitting] = useState(false);
   const [installingId, setInstallingId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const monitoredJobs = useRef(new Set<string>());
 
   const selected = characters.find((character) => character.selected) || characters[0];
   const timeline = useMemo(
@@ -142,38 +172,88 @@ export default function SceneGameClient() {
   }, [session?.user.id]);
 
   async function monitorJob(localId: string, jobId: string) {
-    for (let poll = 0; poll < 120; poll += 1) {
-      await sleep(poll < 4 ? 800 : 1_500);
-      try {
-        const job = await gameFetch<AiJob>(`ai-jobs/${jobId}`);
-        setPendingTurns((current) =>
-          current.map((turn) =>
-            turn.localId === localId ? { ...turn, status: job.status, error: job.errorCode || undefined } : turn,
-          ),
-        );
-        if (job.status === "completed") {
-          await refresh();
-          setPendingTurns((current) => current.filter((turn) => turn.localId !== localId));
-          return;
+    if (monitoredJobs.current.has(jobId)) return;
+    monitoredJobs.current.add(jobId);
+
+    try {
+      for (let poll = 0; poll < 120; poll += 1) {
+        await sleep(poll < 4 ? 800 : 1_500);
+        try {
+          const job = await gameFetch<AiJob>(`ai-jobs/${jobId}`);
+          let queueOffline = false;
+          let jobError = queueErrorMessage(job.errorCode);
+
+          if (
+            poll >= 4 &&
+            poll % 4 === 0 &&
+            (job.status === "pending" || job.status === "retrying")
+          ) {
+            const health = await gameFetch<AiQueueHealth>("ai-jobs/health");
+            queueOffline = !health.workerOnline;
+            if (queueOffline) {
+              jobError = health.workerConfigured
+                ? "No resolver heartbeat was detected. Your action is saved and will resume automatically when the worker is online."
+                : "The API is missing its queue secret. Your action is saved, but production configuration must be corrected.";
+            }
+          }
+
+          setPendingTurns((current) =>
+            current.map((turn) =>
+              turn.localId === localId
+                ? {
+                    ...turn,
+                    status: job.status,
+                    error: jobError,
+                    queueOffline,
+                  }
+                : turn,
+            ),
+          );
+
+          if (job.status === "completed") {
+            await refresh();
+            setPendingTurns((current) => current.filter((turn) => turn.localId !== localId));
+            return;
+          }
+          if (job.status === "failed") return;
+        } catch (caught) {
+          setPendingTurns((current) =>
+            current.map((turn) =>
+              turn.localId === localId
+                ? {
+                    ...turn,
+                    status: "retrying",
+                    error: caught instanceof Error ? caught.message : "Could not check the queued action.",
+                  }
+                : turn,
+            ),
+          );
         }
-        if (job.status === "failed") return;
-      } catch (caught) {
-        setPendingTurns((current) =>
-          current.map((turn) =>
-            turn.localId === localId
-              ? { ...turn, status: "retrying", error: caught instanceof Error ? caught.message : "Polling failed" }
-              : turn,
-          ),
-        );
       }
+
+      setPendingTurns((current) =>
+        current.map((turn) =>
+          turn.localId === localId
+            ? {
+                ...turn,
+                status: "retrying",
+                error: "This action is still saved in the background. Use Check again to refresh its status.",
+              }
+            : turn,
+        ),
+      );
+    } finally {
+      monitoredJobs.current.delete(jobId);
     }
-    setPendingTurns((current) =>
-      current.map((turn) =>
-        turn.localId === localId
-          ? { ...turn, status: "retrying", error: "Resolution is continuing in the background." }
-          : turn,
-      ),
-    );
+  }
+
+  function editPendingTurn(turn: PendingTurn) {
+    setMessage(turn.text);
+    setPendingTurns((current) => current.filter((item) => item.localId !== turn.localId));
+  }
+
+  function dismissPendingTurn(localId: string) {
+    setPendingTurns((current) => current.filter((turn) => turn.localId !== localId));
   }
 
   if (isPending && !guestMode) return <main className="scene-loading">Opening Calder City…</main>;
@@ -342,18 +422,24 @@ export default function SceneGameClient() {
   return (
     <main className="scene-shell">
       <header className="scene-topbar">
-        <div>
+        <div className="scene-identity">
           <p className="scene-kicker">CALDER CITY · {world?.neighborhood.name || "FOUNDRY ROW"}</p>
-          <strong>{selected?.name || "New arrival"}</strong>
-        </div>
-        {selected && (
-          <div className="scene-vitals" aria-label="Character status">
-            <span>{money(selected.cashOnPerson ?? 0)}</span>
-            <span>Heat {selected.heat ?? 0}</span>
-            {selected.warrant && <span className="scene-danger">Warrant</span>}
+          <div className="scene-identity-row">
+            <strong>{selected?.name || "New arrival"}</strong>
+            {selected && (
+              <div className="scene-vitals" aria-label="Character status">
+                <span>{money(selected.cashOnPerson ?? 0)}</span>
+                <span>Heat {selected.heat ?? 0}</span>
+                {selected.warrant && <span className="scene-danger">Warrant</span>}
+              </div>
+            )}
           </div>
-        )}
-        <button className="scene-quiet-button" onClick={() => setShowCharacter((value) => !value)}>
+        </div>
+        <button
+          aria-label={showCharacter ? "Close character panel" : "Open character panel"}
+          className="scene-quiet-button scene-character-toggle"
+          onClick={() => setShowCharacter((value) => !value)}
+        >
           {showCharacter ? "Close" : "Character"}
         </button>
       </header>
@@ -463,11 +549,32 @@ export default function SceneGameClient() {
             {pendingTurns.map((turn) => (
               <article className="scene-turn" key={turn.localId}>
                 <div className="scene-player-line">{turn.text}</div>
-                <div className={`scene-pending ${turn.status === "failed" ? "scene-pending-failed" : ""}`}>
+                <div
+                  className={`scene-pending ${turn.status === "failed" ? "scene-pending-failed" : ""} ${turn.queueOffline ? "scene-pending-offline" : ""}`}
+                >
                   <span className="scene-pulse" aria-hidden="true" />
-                  <div>
+                  <div className="scene-pending-copy">
                     <strong>{pendingLabel(turn)}</strong>
                     {turn.error && <p>{turn.error}</p>}
+                    {(turn.jobId || turn.status === "failed") && (
+                      <div className="scene-pending-actions">
+                        {turn.jobId && turn.status !== "failed" && (
+                          <button type="button" onClick={() => void monitorJob(turn.localId, turn.jobId!)}>
+                            Check again
+                          </button>
+                        )}
+                        {(turn.status === "failed" || turn.queueOffline) && (
+                          <button type="button" onClick={() => editPendingTurn(turn)}>
+                            Edit action
+                          </button>
+                        )}
+                        {(turn.status === "failed" || turn.queueOffline) && (
+                          <button type="button" onClick={() => dismissPendingTurn(turn.localId)}>
+                            Dismiss
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </article>
@@ -510,14 +617,15 @@ export default function SceneGameClient() {
             id="scene-message"
             required
             maxLength={4000}
+            rows={1}
             value={message}
             onChange={(event) => setMessage(event.target.value)}
-            placeholder="What do you do? You can also describe something you want to build…"
+            placeholder="What do you do?"
           />
           <div className="scene-composer-footer">
-            <span>{message.trim() ? (inferJobKind(message) === "invention_normalization" ? "Workshop intent detected" : "Action intent") : "Natural-language action"}</span>
+            <span>{message.trim() ? (inferJobKind(message) === "invention_normalization" ? "Workshop intent" : "Action") : "Describe any action or invention"}</span>
             <button disabled={submitting || !message.trim()} type="submit">
-              {submitting ? "Capturing…" : "Do it"}
+              {submitting ? "Saving…" : "Do it"}
             </button>
           </div>
         </form>

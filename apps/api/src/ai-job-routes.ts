@@ -20,6 +20,7 @@ import { createInventionService } from "./invention-service.js";
 
 const idempotencySchema = z.string().trim().min(1).max(256);
 const jobIdSchema = z.string().uuid();
+const WORKER_HEARTBEAT_TTL_MS = 20_000;
 
 function hash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -138,6 +139,44 @@ export async function registerAiJobRoutesFromEnv(app: FastifyInstance) {
     } catch (error) {
       return sendStoreError(reply, error);
     }
+  });
+
+  app.get("/v1/ai-jobs/health", async (request) => {
+    const user = await requireUser(request.headers);
+    const heartbeatRows = await database.client`
+      SELECT worker_id, last_seen_at
+      FROM system.worker_heartbeats
+      WHERE role = 'ai_job_worker'
+      ORDER BY last_seen_at DESC
+      LIMIT 1
+    `;
+    const queueRows = await database.client`
+      SELECT
+        count(*) FILTER (WHERE status IN ('pending', 'retrying'))::int AS queued_count,
+        count(*) FILTER (WHERE status = 'processing')::int AS processing_count,
+        min(created_at) FILTER (WHERE status IN ('pending', 'retrying')) AS oldest_queued_at
+      FROM system.ai_jobs
+      WHERE user_id = ${user.id}
+    `;
+
+    const heartbeat = heartbeatRows[0];
+    const lastSeenAt = heartbeat?.last_seen_at ? new Date(String(heartbeat.last_seen_at)) : null;
+    const workerOnline = Boolean(
+      lastSeenAt && Date.now() - lastSeenAt.getTime() <= WORKER_HEARTBEAT_TTL_MS,
+    );
+    const queue = queueRows[0] || {};
+
+    return {
+      workerOnline,
+      workerConfigured: Boolean(process.env.AI_JOB_WORKER_SECRET),
+      workerId: heartbeat?.worker_id ? String(heartbeat.worker_id) : null,
+      lastSeenAt: lastSeenAt?.toISOString() ?? null,
+      queuedCount: Number(queue.queued_count || 0),
+      processingCount: Number(queue.processing_count || 0),
+      oldestQueuedAt: queue.oldest_queued_at
+        ? new Date(String(queue.oldest_queued_at)).toISOString()
+        : null,
+    };
   });
 
   app.get<{ Params: { jobId: string } }>("/v1/ai-jobs/:jobId", async (request, reply) => {
