@@ -76,6 +76,14 @@ export const ConsumptionMaterializationSchema = z.object({
   unitsCreated: z.number().int().min(1).max(5),
 });
 
+export const ConsumptionQuantityResolutionSchema = z.object({
+  requestedUnits: z.number().int().min(1).max(100),
+  availableUnits: z.number().int().nonnegative().max(1_000),
+  appliedUnits: z.number().int().nonnegative().max(5),
+  limitedByAvailability: z.boolean(),
+  limitedByEngine: z.boolean(),
+});
+
 export const ConsumableAnalysisSchema = z
   .object({
     selection: ConsumptionSelectionSchema,
@@ -86,7 +94,9 @@ export const ConsumableAnalysisSchema = z
       freshnessAssessment: z.string().trim().min(1).max(500),
       confidence: z.number().min(0).max(1),
     }),
+    requestedUnits: z.number().int().min(1).max(100).optional(),
     consumeUnits: z.number().int().min(1).max(5),
+    quantityResolution: ConsumptionQuantityResolutionSchema.optional(),
     materialization: ConsumptionMaterializationSchema.optional(),
     resourceDeltas: z.array(ConsumptionResourceDeltaSchema).max(8).default([]),
     conditions: z.array(ConsumptionConditionEffectSchema).max(6).default([]),
