@@ -1,5 +1,5 @@
 import type { ZodType } from "zod";
-import { createModelPolicy, type AiTask } from "./model-policy.js";
+import { createModelPolicy, type AiTask, type ModelPolicy } from "./model-policy.js";
 
 export interface JsonSchemaDefinition {
   name: string;
@@ -86,18 +86,11 @@ export function isTransientAiProviderError(error: unknown): error is AiProviderE
 interface ProviderResponse {
   id?: string;
   model?: string;
-  choices?: Array<{
-    message?: {
-      content?: string;
-    };
-  }>;
-  error?: {
-    message?: string;
-  };
+  choices?: Array<{ message?: { content?: string } }>;
+  error?: { message?: string };
 }
 
 type JsonObject = Record<string, unknown>;
-
 type ProviderName = "deepseek" | "openrouter";
 
 function object(value: unknown): value is JsonObject {
@@ -160,6 +153,13 @@ function omitUnexpectedNulls(value: unknown, schema: unknown, root: JsonObject):
   return cleaned;
 }
 
+function completionEndpoint(baseUrl: string): string {
+  const normalized = baseUrl.replace(/\/$/, "");
+  return normalized.endsWith("/v1")
+    ? `${normalized}/chat/completions`
+    : `${normalized}/v1/chat/completions`;
+}
+
 export class AiProviderClient {
   constructor(private readonly config: AiProviderConfig) {}
 
@@ -173,13 +173,12 @@ export class AiProviderClient {
       creativeModel: this.config.creativeModel,
       requestedModel: request.requestedModel,
     });
-
     const primary: ProviderName = this.config.deepseekApiKey ? "deepseek" : "openrouter";
     const primaryModel =
       primary === "deepseek" ? policy.model : this.config.fallbackModel || policy.model;
 
     try {
-      return await this.generateWithProvider(request, primary, primaryModel, retries);
+      return await this.generateWithProvider(request, policy, primary, primaryModel, retries);
     } catch (error) {
       const canFallback =
         primary === "deepseek" &&
@@ -187,12 +186,19 @@ export class AiProviderClient {
         Boolean(this.config.fallbackModel) &&
         isTransientAiProviderError(error);
       if (!canFallback) throw error;
-      return this.generateWithProvider(request, "openrouter", this.config.fallbackModel!, retries);
+      return this.generateWithProvider(
+        request,
+        policy,
+        "openrouter",
+        this.config.fallbackModel!,
+        retries,
+      );
     }
   }
 
   private async generateWithProvider<T>(
     request: StructuredGenerationRequest<T>,
+    policy: ModelPolicy,
     provider: ProviderName,
     model: string,
     retries: number,
@@ -203,8 +209,7 @@ export class AiProviderClient {
     for (let attempt = 1; attempt <= retries + 1; attempt += 1) {
       const attemptStartedAt = Date.now();
       try {
-        const result = await this.callProvider(request, provider, model);
-        const latencyMs = Date.now() - startedAt;
+        const result = await this.callProvider(request, policy, provider, model);
         this.config.logger?.({
           task: request.task,
           provider,
@@ -217,7 +222,7 @@ export class AiProviderClient {
           ...result,
           provider,
           attempts: attempt,
-          latencyMs,
+          latencyMs: Date.now() - startedAt,
         };
       } catch (error) {
         lastError = error;
@@ -240,6 +245,7 @@ export class AiProviderClient {
 
   private async callProvider<T>(
     request: StructuredGenerationRequest<T>,
+    policy: ModelPolicy,
     provider: ProviderName,
     model: string,
   ): Promise<Omit<StructuredGenerationResult<T>, "provider" | "attempts" | "latencyMs">> {
@@ -259,10 +265,9 @@ export class AiProviderClient {
     const signal = request.signal
       ? AbortSignal.any([request.signal, timeoutSignal])
       : timeoutSignal;
-
     const body: Record<string, unknown> = {
       model,
-      temperature: createModelPolicy({ task: request.task }).temperature,
+      temperature: policy.temperature,
       max_tokens: 1024,
       messages: [
         {
@@ -285,7 +290,6 @@ export class AiProviderClient {
             },
           },
     };
-
     if (!isDeepSeek) {
       body.plugins = [{ id: "response-healing" }];
       body.provider = { require_parameters: true };
@@ -293,7 +297,7 @@ export class AiProviderClient {
 
     let response: Response;
     try {
-      response = await fetch(`${baseUrl}/v1/chat/completions`, {
+      response = await fetch(completionEndpoint(baseUrl), {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
