@@ -154,7 +154,9 @@ export class OpenRouterClient {
     }
 
     const apiKey = isDeepSeek ? this.config.deepseekApiKey! : this.config.apiKey!;
-    const baseUrl = isDeepSeek ? "https://api.deepseek.com" : (this.config.baseUrl || "https://openrouter.ai/api/v1");
+    const baseUrl = isDeepSeek
+      ? "https://api.deepseek.com"
+      : this.config.baseUrl || "https://openrouter.ai/api/v1";
 
     const timeoutSignal = AbortSignal.timeout(this.config.timeoutMs ?? 45_000);
     const signal = request.signal
@@ -166,7 +168,12 @@ export class OpenRouterClient {
       temperature: policy.temperature,
       max_tokens: 1024,
       messages: [
-        { role: "system", content: request.system },
+        {
+          role: "system",
+          content: isDeepSeek
+            ? `${request.system}\nReturn exactly one valid JSON object. Do not use Markdown or explanatory text.`
+            : request.system,
+        },
         { role: "user", content: request.prompt },
       ],
       response_format: isDeepSeek
@@ -186,20 +193,19 @@ export class OpenRouterClient {
       body.provider = { require_parameters: true };
     }
     try {
-      response = await fetch(
-        `${baseUrl}/v1/chat/completions`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-            ...(!isDeepSeek && this.config.httpReferer ? { "HTTP-Referer": this.config.httpReferer } : {}),
-            ...(!isDeepSeek && this.config.appName ? { "X-Title": this.config.appName } : {}),
-          },
-          body: JSON.stringify(body),
-          signal,
+      response = await fetch(`${baseUrl}/v1/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          ...(!isDeepSeek && this.config.httpReferer
+            ? { "HTTP-Referer": this.config.httpReferer }
+            : {}),
+          ...(!isDeepSeek && this.config.appName ? { "X-Title": this.config.appName } : {}),
         },
-      );
+        body: JSON.stringify(body),
+        signal,
+      });
     } catch (error) {
       if (request.signal?.aborted) {
         throw new OpenRouterError("aborted", "OpenRouter request was aborted.", { cause: error });
