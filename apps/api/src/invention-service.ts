@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import {
   AiProviderClient,
   CONTENT_NORMALIZATION_POLICY_VERSION,
+  DEEPSEEK_FLASH_MODEL,
   deterministicSurveillanceFallback,
   normalizeGeneratedContent,
 } from "@nocturne/ai-gm";
@@ -23,13 +24,8 @@ function hash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
-function requestedModel(environment: NodeJS.ProcessEnv): string {
-  return (
-    environment.AI_AUTHORITATIVE_MODEL ||
-    environment.DEEPSEEK_MODEL ||
-    environment.OPENROUTER_FALLBACK_MODEL ||
-    "deepseek-v4-flash"
-  );
+function requestedModel(): string {
+  return DEEPSEEK_FLASH_MODEL;
 }
 
 /** Rules-backed craft difficulty derived from the physical domain of the concept. */
@@ -56,14 +52,7 @@ function estimateCraftGating(rawConcept: string): {
 
 export function createInventionService(store: InventionStore, environment = process.env) {
   const client = new AiProviderClient({
-    apiKey: environment.OPENROUTER_API_KEY,
     deepseekApiKey: environment.DEEPSEEK_API_KEY,
-    baseUrl: environment.OPENROUTER_BASE_URL,
-    fallbackModel: environment.OPENROUTER_FALLBACK_MODEL,
-    authoritativeModel: environment.AI_AUTHORITATIVE_MODEL || environment.DEEPSEEK_MODEL,
-    creativeModel: environment.AI_CREATIVE_MODEL || environment.DEEPSEEK_MODEL,
-    httpReferer: environment.OPENROUTER_HTTP_REFERER,
-    appName: environment.OPENROUTER_APP_NAME,
   });
 
   async function normalize(userId: string, rawInput: unknown): Promise<InventionSummary> {
@@ -77,16 +66,16 @@ export function createInventionService(store: InventionStore, environment = proc
     });
     const runId = await store.startAiRun({
       task: "normalize_content",
-      requestedModel: requestedModel(environment),
+      requestedModel: requestedModel(),
       policyVersion: CONTENT_NORMALIZATION_POLICY_VERSION,
       inputHash: hash(input),
-      metadata: { requestId, characterId: input.characterId, provider: environment.DEEPSEEK_API_KEY ? "deepseek" : "openrouter" },
+      metadata: { requestId, characterId: input.characterId, provider: "deepseek" },
     });
     try {
       let envelope: NormalizedContentEnvelope;
       let actualModel: string;
       let providerRequestId: string | undefined;
-      const aiConfigured = Boolean(environment.DEEPSEEK_API_KEY || environment.OPENROUTER_API_KEY);
+      const aiConfigured = Boolean(environment.DEEPSEEK_API_KEY);
       if (!aiConfigured && environment.NOCTURNE_ALLOW_DETERMINISTIC_AI_FALLBACK === "true") {
         envelope = deterministicSurveillanceFallback(input);
         actualModel = "deterministic-development-fallback";
@@ -105,7 +94,11 @@ export function createInventionService(store: InventionStore, environment = proc
       };
 
       const gate = estimateCraftGating(input.rawConcept);
-      const level = await store.getCharacterSkillLevel(userId, input.characterId, gate.primarySkill);
+      const level = await store.getCharacterSkillLevel(
+        userId,
+        input.characterId,
+        gate.primarySkill,
+      );
       const mult = creationTimeMultiplier(level, gate.difficulty);
       const buildSeconds = Math.round(gate.baseBuildSeconds * mult);
       envelope.draft.extensionPayload = {

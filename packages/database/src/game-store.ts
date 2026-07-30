@@ -323,6 +323,13 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
         locationId: STARTER_WORLD_IDS.neighborhood,
         residenceId: null,
         createdAt,
+        cashOnPerson: 50_000,
+        heat: 0,
+        warrant: false,
+        status: "active",
+        factionStanding: {},
+        skills: {},
+        inventory: [],
       };
     });
   }

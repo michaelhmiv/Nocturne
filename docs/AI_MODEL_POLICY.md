@@ -1,16 +1,11 @@
 # AI model policy
 
-## Default provider
+## Provider and model
 
-OpenRouter is the initial provider. The default model slug is `openrouter/free`, configured through environment variables.
+Nocturne calls the DeepSeek API directly at `https://api.deepseek.com/chat/completions`.
+The only permitted model is `deepseek-v4-flash`. The model identifier is pinned in code and cannot be changed through user input or environment variables.
 
-The API key is never committed. Set `OPENROUTER_API_KEY` in Railway.
-
-## Central policy versus user selection
-
-Nocturne requires a central model policy for shared-world fairness, but it does not require one permanent model for every task.
-
-Authoritative tasks do not permit user overrides. Creative tasks may accept a user-selected OpenRouter model later. The model router records the actual model reported by the provider for auditability.
+Production requires `DEEPSEEK_API_KEY`. There is no secondary provider or model fallback. Local deterministic fallbacks remain available only when `NOCTURNE_ALLOW_DETERMINISTIC_AI_FALLBACK=true` is explicitly enabled.
 
 ## Task policy
 
@@ -18,17 +13,26 @@ Authoritative tasks do not permit user overrides. Creative tasks may accept a us
 | ---------------------------- | ------------- | ------------- |
 | Parse action intent          | Authoritative | No            |
 | Normalize generated content  | Authoritative | No            |
+| Analyze arbitrary consumable | Authoritative | No            |
 | Propose adjudication factors | Authoritative | No            |
 | Plan NPC actions             | Authoritative | No            |
 | Summarize persistent memory  | Authoritative | No            |
-| Brainstorm player content    | Creative      | Yes           |
-| Narrate committed event      | Creative      | Yes           |
-| Private character assistant  | Creative      | Yes           |
+| Brainstorm player content    | Creative      | No            |
+| Narrate committed event      | Creative      | No            |
+| Private character assistant  | Creative      | No            |
+
+The authority classification changes prompting and temperature; it does not change the provider or model.
 
 ## Structured output
 
-Mechanical AI calls must request strict JSON Schema output and then validate the result with a runtime schema. An invalid response is retried or rejected; prose is never treated as a state mutation.
+Structured calls use DeepSeek JSON mode with:
 
-## Free-router limitation
+- `model: deepseek-v4-flash`;
+- `thinking: { type: "disabled" }`;
+- `response_format: { type: "json_object" }`;
+- an explicit JSON schema and example object in the system prompt; and
+- runtime validation with the corresponding Zod schema.
 
-`openrouter/free` is appropriate for development and early low-volume use. Production policy can pin or allowlist models per authoritative task without changing domain code.
+DeepSeek JSON mode guarantees valid JSON, not application-schema compliance. No model response may mutate world state until it passes runtime validation and the deterministic authority layer commits the resulting operations.
+
+Provider rejections, malformed output, and schema failures are logged as infrastructure errors rather than in-world failures. The request adapter must preserve DeepSeek's response status and error message internally while returning only sanitized error information to players.

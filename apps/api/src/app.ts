@@ -1,5 +1,5 @@
 import cors from "@fastify/cors";
-import { AiProviderClient, createModelPolicy } from "@nocturne/ai-gm";
+import { AiProviderClient, DEEPSEEK_FLASH_MODEL, createModelPolicy } from "@nocturne/ai-gm";
 import { closeAuthFromEnv, getAuthFromEnv, getSessionFromNodeHeaders } from "@nocturne/auth";
 import { validateGeneratedContent } from "@nocturne/content-engine";
 import {
@@ -54,11 +54,7 @@ export async function buildApp() {
   const context = createAuthoritativeContextStore(database);
   const conversations = createConversationService({
     client: new AiProviderClient({
-      apiKey: process.env.OPENROUTER_API_KEY,
       deepseekApiKey: process.env.DEEPSEEK_API_KEY,
-      fallbackModel: process.env.OPENROUTER_FALLBACK_MODEL,
-      authoritativeModel: process.env.AI_AUTHORITATIVE_MODEL || process.env.DEEPSEEK_MODEL,
-      creativeModel: process.env.AI_CREATIVE_MODEL || process.env.DEEPSEEK_MODEL,
     }),
     turns: conversationTurns,
     rollSecret: process.env.NOCTURNE_ROLL_SECRET || process.env.BETTER_AUTH_SECRET,
@@ -180,9 +176,7 @@ export async function buildApp() {
       return reply.code(status).send({ error: error.code, message: error.message });
     }
     const providerCode =
-      error instanceof Error && "code" in error
-        ? String((error as { code: unknown }).code)
-        : null;
+      error instanceof Error && "code" in error ? String((error as { code: unknown }).code) : null;
     if (providerCode) {
       app.log.error(error);
       return reply.code(providerCode === "configuration" ? 503 : 502).send({
@@ -194,15 +188,8 @@ export async function buildApp() {
     return reply.code(500).send({ error: "internal_error" });
   });
 
-  const primaryProvider = process.env.DEEPSEEK_API_KEY ? "deepseek" : "openrouter";
-  const primaryConfigured = Boolean(
-    primaryProvider === "deepseek"
-      ? process.env.DEEPSEEK_API_KEY
-      : process.env.OPENROUTER_API_KEY,
-  );
-  const fallbackConfigured = Boolean(
-    process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_FALLBACK_MODEL,
-  );
+  const primaryProvider = "deepseek" as const;
+  const primaryConfigured = Boolean(process.env.DEEPSEEK_API_KEY);
 
   app.get("/health", async () => ({
     status: "ok",
@@ -210,7 +197,7 @@ export async function buildApp() {
     ai: {
       primaryProvider,
       primaryConfigured,
-      fallbackConfigured,
+      model: DEEPSEEK_FLASH_MODEL,
     },
   }));
   app.get("/ready", async (_request, reply) => {
@@ -228,7 +215,7 @@ export async function buildApp() {
       databaseReady,
       aiReady: primaryConfigured,
       primaryProvider,
-      fallbackConfigured,
+      model: DEEPSEEK_FLASH_MODEL,
     });
   });
   app.get("/v1/me", async (request, reply) => {
@@ -449,7 +436,10 @@ export async function buildApp() {
   });
 
   app.get("/v1/comms", async (request) => {
-    const actorId = z.string().uuid().parse((request.query as { actorId?: string }).actorId);
+    const actorId = z
+      .string()
+      .uuid()
+      .parse((request.query as { actorId?: string }).actorId);
     await authorizeAgent(request.headers, "character:read", actorId);
     const user = await requireUser(request.headers);
     await requireOwnedCharacter(user.id, actorId);

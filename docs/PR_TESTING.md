@@ -48,7 +48,6 @@ The generated SQL must affect only Better Auth tables. Confirm the applied table
 
 The standard suite must use mocked provider calls and must not require a paid key. Test:
 
-- application boot with `OPENROUTER_API_KEY` omitted;
 - typed missing-configuration error when an AI operation is invoked;
 - malformed JSON and schema-invalid model output;
 - timeout, caller abort, rate limits, and provider errors;
@@ -62,8 +61,6 @@ The standard suite must use mocked provider calls and must not require a paid ke
 - the viewpoint proposal is produced from player-known facts only, the authoritative pass cannot rewrite its apparent probability or visible reasoning, and player-known/authoritative-hidden facts remain separate through proposal, audit, API response, history, logs exposed to players, and narration;
 - narration uses only committed player-safe results, adds no mechanics or knowledge, gives no canned next-step coaching, and falls back safely after provider failure; and
 - provider/system failure before commit does not masquerade as an in-world outcome.
-
-Record whether a live OpenRouter call was performed. Live calls supplement but never replace mocked success, malformed-output, timeout, redaction, and error-path coverage.
 
 ## Probability and rules-engine changes
 
@@ -126,7 +123,6 @@ Build production artifacts, then run web, API, and worker independently. Verify:
 - API `/health` returns HTTP 200;
 - the API accepts one valid conversational message and returns typed reasons for an invalid proposal or request;
 - worker emits `worker_started` and remains alive;
-- missing optional OpenRouter configuration does not crash a service;
 - missing required auth/database configuration fails clearly when the dependent operation is invoked;
 - API and worker handle `SIGTERM`; and
 - logs are structured, contain no secret values, and do not expose authoritative-hidden facts to player-visible channels.

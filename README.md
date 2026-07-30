@@ -20,7 +20,6 @@ Player-created content is represented as:
 - `packages/contracts`: runtime schemas shared across services.
 - `packages/content-engine`: generated-content validation.
 - `packages/rules-engine`: deterministic, auditable resolution.
-- `packages/ai-gm`: model policy and OpenRouter adapter.
 - `packages/database`: Railway PostgreSQL schema and migrations.
 - `packages/auth`: Better Auth configuration.
 - `packages/event-ledger`: append-only world-event interfaces.
@@ -35,8 +34,6 @@ Player-created content is represented as:
 6. Run `pnpm auth:generate --output /tmp/nocturne-better-auth.sql --yes` and review the SQL.
 7. Apply the reviewed Better Auth changes with `pnpm auth:migrate --yes`; the CLI configuration keeps those tables under `auth`.
 8. Run `pnpm dev`.
-
-The initial OpenRouter model defaults to `openrouter/free`. Set `OPENROUTER_API_KEY` in Railway before invoking AI tasks.
 
 ## Pull-request verification
 

@@ -37,14 +37,6 @@ Worker:
 
 Server-side AI variables for API/worker services that invoke AI:
 
-- `OPENROUTER_API_KEY`: optional at boot; AI operations return a typed configuration error while absent.
-- `OPENROUTER_BASE_URL`: defaults to `https://openrouter.ai/api/v1`.
-- All AI tasks are fixed to `openrouter/free`; there are no model override variables.
-- `OPENROUTER_HTTP_REFERER`: public Nocturne web origin.
-- `OPENROUTER_APP_NAME`: `Nocturne`.
-
-Never expose `DATABASE_URL`, `BETTER_AUTH_SECRET`, or `OPENROUTER_API_KEY` through `NEXT_PUBLIC_*` variables.
-
 ## Service commands
 
 Use the repository root for all commands. A single install command is sufficient per build environment:

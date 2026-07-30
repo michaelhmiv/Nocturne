@@ -5,7 +5,7 @@ import {
   type ParsedActionEnvelope,
   type SubmitActionRequest,
 } from "@nocturne/contracts";
-import { OpenRouterClient, type StructuredGenerationResult } from "./openrouter.js";
+import { AiProviderClient, type StructuredGenerationResult } from "./ai-provider.js";
 
 export const ACTION_PARSE_POLICY_VERSION = "action-parse-v3";
 export const EVENT_NARRATION_POLICY_VERSION = "event-narration-v2";
@@ -65,7 +65,7 @@ const actionSchema = {
 } as const;
 
 export async function parseActionWithAi(
-  client: OpenRouterClient,
+  client: AiProviderClient,
   input: SubmitActionRequest,
   publicContext: Record<string, unknown>,
 ): Promise<StructuredGenerationResult<ParsedActionEnvelope>> {
@@ -85,21 +85,33 @@ export function deterministicActionFallback(
 ): ParsedActionEnvelope {
   const text = input.rawText.toLowerCase();
   // ponytail: keyword map for offline/dev. Word boundaries; crime before location nouns.
-  const actionType =
-    /\b(steal|pickpocket|theft)\b/.test(text) ? "steal"
-    : /\b(attack|punch|fight|hit)\b/.test(text) ? "attack"
-    : /\b(hack|security panel|disable camera)\b/.test(text) ? "hack"
-    : /\b(message|text|call|radio|ping)\b/.test(text) ? "talk"
-    : /\b(talk|chat|conversation|ask)\b/.test(text) ? "talk"
-    : /\b(sneak|silently|stealth)\b/.test(text) ? "sneak"
-    : /\b(eat|drink|consume|swallow|ingest|taste|food|meal|cake|snack)\b/.test(text) ? "consume"
-    : /\b(heal|bandage|first aid|medkit)\b/.test(text) ? "heal"
-    : /\b(drive|vehicle|bike|car)\b/.test(text) ? "drive"
-    : /\b(move|walk|go to|travel)\b/.test(text) ? "move"
-    : /\b(search|look through|scan|look around)\b/.test(text) ? "search"
-    : /\b(work|gig|shift|job|courier run)\b/.test(text) ? "work"
-    : /\b(look|detect|cameras?)\b/.test(text) ? "detect"
-    : "detect";
+  const actionType = /\b(steal|pickpocket|theft)\b/.test(text)
+    ? "steal"
+    : /\b(attack|punch|fight|hit)\b/.test(text)
+      ? "attack"
+      : /\b(hack|security panel|disable camera)\b/.test(text)
+        ? "hack"
+        : /\b(message|text|call|radio|ping)\b/.test(text)
+          ? "talk"
+          : /\b(talk|chat|conversation|ask)\b/.test(text)
+            ? "talk"
+            : /\b(sneak|silently|stealth)\b/.test(text)
+              ? "sneak"
+              : /\b(eat|drink|consume|swallow|ingest|taste|food|meal|cake|snack)\b/.test(text)
+                ? "consume"
+                : /\b(heal|bandage|first aid|medkit)\b/.test(text)
+                  ? "heal"
+                  : /\b(drive|vehicle|bike|car)\b/.test(text)
+                    ? "drive"
+                    : /\b(move|walk|go to|travel)\b/.test(text)
+                      ? "move"
+                      : /\b(search|look through|scan|look around)\b/.test(text)
+                        ? "search"
+                        : /\b(work|gig|shift|job|courier run)\b/.test(text)
+                          ? "work"
+                          : /\b(look|detect|cameras?)\b/.test(text)
+                            ? "detect"
+                            : "detect";
 
   return {
     intent: {
@@ -133,7 +145,7 @@ const narrationSchema = {
 } as const;
 
 export async function narrateCommittedEvent(
-  client: OpenRouterClient,
+  client: AiProviderClient,
   input: Omit<ActionExecutionResponse, "narration" | "idempotentReplay"> & {
     factsToPreserve: string[];
     hiddenFactsToExclude: string[];

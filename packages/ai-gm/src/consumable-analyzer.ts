@@ -4,7 +4,7 @@ import {
   type ConsumableAnalysis,
   type ConsumptionAnalysisRequest,
 } from "@nocturne/contracts";
-import { OpenRouterClient, type StructuredGenerationResult } from "./openrouter.js";
+import { AiProviderClient, type StructuredGenerationResult } from "./ai-provider.js";
 
 export const CONSUMABLE_ANALYSIS_POLICY_VERSION = "consumable-analysis-v1";
 
@@ -175,7 +175,7 @@ export function validateConsumableAnalysisAgainstContext(
 }
 
 export async function analyzeConsumable(
-  client: OpenRouterClient,
+  client: AiProviderClient,
   input: ConsumptionAnalysisRequest,
 ): Promise<StructuredGenerationResult<ConsumableAnalysis>> {
   const parsedInput = ConsumptionAnalysisRequestSchema.parse(input);
