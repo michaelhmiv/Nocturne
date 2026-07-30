@@ -1,3 +1,4 @@
+import { registerActionPlanRoutesFromEnv } from "./action-plan-routes.js";
 import { registerAiJobRoutesFromEnv } from "./ai-job-routes.js";
 import { buildApp } from "./app.js";
 import { registerInventionCatalogueRoutes } from "./invention-catalogue-routes.js";
@@ -15,6 +16,7 @@ const app = await buildApp().catch((error: unknown) => {
   process.exit(1);
 });
 await registerAiJobRoutesFromEnv(app);
+await registerActionPlanRoutesFromEnv(app);
 await registerSceneRoutesFromEnv(app);
 await registerInventionCatalogueRoutes(app);
 
