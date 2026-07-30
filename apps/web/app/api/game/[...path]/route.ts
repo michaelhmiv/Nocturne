@@ -5,7 +5,7 @@ async function forward(request: Request, context: { params: Promise<{ path: stri
   const target = new URL(`/v1/${path.join("/")}`, apiBase);
   target.search = new URL(request.url).search;
   const headers = new Headers();
-  for (const name of ["cookie", "content-type", "idempotency-key", "x-nocturne-guest-mode"]) {
+  for (const name of ["authorization", "cookie", "content-type", "idempotency-key", "x-nocturne-guest-mode"]) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }

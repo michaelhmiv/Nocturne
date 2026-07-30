@@ -103,9 +103,11 @@ export async function buildApp() {
     if (!session) throw new PersistentWorldError("forbidden", "Authentication is required.");
     return session.user;
   }
-  app.setErrorHandler((error, _request, reply) => {
-    if (error instanceof ZodError)
+  app.setErrorHandler((error, request, reply) => {
+    if (error instanceof ZodError) {
+      request.log.error({ body: request.body, method: request.method, url: request.url }, "request validation failed");
       return reply.code(400).send({ error: "invalid_request", issues: error.issues });
+    }
     if (
       error instanceof PersistentWorldError ||
       error instanceof InventionStoreError ||

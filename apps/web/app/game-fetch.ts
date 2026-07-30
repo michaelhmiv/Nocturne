@@ -18,11 +18,11 @@ export async function gameFetch<T>(
   if (!response.ok) {
     const detail =
       payload && typeof payload === "object"
-        ? String(
-            (payload as { message?: unknown; error?: unknown }).message ||
-              (payload as { error?: unknown }).error ||
-              text,
-          )
+        ? (() => {
+            const p = payload as Record<string, unknown>;
+            const issues = Array.isArray(p.issues) ? ` (${p.issues.length} issue(s))` : "";
+            return String(p.message || p.error || text) + issues;
+          })()
         : text;
     throw new Error(detail || "Game request failed.");
   }
