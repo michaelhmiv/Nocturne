@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { OpenRouterClient, OpenRouterError } from "../src/index.js";
+import {
+  AiProviderClient,
+  AiProviderError,
+  OpenRouterClient,
+  type AiProviderTelemetry,
+} from "../src/index.js";
 
 const request = {
   task: "normalize_content" as const,
@@ -23,116 +28,128 @@ const request = {
 };
 
 function errorCode(error: unknown) {
-  expect(error).toBeInstanceOf(OpenRouterError);
-  return (error as OpenRouterError).code;
+  expect(error).toBeInstanceOf(AiProviderError);
+  return (error as AiProviderError).code;
 }
+
+const success = (model: string, id = "run-1") =>
+  Response.json({
+    id,
+    model,
+    choices: [{ message: { content: '{"name":"Parallax Array","note":null,"tags":[]}' } }],
+  });
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe("OpenRouterClient", () => {
-  it("boots without a key and returns a typed configuration error only when invoked", async () => {
-    const client = new OpenRouterClient({ apiKey: undefined });
-    await expect(client.generateStructured(request)).rejects.toSatisfy(
+describe("AiProviderClient", () => {
+  it("keeps the legacy OpenRouterClient alias", () => {
+    expect(new OpenRouterClient({ apiKey: "x", fallbackModel: "openai/gpt-4.1-mini" })).toBeInstanceOf(
+      AiProviderClient,
+    );
+  });
+
+  it("returns a typed configuration error only when invoked", async () => {
+    const client = new AiProviderClient({});
+    await expect(client.generateStructured(request, 0)).rejects.toSatisfy(
       (error: unknown) => errorCode(error) === "configuration",
     );
   });
 
-  it("requests provider-compatible JSON Schema, defaults to deepseek v4 flash, and records the actual model", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      Response.json({
-        id: "run-1",
-        model: "provider/actual-free-model",
-        choices: [{ message: { content: '{"name":"Parallax Array","note":null}' } }],
-      }),
-    );
+  it("uses a configured OpenRouter model when DeepSeek is unavailable", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(success("openai/gpt-4.1-mini"));
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await new OpenRouterClient({ apiKey: "test-key" }).generateStructured(request);
-    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const result = await new AiProviderClient({
+      apiKey: "test-key",
+      fallbackModel: "openai/gpt-4.1-mini",
+    }).generateStructured(request, 0);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(String(init.body));
 
-    expect(body.model).toBe("deepseek-v4-flash");
-    expect(body.max_tokens).toBe(1024);
+    expect(url).toBe("https://openrouter.ai/api/v1/v1/chat/completions");
+    expect(body.model).toBe("openai/gpt-4.1-mini");
     expect(body.response_format.json_schema.strict).toBe(false);
-    // provider fields present when using OpenRouter (no deepseek key)
     expect(body.plugins).toEqual([{ id: "response-healing" }]);
-    expect(body.provider).toEqual({ require_parameters: true });
-    expect(result.actualModel).toBe("provider/actual-free-model");
-    expect(result.data).toEqual({ name: "Parallax Array", tags: [] });
-    expect(result.providerRequestId).toBe("run-1");
+    expect(result.provider).toBe("openrouter");
+    expect(result.requestedModel).toBe("openai/gpt-4.1-mini");
   });
 
   it("uses DeepSeek json_object mode with an explicit JSON-only instruction", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      Response.json({
-        id: "deepseek-run-1",
-        model: "deepseek-v4-flash",
-        choices: [{ message: { content: '{"name":"Parallax Array","tags":[]}' } }],
-      }),
-    );
+    const fetchMock = vi.fn().mockResolvedValue(success("deepseek-v4-flash", "deepseek-run-1"));
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await new OpenRouterClient({ deepseekApiKey: "deepseek-key" }).generateStructured(
+    const result = await new AiProviderClient({ deepseekApiKey: "deepseek-key" }).generateStructured(
       request,
+      0,
     );
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(String(init.body));
 
     expect(url).toBe("https://api.deepseek.com/v1/chat/completions");
+    expect(body.model).toBe("deepseek-v4-flash");
     expect(body.response_format).toEqual({ type: "json_object" });
-    expect(body.messages[0].content).toMatch(/JSON/);
     expect(body.messages[0].content).toMatch(/exactly one valid JSON object/i);
     expect(body.plugins).toBeUndefined();
-    expect(body.provider).toBeUndefined();
-    expect(result.actualModel).toBe("deepseek-v4-flash");
-    expect(result.data).toEqual({ name: "Parallax Array", tags: [] });
+    expect(result.provider).toBe("deepseek");
   });
 
-  it.each([
-    [429, "rate_limited"],
-    [500, "provider_failure"],
-  ] as const)("maps provider status %s to %s", async (status, code) => {
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn()
-        .mockResolvedValue(
-          Response.json({ error: { message: "provider rejected request" } }, { status }),
-        ),
-    );
+  it("falls back to an explicitly configured OpenRouter model after a transient DeepSeek failure", async () => {
+    const telemetry: AiProviderTelemetry[] = [];
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ error: { message: "temporary upstream failure" } }, { status: 503 }),
+      )
+      .mockResolvedValueOnce(success("openai/gpt-4.1-mini", "fallback-run"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await new AiProviderClient({
+      deepseekApiKey: "deepseek-key",
+      apiKey: "openrouter-key",
+      fallbackModel: "openai/gpt-4.1-mini",
+      logger: (entry) => telemetry.push(entry),
+    }).generateStructured(request, 0);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const fallbackBody = JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit).body));
+    expect(fallbackBody.model).toBe("openai/gpt-4.1-mini");
+    expect(result.provider).toBe("openrouter");
+    expect(telemetry.map((entry) => entry.status)).toEqual(["error", "success"]);
+  });
+
+  it("does not fall back for a permanent provider rejection", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json({ error: { message: "invalid request" } }, { status: 400 }));
+    vi.stubGlobal("fetch", fetchMock);
 
     await expect(
-      new OpenRouterClient({ apiKey: "test-key" }).generateStructured(request),
-    ).rejects.toSatisfy((error: unknown) => errorCode(error) === code);
+      new AiProviderClient({
+        deepseekApiKey: "deepseek-key",
+        apiKey: "openrouter-key",
+        fallbackModel: "openai/gpt-4.1-mini",
+      }).generateStructured(request, 0),
+    ).rejects.toSatisfy((error: unknown) => errorCode(error) === "provider_rejected");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("maps malformed provider responses to a typed error", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("not-json", { status: 200 })));
-
-    await expect(
-      new OpenRouterClient({ apiKey: "test-key" }).generateStructured(request),
-    ).rejects.toSatisfy((error: unknown) => errorCode(error) === "malformed_response");
-  });
-
-  it("retries one invalid structured response", async () => {
+  it("retries malformed structured output on the same provider", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
         Response.json({
-          model: "provider/free-model",
-          choices: [{ message: { content: "We need to answer..." } }],
+          model: "openai/gpt-4.1-mini",
+          choices: [{ message: { content: "not-json" } }],
         }),
       )
-      .mockResolvedValueOnce(
-        Response.json({
-          model: "provider/free-model",
-          choices: [{ message: { content: '{"name":"Parallax Array","tags":[]}' } }],
-        }),
-      );
+      .mockResolvedValueOnce(success("openai/gpt-4.1-mini"));
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
-      new OpenRouterClient({ apiKey: "x" }).generateStructured(request),
+      new AiProviderClient({
+        apiKey: "openrouter-key",
+        fallbackModel: "openai/gpt-4.1-mini",
+      }).generateStructured(request, 1),
     ).resolves.toMatchObject({ data: { name: "Parallax Array", tags: [] } });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -143,10 +160,10 @@ describe("OpenRouterClient", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(controller.signal.reason));
 
     await expect(
-      new OpenRouterClient({ apiKey: "test-key" }).generateStructured({
-        ...request,
-        signal: controller.signal,
-      }),
+      new AiProviderClient({
+        apiKey: "openrouter-key",
+        fallbackModel: "openai/gpt-4.1-mini",
+      }).generateStructured({ ...request, signal: controller.signal }, 0),
     ).rejects.toSatisfy((error: unknown) => errorCode(error) === "aborted");
   });
 });
