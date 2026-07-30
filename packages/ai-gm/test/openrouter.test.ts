@@ -66,7 +66,7 @@ describe("AiProviderClient", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(String(init.body));
 
-    expect(url).toBe("https://openrouter.ai/api/v1/v1/chat/completions");
+    expect(url).toBe("https://openrouter.ai/api/v1/chat/completions");
     expect(body.model).toBe("openai/gpt-4.1-mini");
     expect(body.response_format.json_schema.strict).toBe(false);
     expect(body.plugins).toEqual([{ id: "response-healing" }]);
