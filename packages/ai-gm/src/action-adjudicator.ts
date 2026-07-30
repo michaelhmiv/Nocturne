@@ -7,8 +7,8 @@ import {
 } from "@nocturne/contracts";
 import { OpenRouterClient, type StructuredGenerationResult } from "./openrouter.js";
 
-export const ACTION_PARSE_POLICY_VERSION = "action-parse-v1";
-export const EVENT_NARRATION_POLICY_VERSION = "event-narration-v1";
+export const ACTION_PARSE_POLICY_VERSION = "action-parse-v2";
+export const EVENT_NARRATION_POLICY_VERSION = "event-narration-v2";
 
 const actionSchema = {
   name: "nocturne_action_intent",
@@ -71,7 +71,7 @@ export async function parseActionWithAi(
 ): Promise<StructuredGenerationResult<ParsedActionEnvelope>> {
   return client.generateStructured({
     task: "parse_intent",
-    system: `You are Nocturne's authoritative intent parser. Policy ${ACTION_PARSE_POLICY_VERSION}. Use only supplied viewpoint facts. Never invent capabilities or hidden targets.`,
+    system: `You are Nocturne's authoritative intent parser. Policy ${ACTION_PARSE_POLICY_VERSION}. Use only supplied viewpoint facts. Never invent capabilities or hidden targets. Routine eating or drinking of ordinary available food is a heal action, not a consume action and not an opposed contest. Do not place opaque database identifiers in the objective or assumptions.`,
     prompt: `PLAYER ACTION:\n${input.rawText}\n\nPUBLIC CONTEXT:\n${JSON.stringify(publicContext)}`,
     jsonSchema: actionSchema,
     validator: ParsedActionEnvelopeSchema,
@@ -92,6 +92,7 @@ export function deterministicActionFallback(
     : /\b(message|text|call|radio|ping)\b/.test(text) ? "talk"
     : /\b(talk|chat|conversation|ask)\b/.test(text) ? "talk"
     : /\b(sneak|silently|stealth)\b/.test(text) ? "sneak"
+    : /\b(eat|drink|consume|food|meal|cake|snack)\b/.test(text) ? "heal"
     : /\b(heal|bandage|first aid|medkit)\b/.test(text) ? "heal"
     : /\b(drive|vehicle|bike|car)\b/.test(text) ? "drive"
     : /\b(move|walk|go to|travel)\b/.test(text) ? "move"
@@ -140,7 +141,7 @@ export async function narrateCommittedEvent(
 ): Promise<StructuredGenerationResult<{ narration: string }>> {
   return client.generateStructured({
     task: "narrate_event",
-    system: `Narrate only the committed Nocturne event. Policy ${EVENT_NARRATION_POLICY_VERSION}. Preserve every supplied fact and never reveal excluded facts.`,
+    system: `Narrate only the committed Nocturne event. Policy ${EVENT_NARRATION_POLICY_VERSION}. Preserve every supplied fact and never reveal excluded facts. Write immersive player-facing prose. Never mention actor IDs, target IDs, database IDs, enum names, raw intent structures, calculation traces, JSON, truncation, or internal implementation terms. Refer to the player as "you" and use supplied human-readable names when available.`,
     prompt: JSON.stringify(input),
     jsonSchema: narrationSchema,
     validator: NarrationEnvelopeSchema,
@@ -158,9 +159,9 @@ export function deterministicNarrationFallback(outcome: string): string {
     failure_with_progress:
       "The display catches a brief, inconsistent anomaly from the alley—too weak for a track, but too coherent to dismiss outright.",
     failure:
-      "The scan completes without a reliable contact. The alley remains unresolved rather than proven empty.",
+      "The attempt does not produce a useful result, but nothing in the scene exposes the system's internal mechanics.",
     catastrophic_reversal:
-      "The scan collapses into noise and the array reports a fault. Whatever is outside remains hidden while the system absorbs the mistake.",
+      "The attempt goes badly and creates a new problem, while the underlying mechanics remain hidden from view.",
   };
   return (
     narration[outcome] || "The action resolves, but the system cannot produce a fuller account."
