@@ -21,4 +21,11 @@ describe("AI job retry policy", () => {
     expect(aiJobErrorCode(new Error("AI job worker configuration is missing")))
       .toBe("worker_configuration_missing");
   });
+
+  it("preserves the API's specific failure code", () => {
+    expect(aiJobErrorCode(new Error("AI job API failed: validation"))).toBe("validation");
+    expect(aiJobErrorCode(new Error("AI job API failed: invalid_analysis"))).toBe("invalid_analysis");
+    expect(aiJobErrorCode(new Error("AI job API failed: Internal Server Error")))
+      .toBe("internal_server_error");
+  });
 });
