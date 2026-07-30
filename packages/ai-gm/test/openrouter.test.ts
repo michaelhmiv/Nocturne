@@ -62,6 +62,32 @@ describe("OpenRouterClient", () => {
     expect(result.providerRequestId).toBe("run-1");
   });
 
+  it("uses DeepSeek json_object mode with an explicit JSON-only instruction", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({
+        id: "deepseek-run-1",
+        model: "deepseek-v4-flash",
+        choices: [{ message: { content: '{"name":"Parallax Array","tags":[]}' } }],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await new OpenRouterClient({ deepseekApiKey: "deepseek-key" }).generateStructured(
+      request,
+    );
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body));
+
+    expect(url).toBe("https://api.deepseek.com/v1/chat/completions");
+    expect(body.response_format).toEqual({ type: "json_object" });
+    expect(body.messages[0].content).toMatch(/JSON/);
+    expect(body.messages[0].content).toMatch(/exactly one valid JSON object/i);
+    expect(body.plugins).toBeUndefined();
+    expect(body.provider).toBeUndefined();
+    expect(result.actualModel).toBe("deepseek-v4-flash");
+    expect(result.data).toEqual({ name: "Parallax Array", tags: [] });
+  });
+
   it.each([
     [429, "rate_limited"],
     [500, "provider_failure"],
