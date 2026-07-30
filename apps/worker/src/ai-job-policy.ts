@@ -7,6 +7,22 @@ function normalizeErrorCode(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 128);
 }
 
+export function aiJobIsRetryable(error: unknown): boolean {
+  if (!(error instanceof Error)) return true;
+  const message = error.message.toLowerCase();
+  return ![
+    "outside the authoritative context",
+    "exceeds the available source quantity",
+    "exceeds the ambient resource allowance",
+    "selected a depleted authoritative source",
+    "selected item does not have enough remaining quantity",
+    "ambient resource has been depleted",
+    "consumption source is missing",
+    "character is not controlled by this account",
+    "idempotency key was already used for a different ai job",
+  ].some((phrase) => message.includes(phrase));
+}
+
 export function aiJobErrorCode(error: unknown): string {
   if (!(error instanceof Error)) return "ai_job_failed";
 
