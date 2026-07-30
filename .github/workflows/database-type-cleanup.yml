@@ -115,11 +115,54 @@ jobs:
             };'''
           new = '\n'.join(line[10:] if line.startswith('          ') else line for line in new.splitlines())
           game.write_text(text[:position] + new + text[position + len(old):], encoding='utf-8')
+
+          action = Path('apps/api/src/action-service.ts')
+          text = action.read_text(encoding='utf-8')
+          text = text.replace(
+              '  type ActionExecutionResponse,\n  type ParsedActionEnvelope,',
+              '  type ActionExecutionResponse,\n  type OutcomeGrade,\n  type ParsedActionEnvelope,',
+          )
+          hash_line = 'const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");\n'
+          guard = '''
+          const OUTCOME_GRADES = new Set<OutcomeGrade>([
+            "complete_success",
+            "success_with_consequence",
+            "partial_success",
+            "failure_with_progress",
+            "failure",
+            "catastrophic_reversal",
+          ]);
+
+          function requireOutcomeGrade(value: string): OutcomeGrade {
+            if (!OUTCOME_GRADES.has(value as OutcomeGrade)) {
+              throw new Error(`Unknown committed outcome grade: ${value}`);
+            }
+            return value as OutcomeGrade;
+          }
+          '''
+          guard = '\n'.join(line[10:] if line.startswith('          ') else line for line in guard.splitlines())
+          if hash_line not in text:
+              raise SystemExit('Action-service hash anchor not found')
+          text = text.replace(hash_line, hash_line + guard + '\n', 1)
+          text = text.replace(
+              '    const xpGain = xpFromOutcome(committed.outcomeGrade);',
+              '    const outcomeGrade = requireOutcomeGrade(committed.outcomeGrade);\n    const xpGain = xpFromOutcome(outcomeGrade);',
+              1,
+          )
+          text = text.replace(
+              'heatFromCrime(actionType, committed.outcomeGrade)',
+              'heatFromCrime(actionType, outcomeGrade)',
+          )
+          text = text.replace(
+              'resolveIntercept(heat, committed.outcomeGrade, roll)',
+              'resolveIntercept(heat, outcomeGrade, roll)',
+          )
+          action.write_text(text, encoding='utf-8')
           PY
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Format repaired files
-        run: pnpm exec prettier --write packages/database/src/consumption-store.ts packages/database/src/game-store.ts
+        run: pnpm exec prettier --write packages/database/src/consumption-store.ts packages/database/src/game-store.ts apps/api/src/action-service.ts
       - name: Typecheck workspace
         run: pnpm typecheck
       - name: Test workspace
@@ -132,5 +175,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm -- .github/workflows/database-type-cleanup.yml
           git add -A
-          git commit -m "fix: repair database declaration types"
+          git commit -m "fix: repair strict workspace types"
           git push origin HEAD:fix/deepseek-flash-only
