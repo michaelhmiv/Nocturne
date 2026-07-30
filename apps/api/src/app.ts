@@ -25,6 +25,7 @@ import {
 import Fastify from "fastify";
 import { z, ZodError } from "zod";
 import { registerAgentRoutes } from "./agent-routes.js";
+import { requireAgentScope, requireBoundCharacter, type AgentScope } from "./agent-scope.js";
 import { createActionService } from "./action-service.js";
 import { ConversationServiceError, createConversationService } from "./conversation-service.js";
 import { createInventionService } from "./invention-service.js";
@@ -107,10 +108,40 @@ export async function buildApp() {
     if (!session) throw new PersistentWorldError("forbidden", "Authentication is required.");
     return session.user;
   }
+
+  async function authorizeAgent(
+    headers: Record<string, string | string[] | undefined>,
+    scope: AgentScope,
+    characterId?: string | null,
+  ) {
+    const agent = await tryAgent(headers);
+    requireAgentScope(agent, scope);
+    requireBoundCharacter(agent, characterId);
+    return agent;
+  }
+
+  async function requireOwnedCharacter(userId: string, characterId: string) {
+    const character = await world.getCharacter(userId, characterId);
+    if (!character) {
+      throw new PersistentWorldError("forbidden", "Character is not available to this account.");
+    }
+    return character;
+  }
+
+  function requireIdempotencyKey(headers: Record<string, string | string[] | undefined>) {
+    const raw = headers["idempotency-key"];
+    return z
+      .string()
+      .trim()
+      .min(1)
+      .max(256)
+      .parse(Array.isArray(raw) ? raw[0] : raw);
+  }
+
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof ZodError) {
       request.log.error(
-        { body: request.body, method: request.method, url: request.url, issues: error.issues },
+        { method: request.method, url: request.url, issues: error.issues },
         "request validation failed",
       );
       return reply.code(400).send({ error: "invalid_request", issues: error.issues });
@@ -212,6 +243,7 @@ export async function buildApp() {
   });
 
   app.post("/v1/characters", async (request, reply) => {
+    await authorizeAgent(request.headers, "character:write");
     const user = await requireUser(request.headers);
     return reply
       .code(201)
@@ -224,24 +256,35 @@ export async function buildApp() {
       );
   });
   app.get("/v1/characters", async (request) => {
+    await authorizeAgent(request.headers, "character:read");
     const user = await requireUser(request.headers);
     return { characters: await world.listCharacters(user.id) };
   });
   app.get<{ Params: { id: string } }>("/v1/characters/:id", async (request, reply) => {
+    await authorizeAgent(request.headers, "character:read", request.params.id);
     const user = await requireUser(request.headers);
     const character = await world.getCharacter(user.id, request.params.id);
     return character || reply.code(404).send({ error: "not_found" });
   });
   app.post<{ Params: { id: string } }>("/v1/characters/:id/select", async (request) => {
+    await authorizeAgent(request.headers, "character:write", request.params.id);
     const user = await requireUser(request.headers);
     return world.selectCharacter(user.id, request.params.id);
   });
   app.get("/v1/world/start", async (request) => {
+    await authorizeAgent(request.headers, "character:read");
     await requireUser(request.headers);
     return world.getStarterWorld();
   });
   app.post("/v1/residences/starter/rent", async (request, reply) => {
+    const characterId = (request.body as { characterId?: unknown } | null)?.characterId;
+    await authorizeAgent(
+      request.headers,
+      "character:write",
+      typeof characterId === "string" ? characterId : undefined,
+    );
     const user = await requireUser(request.headers);
+    if (typeof characterId === "string") await requireOwnedCharacter(user.id, characterId);
     const result = await world.rentStarterResidence(
       user.id,
       request.body,
@@ -251,21 +294,37 @@ export async function buildApp() {
   });
 
   app.post("/v1/inventions/normalize", async (request, reply) => {
+    const characterId = (request.body as { characterId?: unknown } | null)?.characterId;
+    await authorizeAgent(
+      request.headers,
+      "character:write",
+      typeof characterId === "string" ? characterId : undefined,
+    );
     const user = await requireUser(request.headers);
+    if (typeof characterId === "string") await requireOwnedCharacter(user.id, characterId);
     return reply.code(202).send(await inventions.normalize(user.id, request.body));
   });
   app.get("/v1/inventions", async (request) => {
+    await authorizeAgent(request.headers, "character:read");
     const user = await requireUser(request.headers);
     return { inventions: await inventions.list(user.id) };
   });
   app.get<{ Params: { requestId: string } }>("/v1/inventions/:requestId", async (request) => {
+    await authorizeAgent(request.headers, "character:read");
     const user = await requireUser(request.headers);
     return inventions.get(user.id, request.params.requestId);
   });
   app.post<{ Params: { requestId: string } }>(
     "/v1/inventions/:requestId/install",
     async (request, reply) => {
+      const characterId = (request.body as { characterId?: unknown } | null)?.characterId;
+      await authorizeAgent(
+        request.headers,
+        "character:write",
+        typeof characterId === "string" ? characterId : undefined,
+      );
       const user = await requireUser(request.headers);
+      if (typeof characterId === "string") await requireOwnedCharacter(user.id, characterId);
       return reply
         .code(201)
         .send(
@@ -280,15 +339,24 @@ export async function buildApp() {
   );
 
   app.get("/v1/actions", async (request) => {
-    const user = await requireUser(request.headers);
     const actorId = z
       .string()
       .uuid()
       .parse((request.query as { actorId?: string }).actorId);
+    await authorizeAgent(request.headers, "character:read", actorId);
+    const user = await requireUser(request.headers);
+    await requireOwnedCharacter(user.id, actorId);
     return { actions: await actions.list(user.id, actorId) };
   });
   app.post("/v1/actions", async (request) => {
+    const actorId = (request.body as { actorId?: unknown } | null)?.actorId;
+    await authorizeAgent(
+      request.headers,
+      "action:submit",
+      typeof actorId === "string" ? actorId : undefined,
+    );
     const user = await requireUser(request.headers);
+    if (typeof actorId === "string") await requireOwnedCharacter(user.id, actorId);
     return actions.execute(
       user.id,
       request.body,
@@ -298,10 +366,12 @@ export async function buildApp() {
 
   // --- Marketplace ---
   app.get("/v1/market/listings", async (request) => {
+    await authorizeAgent(request.headers, "market:read");
     await requireUser(request.headers);
     return { listings: await market.listActive() };
   });
   app.post("/v1/market/listings", async (request, reply) => {
+    await authorizeAgent(request.headers, "market:trade");
     const user = await requireUser(request.headers);
     const body = z
       .object({
@@ -312,55 +382,71 @@ export async function buildApp() {
         itemInstanceId: z.string().uuid().optional(),
       })
       .parse(request.body);
+    await requireOwnedCharacter(user.id, body.sellerId);
     return reply.code(201).send(await market.createListing(body));
   });
   app.post("/v1/market/buy", async (request) => {
+    await authorizeAgent(request.headers, "market:trade");
+    requireIdempotencyKey(request.headers);
     const user = await requireUser(request.headers);
     const body = z
       .object({ buyerId: z.string().uuid(), listingId: z.string().uuid() })
       .parse(request.body);
+    await requireOwnedCharacter(user.id, body.buyerId);
+    // TODO: persist the mutation idempotency key in the market store.
     return market.buy(body);
   });
   app.post("/v1/market/cancel", async (request) => {
-    await requireUser(request.headers);
+    await authorizeAgent(request.headers, "market:trade");
+    const user = await requireUser(request.headers);
     const body = z
       .object({ sellerId: z.string().uuid(), listingId: z.string().uuid() })
       .parse(request.body);
+    await requireOwnedCharacter(user.id, body.sellerId);
     return market.cancel(body);
   });
 
   // --- Vehicles ---
   app.get("/v1/vehicles", async (request) => {
-    await requireUser(request.headers);
     const ownerId = (request.query as { ownerId?: string }).ownerId;
+    await authorizeAgent(request.headers, "vehicle:read", ownerId);
+    const user = await requireUser(request.headers);
+    if (ownerId) await requireOwnedCharacter(user.id, ownerId);
     return { vehicles: await locations.listVehicles(ownerId) };
   });
   app.post("/v1/vehicles/claim", async (request, reply) => {
-    await requireUser(request.headers);
+    await authorizeAgent(request.headers, "vehicle:claim");
+    requireIdempotencyKey(request.headers);
+    const user = await requireUser(request.headers);
     const body = z
       .object({ ownerId: z.string().uuid(), vehicleId: z.string().uuid() })
       .parse(request.body);
+    await requireOwnedCharacter(user.id, body.ownerId);
+    // TODO: persist the mutation idempotency key in the location store.
     const claimed = await locations.claimVehicle(body.ownerId, body.vehicleId);
     if (!claimed)
       return reply.code(409).send({ error: "unavailable", message: "Vehicle not free." });
     return reply.code(201).send(claimed);
   });
   app.get("/v1/travel/path", async (request) => {
+    await authorizeAgent(request.headers, "character:read");
     await requireUser(request.headers);
-    const q = z
+    const query = z
       .object({
         from: z.string().uuid(),
         to: z.string().uuid(),
         speedFactor: z.coerce.number().positive().optional(),
       })
       .parse(request.query);
-    const path = await locations.findShortestPath(q.from, q.to, q.speedFactor ?? 1);
+    const path = await locations.findShortestPath(query.from, query.to, query.speedFactor ?? 1);
     return path || { path: null, totalTimeSeconds: null };
   });
 
   app.get("/v1/comms", async (request) => {
-    await requireUser(request.headers);
     const actorId = z.string().uuid().parse((request.query as { actorId?: string }).actorId);
+    await authorizeAgent(request.headers, "character:read", actorId);
+    const user = await requireUser(request.headers);
+    await requireOwnedCharacter(user.id, actorId);
     return { messages: await actions.listComms(actorId) };
   });
 
@@ -375,6 +461,7 @@ export async function buildApp() {
   });
 
   app.post<{ Params: { id: string } }>("/v1/conversations/:id/messages", async (request) => {
+    await authorizeAgent(request.headers, "action:submit");
     const user = await requireUser(request.headers);
     const idempotencyKey = z
       .string()
@@ -390,6 +477,7 @@ export async function buildApp() {
     });
   });
   app.get<{ Params: { id: string } }>("/v1/conversations/:id/messages", async (request) => {
+    await authorizeAgent(request.headers, "character:read");
     const user = await requireUser(request.headers);
     return { messages: await conversationTurns.listPlayerSafeHistory(user.id, request.params.id) };
   });
