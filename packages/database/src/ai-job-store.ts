@@ -201,21 +201,29 @@ export function createAiJobStore(database: ReturnType<typeof createDatabase>) {
     jobIdValue: string,
     errorCodeValue: string,
     delaySecondsValue: number,
+    retryableValue = true,
   ): Promise<AiJob> {
     const workerId = text(workerIdValue, "worker ID", 128);
     const jobId = uuid(jobIdValue, "job ID");
     const errorCode = text(errorCodeValue, "error code", 128);
     const delaySeconds = Math.max(1, Math.min(3_600, Math.trunc(delaySecondsValue)));
+    const retryable = Boolean(retryableValue);
     const rows = await database.client<AiJobRow[]>`
       UPDATE system.ai_jobs
-      SET status = CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'retrying' END,
+      SET status = CASE
+            WHEN NOT ${retryable} OR attempts >= max_attempts THEN 'failed'
+            ELSE 'retrying'
+          END,
           error_code = ${errorCode},
           available_at = CASE
-            WHEN attempts >= max_attempts THEN available_at
+            WHEN NOT ${retryable} OR attempts >= max_attempts THEN available_at
             ELSE now() + (${delaySeconds} * interval '1 second')
           END,
           locked_at = NULL, locked_by = NULL, updated_at = now(),
-          completed_at = CASE WHEN attempts >= max_attempts THEN now() ELSE NULL END
+          completed_at = CASE
+            WHEN NOT ${retryable} OR attempts >= max_attempts THEN now()
+            ELSE NULL
+          END
       WHERE job_id = ${jobId} AND status = 'processing' AND locked_by = ${workerId}
       RETURNING *
     `;
