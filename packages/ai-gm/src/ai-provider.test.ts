@@ -11,14 +11,14 @@ describe("AiProviderClient DeepSeek Flash request", () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
         JSON.stringify({
-id: "deepseek-valid",
-model: DEEPSEEK_FLASH_MODEL,
-choices: [
-  {
-    finish_reason: "stop",
-    message: { content: JSON.stringify({ value: "ok" }) },
-  },
-],
+          id: "deepseek-valid",
+          model: DEEPSEEK_FLASH_MODEL,
+          choices: [
+            {
+              finish_reason: "stop",
+              message: { content: JSON.stringify({ value: "ok" }) },
+            },
+          ],
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
@@ -33,10 +33,10 @@ choices: [
       jsonSchema: {
         name: "test_schema",
         schema: {
-type: "object",
-additionalProperties: false,
-required: ["value"],
-properties: { value: { type: "string" } },
+          type: "object",
+          additionalProperties: false,
+          required: ["value"],
+          properties: { value: { type: "string" } },
         },
       },
       validator: z.object({ value: z.string() }),

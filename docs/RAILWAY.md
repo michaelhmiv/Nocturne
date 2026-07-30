@@ -37,8 +37,6 @@ Worker:
 
 Server-side AI variables for API/worker services that invoke AI:
 
-
-
 ## Service commands
 
 Use the repository root for all commands. A single install command is sufficient per build environment:

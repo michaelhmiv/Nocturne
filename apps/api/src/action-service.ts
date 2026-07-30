@@ -61,9 +61,9 @@ export function createActionService(
   };
 
   const client = new AiProviderClient({
-      deepseekApiKey: environment.DEEPSEEK_API_KEY,
-    });
-    const aiConfigured = Boolean(environment.DEEPSEEK_API_KEY);
+    deepseekApiKey: environment.DEEPSEEK_API_KEY,
+  });
+  const aiConfigured = Boolean(environment.DEEPSEEK_API_KEY);
 
   async function execute(
     userId: string,
@@ -158,8 +158,7 @@ export function createActionService(
       const analysisRun = await store.startAiRun({
         task: "analyze_consumable",
         authority: "authoritative",
-        requestedModel:
-          DEEPSEEK_FLASH_MODEL,
+        requestedModel: DEEPSEEK_FLASH_MODEL,
         policyVersion: CONSUMABLE_ANALYSIS_POLICY_VERSION,
         inputHash: analysisInputHash,
         metadata: {
@@ -346,9 +345,7 @@ export function createActionService(
       "Preserve the committed outcome and costs.",
     ];
 
-    let dialogue:
-      | { speaker: string; line: string; disposition: string }
-      | undefined;
+    let dialogue: { speaker: string; line: string; disposition: string } | undefined;
     if (actionType === "talk") {
       const npc = await store.findNearbyNpc(input.actorId);
       if (npc) {
@@ -439,10 +436,7 @@ export function createActionService(
     }
     if (actionType === "attack" && committed.outcomeGrade === "catastrophic_reversal") {
       const dropped = await store.stripCarriedOnDeath(input.actorId);
-      committed.calculationTrace = [
-        ...committed.calculationTrace,
-        `death_strip_items=${dropped}`,
-      ];
+      committed.calculationTrace = [...committed.calculationTrace, `death_strip_items=${dropped}`];
     }
 
     let payday: { paidCents: number; cashOnPerson: number } | undefined;
@@ -460,23 +454,21 @@ export function createActionService(
       await store.patchActorState(input.actorId, { cashOnPerson: cash });
       payday = { paidCents, cashOnPerson: cash };
       committed.calculationTrace.push(`payday=+${paidCents}`, `cash=${cash}`);
-      narration = `Gig pays $${(paidCents / 100).toFixed(2)}. Cash on hand: $${(
-        cash / 100
-      ).toFixed(2)}.\n\n${narration}`;
+      narration = `Gig pays $${(paidCents / 100).toFixed(2)}. Cash on hand: $${(cash / 100).toFixed(
+        2,
+      )}.\n\n${narration}`;
     }
 
     let travel:
-      | { to: string; path: string[]; travelSeconds: number; scheduled: boolean }
-      | undefined;
+      { to: string; path: string[]; travelSeconds: number; scheduled: boolean } | undefined;
     if (actionType === "move" || actionType === "drive") {
       const from = (await store.getActorLocation(input.actorId)) || context.targetLocation.id;
       const destHint =
         /(?:to|toward|into)\s+([a-z0-9 .'/-]{3,40})/i.exec(input.rawText)?.[1] || "alley";
-      const dest =
-        (await store.resolvePlaceByName(destHint)) || {
-          id: context.targetLocation.id,
-          name: context.targetLocation.name,
-        };
+      const dest = (await store.resolvePlaceByName(destHint)) || {
+        id: context.targetLocation.id,
+        name: context.targetLocation.name,
+      };
       const speed = await store.getOwnedVehicleSpeed(input.actorId);
       const route = await pathfind(from, dest.id, speed);
       const travelSeconds = route.totalTimeSeconds;
@@ -504,9 +496,7 @@ export function createActionService(
         : `You arrive at ${dest.name}.\n\n${narration}`;
     }
 
-    let legal:
-      | { heat: number; warrant: boolean; jailed: boolean; jailSeconds: number }
-      | undefined;
+    let legal: { heat: number; warrant: boolean; jailed: boolean; jailSeconds: number } | undefined;
     const heatGain = heatFromCrime(actionType, committed.outcomeGrade);
     if (heatGain > 0) {
       const st = await store.readActorState(input.actorId);
@@ -554,17 +544,12 @@ export function createActionService(
     }
 
     let comms:
-      | { toName: string; intercepted: boolean; chance: number; messageId: string }
-      | undefined;
+      { toName: string; intercepted: boolean; chance: number; messageId: string } | undefined;
     if (/message|text|call|radio|ping/i.test(input.rawText)) {
       const st = await store.readActorState(input.actorId);
       const heat = Number(st.heat || 0);
       const roll = parseInt(seed.slice(0, 8), 16) / 0xffffffff;
-      const { intercepted, chance } = resolveIntercept(
-        heat,
-        committed.outcomeGrade,
-        roll,
-      );
+      const { intercepted, chance } = resolveIntercept(heat, committed.outcomeGrade, roll);
       const toName =
         /(?:to|call)\s+([A-Za-z][A-Za-z0-9 _-]{1,30})/i.exec(input.rawText)?.[1]?.trim() ||
         "Unknown";

@@ -11,4 +11,3 @@ This branch adds authoritative AI normalization, backend validation, residence-c
 5. Evaluate the proposed installation against the residence.
 6. Persist a provisional definition and immutable revision when mechanically valid.
 7. Install a specific instance only through a separate authorized command.
-

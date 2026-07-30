@@ -94,7 +94,11 @@ export function createInventionService(store: InventionStore, environment = proc
       };
 
       const gate = estimateCraftGating(input.rawConcept);
-      const level = await store.getCharacterSkillLevel(userId, input.characterId, gate.primarySkill);
+      const level = await store.getCharacterSkillLevel(
+        userId,
+        input.characterId,
+        gate.primarySkill,
+      );
       const mult = creationTimeMultiplier(level, gate.difficulty);
       const buildSeconds = Math.round(gate.baseBuildSeconds * mult);
       envelope.draft.extensionPayload = {

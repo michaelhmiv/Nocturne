@@ -1,9 +1,5 @@
 import type { ZodType } from "zod";
-import {
-  DEEPSEEK_FLASH_MODEL,
-  createModelPolicy,
-  type AiTask,
-} from "./model-policy.js";
+import { DEEPSEEK_FLASH_MODEL, createModelPolicy, type AiTask } from "./model-policy.js";
 
 export interface JsonSchemaDefinition {
   name: string;
@@ -39,12 +35,12 @@ export interface StructuredGenerationRequest<T> {
 
 export interface StructuredGenerationResult<T> {
   data: T;
-  requestedModel: typeof DEEPSEEK_FLASH_MODEL;
+  requestedModel: string;
   actualModel: string;
-  provider: "deepseek";
+  provider?: "deepseek";
   providerRequestId?: string;
-  attempts: number;
-  latencyMs: number;
+  attempts?: number;
+  latencyMs?: number;
 }
 
 export type AiProviderErrorCode =
@@ -114,8 +110,7 @@ function allowsNull(schema: unknown, root: JsonObject): boolean {
   if (resolved.type === "null") return true;
   if (Array.isArray(resolved.type) && resolved.type.includes("null")) return true;
   return [resolved.anyOf, resolved.oneOf].some(
-    (variants) =>
-      Array.isArray(variants) && variants.some((variant) => allowsNull(variant, root)),
+    (variants) => Array.isArray(variants) && variants.some((variant) => allowsNull(variant, root)),
   );
 }
 
@@ -208,30 +203,30 @@ export class AiProviderClient {
       try {
         const result = await this.callDeepSeek(request, policy.temperature);
         this.config.logger?.({
-task: request.task,
-provider: "deepseek",
-model: DEEPSEEK_FLASH_MODEL,
-attempt,
-latencyMs: Date.now() - attemptStartedAt,
-status: "success",
+          task: request.task,
+          provider: "deepseek",
+          model: DEEPSEEK_FLASH_MODEL,
+          attempt,
+          latencyMs: Date.now() - attemptStartedAt,
+          status: "success",
         });
         return {
-...result,
-provider: "deepseek",
-attempts: attempt,
-latencyMs: Date.now() - startedAt,
+          ...result,
+          provider: "deepseek",
+          attempts: attempt,
+          latencyMs: Date.now() - startedAt,
         };
       } catch (error) {
         lastError = error;
         const code = error instanceof AiProviderError ? error.code : "provider_failure";
         this.config.logger?.({
-task: request.task,
-provider: "deepseek",
-model: DEEPSEEK_FLASH_MODEL,
-attempt,
-latencyMs: Date.now() - attemptStartedAt,
-status: "error",
-errorCode: code,
+          task: request.task,
+          provider: "deepseek",
+          model: DEEPSEEK_FLASH_MODEL,
+          attempt,
+          latencyMs: Date.now() - attemptStartedAt,
+          status: "error",
+          errorCode: code,
         });
         if (!isTransientAiProviderError(error) || attempt > retries) throw error;
       }
@@ -272,31 +267,31 @@ errorCode: code,
       response = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
         method: "POST",
         headers: {
-Authorization: `Bearer ${apiKey}`,
-"Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-model: DEEPSEEK_FLASH_MODEL,
-thinking: { type: "disabled" },
-temperature,
-max_tokens: 4096,
-messages: [
-  { role: "system", content: system },
-  { role: "user", content: request.prompt },
-],
-response_format: { type: "json_object" },
+          model: DEEPSEEK_FLASH_MODEL,
+          thinking: { type: "disabled" },
+          temperature,
+          max_tokens: 4096,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: request.prompt },
+          ],
+          response_format: { type: "json_object" },
         }),
         signal,
       });
     } catch (error) {
       if (request.signal?.aborted) {
         throw new AiProviderError("aborted", "DeepSeek request was aborted.", {
-cause: error,
+          cause: error,
         });
       }
       if (timeoutSignal.aborted) {
         throw new AiProviderError("timeout", "DeepSeek request timed out.", {
-cause: error,
+          cause: error,
         });
       }
       throw new AiProviderError("provider_failure", "DeepSeek request failed.", {
@@ -319,10 +314,10 @@ cause: error,
     if (!response.ok) {
       const code: AiProviderErrorCode =
         response.status === 429
-? "rate_limited"
-: response.status >= 500
-  ? "provider_failure"
-  : "provider_rejected";
+          ? "rate_limited"
+          : response.status >= 500
+            ? "provider_failure"
+            : "provider_rejected";
       const providerMessage = payload.error?.message || responseText.slice(0, 500);
       throw new AiProviderError(
         code,
@@ -343,11 +338,7 @@ cause: error,
     let decoded: unknown;
     try {
       decoded = JSON.parse(content);
-      decoded = omitUnexpectedNulls(
-        decoded,
-        request.jsonSchema.schema,
-        request.jsonSchema.schema,
-      );
+      decoded = omitUnexpectedNulls(decoded, request.jsonSchema.schema, request.jsonSchema.schema);
     } catch (error) {
       throw new AiProviderError(
         "malformed_response",

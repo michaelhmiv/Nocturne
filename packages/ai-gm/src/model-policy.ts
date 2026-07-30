@@ -36,9 +36,7 @@ export function createModelPolicy(input: {
   creativeModel?: string;
   requestedModel?: string;
 }): ModelPolicy {
-  const authority: AiAuthority = authoritativeTasks.has(input.task)
-    ? "authoritative"
-    : "creative";
+  const authority: AiAuthority = authoritativeTasks.has(input.task) ? "authoritative" : "creative";
   return {
     task: input.task,
     authority,

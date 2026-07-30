@@ -85,21 +85,33 @@ export function deterministicActionFallback(
 ): ParsedActionEnvelope {
   const text = input.rawText.toLowerCase();
   // ponytail: keyword map for offline/dev. Word boundaries; crime before location nouns.
-  const actionType =
-    /\b(steal|pickpocket|theft)\b/.test(text) ? "steal"
-    : /\b(attack|punch|fight|hit)\b/.test(text) ? "attack"
-    : /\b(hack|security panel|disable camera)\b/.test(text) ? "hack"
-    : /\b(message|text|call|radio|ping)\b/.test(text) ? "talk"
-    : /\b(talk|chat|conversation|ask)\b/.test(text) ? "talk"
-    : /\b(sneak|silently|stealth)\b/.test(text) ? "sneak"
-    : /\b(eat|drink|consume|swallow|ingest|taste|food|meal|cake|snack)\b/.test(text) ? "consume"
-    : /\b(heal|bandage|first aid|medkit)\b/.test(text) ? "heal"
-    : /\b(drive|vehicle|bike|car)\b/.test(text) ? "drive"
-    : /\b(move|walk|go to|travel)\b/.test(text) ? "move"
-    : /\b(search|look through|scan|look around)\b/.test(text) ? "search"
-    : /\b(work|gig|shift|job|courier run)\b/.test(text) ? "work"
-    : /\b(look|detect|cameras?)\b/.test(text) ? "detect"
-    : "detect";
+  const actionType = /\b(steal|pickpocket|theft)\b/.test(text)
+    ? "steal"
+    : /\b(attack|punch|fight|hit)\b/.test(text)
+      ? "attack"
+      : /\b(hack|security panel|disable camera)\b/.test(text)
+        ? "hack"
+        : /\b(message|text|call|radio|ping)\b/.test(text)
+          ? "talk"
+          : /\b(talk|chat|conversation|ask)\b/.test(text)
+            ? "talk"
+            : /\b(sneak|silently|stealth)\b/.test(text)
+              ? "sneak"
+              : /\b(eat|drink|consume|swallow|ingest|taste|food|meal|cake|snack)\b/.test(text)
+                ? "consume"
+                : /\b(heal|bandage|first aid|medkit)\b/.test(text)
+                  ? "heal"
+                  : /\b(drive|vehicle|bike|car)\b/.test(text)
+                    ? "drive"
+                    : /\b(move|walk|go to|travel)\b/.test(text)
+                      ? "move"
+                      : /\b(search|look through|scan|look around)\b/.test(text)
+                        ? "search"
+                        : /\b(work|gig|shift|job|courier run)\b/.test(text)
+                          ? "work"
+                          : /\b(look|detect|cameras?)\b/.test(text)
+                            ? "detect"
+                            : "detect";
 
   return {
     intent: {

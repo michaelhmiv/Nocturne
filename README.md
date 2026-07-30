@@ -35,7 +35,6 @@ Player-created content is represented as:
 7. Apply the reviewed Better Auth changes with `pnpm auth:migrate --yes`; the CLI configuration keeps those tables under `auth`.
 8. Run `pnpm dev`.
 
-
 ## Pull-request verification
 
 Nocturne intentionally does not depend on a large GitHub Actions pipeline. Before opening or merging a PR, run:

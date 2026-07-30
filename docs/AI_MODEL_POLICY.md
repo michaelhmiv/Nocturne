@@ -2,12 +2,9 @@
 
 ## Default provider
 
-
-
 ## Central policy versus user selection
 
 Nocturne requires a central model policy for shared-world fairness, but it does not require one permanent model for every task.
-
 
 ## Task policy
 
@@ -27,4 +24,3 @@ Nocturne requires a central model policy for shared-world fairness, but it does 
 Mechanical AI calls must request strict JSON Schema output and then validate the result with a runtime schema. An invalid response is retried or rejected; prose is never treated as a state mutation.
 
 ## Free-router limitation
-

@@ -4,8 +4,6 @@
 
 **Goal:** Replace Nocturne's form-shaped vertical slice with one tested conversational game command path that can create characters, invent arbitrary content, resolve general actions with LLM-proposed probabilities, preserve viewpoint-limited knowledge, and commit persistent multiplayer world state.
 
-
-
 ---
 
 ## Product contract and hard boundaries

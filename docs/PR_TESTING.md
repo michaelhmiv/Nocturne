@@ -62,7 +62,6 @@ The standard suite must use mocked provider calls and must not require a paid ke
 - narration uses only committed player-safe results, adds no mechanics or knowledge, gives no canned next-step coaching, and falls back safely after provider failure; and
 - provider/system failure before commit does not masquerade as an in-world outcome.
 
-
 ## Probability and rules-engine changes
 
 Test the versioned `nocturne-probability-v1` scale from [Conversational engine](CONVERSATIONAL_ENGINE.md):

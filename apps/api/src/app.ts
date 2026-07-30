@@ -176,9 +176,7 @@ export async function buildApp() {
       return reply.code(status).send({ error: error.code, message: error.message });
     }
     const providerCode =
-      error instanceof Error && "code" in error
-        ? String((error as { code: unknown }).code)
-        : null;
+      error instanceof Error && "code" in error ? String((error as { code: unknown }).code) : null;
     if (providerCode) {
       app.log.error(error);
       return reply.code(providerCode === "configuration" ? 503 : 502).send({
@@ -438,7 +436,10 @@ export async function buildApp() {
   });
 
   app.get("/v1/comms", async (request) => {
-    const actorId = z.string().uuid().parse((request.query as { actorId?: string }).actorId);
+    const actorId = z
+      .string()
+      .uuid()
+      .parse((request.query as { actorId?: string }).actorId);
     await authorizeAgent(request.headers, "character:read", actorId);
     const user = await requireUser(request.headers);
     await requireOwnedCharacter(user.id, actorId);
