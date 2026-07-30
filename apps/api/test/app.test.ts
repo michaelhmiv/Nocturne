@@ -1,4 +1,4 @@
-import { OpenRouterError } from "@nocturne/ai-gm";
+import { AiProviderError } from "@nocturne/ai-gm";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
 
@@ -9,11 +9,13 @@ afterEach(() => {
 });
 
 describe("API boot paths", () => {
-  it("boots and reports optional OpenRouter configuration as absent", async () => {
+  it("boots and reports AI provider configuration", async () => {
     process.env.DATABASE_URL = "postgresql://test:test@127.0.0.1:5432/test";
     process.env.BETTER_AUTH_SECRET = "test-secret-at-least-32-characters";
     process.env.BETTER_AUTH_URL = "http://localhost:3000";
+    delete process.env.DEEPSEEK_API_KEY;
     delete process.env.OPENROUTER_API_KEY;
+    delete process.env.OPENROUTER_FALLBACK_MODEL;
     const app = await buildApp();
 
     const response = await app.inject({ method: "GET", url: "/health" });
@@ -22,8 +24,13 @@ describe("API boot paths", () => {
     expect(response.json()).toEqual({
       status: "ok",
       service: "api",
-      openRouterConfigured: false,
+      ai: {
+        primaryProvider: "openrouter",
+        primaryConfigured: false,
+        fallbackConfigured: false,
+      },
     });
+    expect(app.hasRoute({ method: "GET", url: "/ready" })).toBe(true);
     await app.close();
   });
 
@@ -56,7 +63,7 @@ describe("API boot paths", () => {
     const app = await buildApp();
     const secret = "hidden-attacker-controlled-value";
     app.get("/test-provider-error", async () => {
-      throw new OpenRouterError("validation", `Validation failed for ${secret}`);
+      throw new AiProviderError("validation", `Validation failed for ${secret}`);
     });
 
     const response = await app.inject({ method: "GET", url: "/test-provider-error" });
