@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { OutcomeGrade } from "./resolution.js";
 
 const SemanticKeySchema = z.string().regex(/^[a-z][a-z0-9_]{0,47}$/);
 
@@ -126,7 +127,7 @@ export const ConsumptionResultSchema = z.object({
   sourceType: z.enum(["entity", "ambient_pool"]),
   sourceId: z.string().uuid(),
   displayName: z.string(),
-  unitsConsumed: z.number().int().positive(),
+  unitsConsumed: z.number().int().nonnegative(),
   remainingUnits: z.number().nonnegative().nullable(),
   materialized: z.boolean(),
   resourceDeltas: z.array(ConsumptionResourceDeltaSchema),
@@ -140,3 +141,12 @@ export type ConsumptionResourceDelta = z.infer<typeof ConsumptionResourceDeltaSc
 export type ConsumptionConditionEffect = z.infer<typeof ConsumptionConditionEffectSchema>;
 export type ConsumableAnalysis = z.infer<typeof ConsumableAnalysisSchema>;
 export type ConsumptionResult = z.infer<typeof ConsumptionResultSchema>;
+export type ConsumptionAppliedRisk = z.infer<typeof ConsumptionAppliedRiskSchema>;
+
+export interface ConsumptionMechanicsResult {
+  outcomeGrade: OutcomeGrade;
+  resourceDeltas: ConsumptionResourceDelta[];
+  conditions: ConsumptionConditionEffect[];
+  risks: ConsumptionAppliedRisk[];
+  calculationTrace: string[];
+}

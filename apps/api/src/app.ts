@@ -6,9 +6,16 @@ import {
   ActionStoreError,
   AgentStoreError,
   AuthoritativeContextError,
+  ConsumptionStoreError,
+  ConversationStoreError,
+  InventionStoreError,
+  MarketStoreError,
+  PersistentWorldError,
+  StateOperationExecutorError,
   createActionStore,
   createAgentStore,
   createAuthoritativeContextStore,
+  createConsumptionStore,
   createConversationStore,
   createDatabase,
   createInventionStore,
@@ -16,11 +23,6 @@ import {
   createMarketStore,
   createPersistentWorldStore,
   executeConversationStateOperations,
-  InventionStoreError,
-  MarketStoreError,
-  PersistentWorldError,
-  ConversationStoreError,
-  StateOperationExecutorError,
 } from "@nocturne/database";
 import Fastify from "fastify";
 import { z, ZodError } from "zod";
@@ -39,7 +41,13 @@ export async function buildApp() {
   const world = createPersistentWorldService(createPersistentWorldStore(database));
   const inventions = createInventionService(createInventionStore(database));
   const locations = createLocationStore(database);
-  const actions = createActionService(createActionStore(database), process.env, locations);
+  const consumption = createConsumptionStore(database);
+  const actions = createActionService(
+    createActionStore(database),
+    process.env,
+    locations,
+    consumption,
+  );
   const market = createMarketStore(database);
   const agents = createAgentStore(database);
   const conversationTurns = createConversationStore(database);
@@ -150,6 +158,7 @@ export async function buildApp() {
       error instanceof PersistentWorldError ||
       error instanceof InventionStoreError ||
       error instanceof ActionStoreError ||
+      error instanceof ConsumptionStoreError ||
       error instanceof MarketStoreError ||
       error instanceof ConversationStoreError ||
       error instanceof AuthoritativeContextError ||
@@ -164,7 +173,8 @@ export async function buildApp() {
             ? 403
             : error.code === "installation_failed" ||
                 error.code === "residence_unavailable" ||
-                error.code === "insufficient_funds"
+                error.code === "insufficient_funds" ||
+                error.code === "unavailable"
               ? 409
               : 422;
       return reply.code(status).send({ error: error.code, message: error.message });
@@ -364,7 +374,6 @@ export async function buildApp() {
     );
   });
 
-  // --- Marketplace ---
   app.get("/v1/market/listings", async (request) => {
     await authorizeAgent(request.headers, "market:read");
     await requireUser(request.headers);
@@ -393,7 +402,6 @@ export async function buildApp() {
       .object({ buyerId: z.string().uuid(), listingId: z.string().uuid() })
       .parse(request.body);
     await requireOwnedCharacter(user.id, body.buyerId);
-    // TODO: persist the mutation idempotency key in the market store.
     return market.buy(body);
   });
   app.post("/v1/market/cancel", async (request) => {
@@ -406,7 +414,6 @@ export async function buildApp() {
     return market.cancel(body);
   });
 
-  // --- Vehicles ---
   app.get("/v1/vehicles", async (request) => {
     const ownerId = (request.query as { ownerId?: string }).ownerId;
     await authorizeAgent(request.headers, "vehicle:read", ownerId);
@@ -422,7 +429,6 @@ export async function buildApp() {
       .object({ ownerId: z.string().uuid(), vehicleId: z.string().uuid() })
       .parse(request.body);
     await requireOwnedCharacter(user.id, body.ownerId);
-    // TODO: persist the mutation idempotency key in the location store.
     const claimed = await locations.claimVehicle(body.ownerId, body.vehicleId);
     if (!claimed)
       return reply.code(409).send({ error: "unavailable", message: "Vehicle not free." });

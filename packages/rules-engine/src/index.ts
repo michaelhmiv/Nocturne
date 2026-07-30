@@ -1,6 +1,7 @@
 export * from "./actions.js";
 export * from "./combat.js";
 export * from "./comms.js";
+export * from "./consumption.js";
 export * from "./detection-operations.js";
 export * from "./factions.js";
 export * from "./legal.js";
