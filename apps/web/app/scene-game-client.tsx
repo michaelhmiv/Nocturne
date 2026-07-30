@@ -2,6 +2,10 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { authClient } from "../lib/auth-client";
+import ActionPlanResultCard, {
+  parseActionPlanResult,
+  type ActionPlanResult,
+} from "./action-plan-result";
 import { gameFetch } from "./game-fetch";
 import { buildTimeline } from "./game-state";
 
@@ -59,7 +63,7 @@ type AiJob = {
   status: "pending" | "processing" | "retrying" | "completed" | "failed";
   attempts: number;
   maxAttempts: number;
-  result: Record<string, unknown> | null;
+  result: unknown;
   errorCode: string | null;
 };
 
@@ -81,6 +85,11 @@ type PendingTurn = {
   status: "capturing" | AiJob["status"];
   error?: string;
   queueOffline?: boolean;
+};
+
+type ResolvedPlan = {
+  result: ActionPlanResult;
+  resolvedAt: string;
 };
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
@@ -131,6 +140,7 @@ export default function SceneGameClient() {
   const [world, setWorld] = useState<StarterWorld | null>(null);
   const [inventions, setInventions] = useState<Invention[]>([]);
   const [actions, setActions] = useState<ActionResult[]>([]);
+  const [resolvedPlans, setResolvedPlans] = useState<ResolvedPlan[]>([]);
   const [pendingTurns, setPendingTurns] = useState<PendingTurn[]>([]);
   const [showCharacter, setShowCharacter] = useState(false);
   const [creatingCharacter, setCreatingCharacter] = useState(false);
@@ -141,9 +151,23 @@ export default function SceneGameClient() {
   const monitoredJobs = useRef(new Set<string>());
 
   const selected = characters.find((character) => character.selected) || characters[0];
+  const resolvedEventIds = useMemo(
+    () =>
+      new Set(
+        resolvedPlans.flatMap(({ result }) =>
+          result.steps.flatMap((step) => (step.eventId ? [step.eventId] : [])),
+        ),
+      ),
+    [resolvedPlans],
+  );
   const timeline = useMemo(
-    () => buildTimeline(selected?.characterId, inventions, actions),
-    [selected?.characterId, inventions, actions],
+    () =>
+      buildTimeline(
+        selected?.characterId,
+        inventions,
+        actions.filter((action) => !resolvedEventIds.has(action.eventId)),
+      ),
+    [selected?.characterId, inventions, actions, resolvedEventIds],
   );
 
   async function refresh() {
@@ -170,6 +194,10 @@ export default function SceneGameClient() {
   useEffect(() => {
     void refresh().catch((caught: Error) => setError(caught.message));
   }, [session?.user.id]);
+
+  useEffect(() => {
+    setResolvedPlans([]);
+  }, [selected?.characterId]);
 
   async function monitorJob(localId: string, jobId: string) {
     if (monitoredJobs.current.has(jobId)) return;
@@ -211,6 +239,16 @@ export default function SceneGameClient() {
           );
 
           if (job.status === "completed") {
+            if (job.kind === "action_resolution") {
+              const plan = parseActionPlanResult(job.result);
+              if (plan) {
+                setResolvedPlans((current) =>
+                  current.some(({ result }) => result.planId === plan.planId)
+                    ? current
+                    : [...current, { result: plan, resolvedAt: new Date().toISOString() }],
+                );
+              }
+            }
             await refresh();
             setPendingTurns((current) => current.filter((turn) => turn.localId !== localId));
             return;
@@ -489,7 +527,7 @@ export default function SceneGameClient() {
               </article>
             )}
 
-            {selected?.residenceId && timeline.length === 0 && pendingTurns.length === 0 && (
+            {selected?.residenceId && timeline.length === 0 && pendingTurns.length === 0 && resolvedPlans.length === 0 && (
               <article className="scene-event scene-event-world">
                 <p className="scene-kicker">THE CITY IS WAITING</p>
                 <h2>What do you do?</h2>
@@ -545,6 +583,10 @@ export default function SceneGameClient() {
                 </article>
               );
             })}
+
+            {resolvedPlans.map(({ result }) => (
+              <ActionPlanResultCard key={result.planId} result={result} />
+            ))}
 
             {pendingTurns.map((turn) => (
               <article className="scene-turn" key={turn.localId}>
