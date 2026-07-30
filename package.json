@@ -18,10 +18,12 @@
     "auth:generate": "pnpm --filter @nocturne/auth auth:generate",
     "auth:migrate": "pnpm --filter @nocturne/auth auth:migrate",
     "nocturne:cli": "tsx scripts/nocturne-cli.ts",
+    "nocturne:agent": "tsx scripts/nocturne-agent.ts",
     "nocturne:scenario": "tsx scripts/nocturne-scenario.ts",
     "test:cli": "vitest run test/cli.test.ts"
   },
   "devDependencies": {
+    "@nocturne/agent-sdk": "workspace:*",
     "@types/node": "^22.0.0",
     "prettier": "^3.5.0",
     "tsup": "^8.5.0",
