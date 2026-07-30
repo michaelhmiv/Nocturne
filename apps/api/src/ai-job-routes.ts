@@ -11,11 +11,17 @@ import {
   createInventionStore,
   createLocationStore,
   PersistentWorldError,
+  serializeJson,
   type AiJob,
   type AiJobKind,
 } from "@nocturne/database";
-import { NormalizeContentRequestSchema, SubmitActionRequestSchema } from "@nocturne/contracts";
+import {
+  ActionPlanEnvelopeSchema,
+  NormalizeContentRequestSchema,
+  SubmitActionRequestSchema,
+} from "@nocturne/contracts";
 import { z } from "zod";
+import { createActionPlanService } from "./action-plan-service.js";
 import { createActionService } from "./action-service.js";
 import { createInventionService } from "./invention-service.js";
 
@@ -69,12 +75,9 @@ export async function registerAiJobRoutesFromEnv(app: FastifyInstance) {
   const agents = createAgentStore(database);
   const locations = createLocationStore(database);
   const consumption = createConsumptionStore(database);
-  const actions = createActionService(
-    createActionStore(database),
-    process.env,
-    locations,
-    consumption,
-  );
+  const actionStore = createActionStore(database);
+  const actions = createActionService(actionStore, process.env, locations, consumption);
+  const actionPlans = createActionPlanService(actionStore, actions, process.env);
   const inventions = createInventionService(createInventionStore(database), process.env);
 
   async function requireUser(headers: Record<string, string | string[] | undefined>) {
@@ -199,7 +202,7 @@ export async function registerAiJobRoutesFromEnv(app: FastifyInstance) {
   app.post<{ Params: { jobId: string } }>(
     "/v1/internal/ai-jobs/:jobId/run",
     async (request, reply) => {
-      jobIdSchema.parse(request.params.jobId);
+      const jobId = jobIdSchema.parse(request.params.jobId);
       const configuredSecret = process.env.AI_JOB_WORKER_SECRET;
       const supplied = request.headers["x-nocturne-worker-secret"];
       const suppliedSecret = Array.isArray(supplied) ? supplied[0] : supplied;
@@ -219,7 +222,40 @@ export async function registerAiJobRoutesFromEnv(app: FastifyInstance) {
         .parse(request.body);
 
       if (body.kind === "action_resolution") {
-        return actions.execute(body.payload.userId, body.payload.input, body.payload.idempotencyKey);
+        const claimedJob = await jobs.getForUser(body.payload.userId, jobId);
+        if (
+          claimedJob.kind !== body.kind ||
+          claimedJob.idempotencyKey !== body.payload.idempotencyKey
+        ) {
+          throw new AiJobStoreError(
+            "invalid_transition",
+            "Claimed AI job does not match the supplied resolution payload.",
+          );
+        }
+        const storedPlan = ActionPlanEnvelopeSchema.safeParse(claimedJob.payload.plan);
+        return actionPlans.execute(
+          body.payload.userId,
+          body.payload.input,
+          body.payload.idempotencyKey,
+          {
+            ...(storedPlan.success ? { existingPlan: storedPlan.data } : {}),
+            persistPlan: async (plan) => {
+              await database.client`
+                UPDATE system.ai_jobs
+                SET payload = jsonb_set(
+                      payload,
+                      '{plan}',
+                      ${serializeJson(plan)}::jsonb,
+                      true
+                    ),
+                    updated_at = now()
+                WHERE job_id = ${jobId}
+                  AND user_id = ${body.payload.userId}
+                  AND kind = 'action_resolution'
+              `;
+            },
+          },
+        );
       }
       return inventions.normalize(body.payload.userId, body.payload.input);
     },
