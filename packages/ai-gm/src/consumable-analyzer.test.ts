@@ -76,16 +76,17 @@ const analysis: ConsumableAnalysis = {
 describe("AI-derived consumable semantics", () => {
   it("supports arbitrary fictional substances without a food catalogue", () => {
     const result = validateConsumableAnalysisAgainstContext(analysis, request);
-    expect(result).toMatchObject({
-      ...analysis,
-      consumeUnits: 1,
-      quantityResolution: {
-        requestedUnits: 1,
-        availableUnits: 2,
-        appliedUnits: 1,
-        limitedByAvailability: false,
-        limitedByEngine: false,
-      },
+    expect(result.selection).toEqual(analysis.selection);
+    expect(result.classification).toEqual(analysis.classification);
+    expect(result.consumeUnits).toBe(1);
+    expect(result.resourceDeltas).toEqual(analysis.resourceDeltas);
+    expect(result.conditions).toEqual(analysis.conditions);
+    expect(result.quantityResolution).toEqual({
+      requestedUnits: 1,
+      availableUnits: 2,
+      appliedUnits: 1,
+      limitedByAvailability: false,
+      limitedByEngine: false,
     });
   });
 
