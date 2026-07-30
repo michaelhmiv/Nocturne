@@ -6,6 +6,7 @@ import {
   createActionStore,
   createAgentStore,
   createAiJobStore,
+  createConsumptionStore,
   createDatabase,
   createInventionStore,
   createLocationStore,
@@ -67,7 +68,13 @@ export async function registerAiJobRoutesFromEnv(app: FastifyInstance) {
   const jobs = createAiJobStore(database);
   const agents = createAgentStore(database);
   const locations = createLocationStore(database);
-  const actions = createActionService(createActionStore(database), process.env, locations);
+  const consumption = createConsumptionStore(database);
+  const actions = createActionService(
+    createActionStore(database),
+    process.env,
+    locations,
+    consumption,
+  );
   const inventions = createInventionService(createInventionStore(database), process.env);
 
   async function requireUser(headers: Record<string, string | string[] | undefined>) {
