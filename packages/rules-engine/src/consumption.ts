@@ -92,23 +92,34 @@ export function resolveConsumptionMechanics(
     };
   });
   const consequence = risks.some((risk) => risk.occurred);
+  const quantityLimited = Boolean(
+    analysis.quantityResolution?.limitedByAvailability || analysis.quantityResolution?.limitedByEngine,
+  );
+  const outcomeGrade = quantityLimited
+    ? "partial_success"
+    : consequence
+      ? "success_with_consequence"
+      : "complete_success";
 
   return {
-    outcomeGrade: consequence ? "success_with_consequence" : "complete_success",
+    outcomeGrade,
     resourceDeltas,
     conditions,
     risks: risks.map(({ description, occurred }) => ({ description, occurred })),
     calculationTrace: [
       `consume_source=${analysis.selection.sourceType}`,
       `consume_name=${analysis.selection.displayName}`,
+      `consume_requested_units=${analysis.quantityResolution?.requestedUnits ?? analysis.requestedUnits ?? analysis.consumeUnits}`,
       `consume_units=${analysis.consumeUnits}`,
+      `consume_available_units=${analysis.quantityResolution?.availableUnits ?? "unknown"}`,
+      `consume_quantity_limited=${quantityLimited}`,
       `consume_resource_effects=${resourceDeltas.length}`,
       `consume_conditions=${conditions.length}`,
       ...risks.map(
         (risk, index) =>
           `consume_risk_${index}=${risk.rollBasisPoints}/${risk.chanceBasisPoints}:${risk.occurred}`,
       ),
-      `consume_outcome=${consequence ? "success_with_consequence" : "complete_success"}`,
+      `consume_outcome=${outcomeGrade}`,
     ],
   };
 }
