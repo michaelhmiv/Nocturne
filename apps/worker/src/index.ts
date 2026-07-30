@@ -1,5 +1,6 @@
 import { hostname } from "node:os";
 import { createAiJobStore, createDatabase, type AiJob } from "@nocturne/database";
+import { readAiJobWorkerConfig } from "./ai-job-config.js";
 import { aiJobErrorCode, aiJobRetryDelaySeconds } from "./ai-job-policy.js";
 
 const json = (value: unknown) => JSON.stringify(value);
@@ -17,28 +18,63 @@ if (!databaseUrl) {
   process.exit(1);
 }
 
+const aiJobConfig = (() => {
+  try {
+    return readAiJobWorkerConfig(process.env);
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        level: "error",
+        service: "worker",
+        message: "worker_start_failed",
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
+    process.exit(1);
+  }
+})();
+
 const POLL_INTERVAL_MS = 5_000;
-const workerId = `${hostname()}:${process.pid}`;
+const workerHost = hostname();
+const workerId = `${workerHost}:${process.pid}`;
 const database = createDatabase(databaseUrl);
 const aiJobs = createAiJobStore(database);
-const aiJobApiUrl = (
-  process.env.AI_JOB_API_URL ||
-  process.env.API_URL ||
-  process.env.RAILWAY_SERVICE__NOCTURNE_API_URL ||
-  ""
-).replace(/\/$/, "");
-const aiJobWorkerSecret = process.env.AI_JOB_WORKER_SECRET || "";
+const aiJobApiUrl = aiJobConfig.apiUrl;
+const aiJobWorkerSecret = aiJobConfig.workerSecret;
+
+async function recordHeartbeat() {
+  const metadata = json({ host: workerHost, pid: process.pid, apiUrl: aiJobApiUrl });
+  await database.client`
+    INSERT INTO system.worker_heartbeats (
+      worker_id,
+      role,
+      started_at,
+      last_seen_at,
+      metadata
+    )
+    VALUES (
+      ${workerId},
+      'ai_job_worker',
+      now(),
+      now(),
+      ${metadata}::jsonb
+    )
+    ON CONFLICT (worker_id) DO UPDATE
+    SET last_seen_at = now(), metadata = EXCLUDED.metadata
+  `;
+}
 
 try {
   await database.client`SELECT 1`;
+  await recordHeartbeat();
   await aiJobs.requeueStale();
-} catch {
+} catch (error) {
   console.error(
     JSON.stringify({
       level: "error",
       service: "worker",
       message: "worker_start_failed",
-      error: "Database connection or queue recovery failed.",
+      error: error instanceof Error ? error.message : "Database connection, migration, or queue recovery failed.",
     }),
   );
   await database.close();
@@ -51,7 +87,8 @@ console.log(
     service: "worker",
     message: "worker_started",
     worker_id: workerId,
-    ai_jobs_enabled: Boolean(aiJobApiUrl && aiJobWorkerSecret),
+    ai_jobs_enabled: true,
+    ai_job_api_url: aiJobApiUrl,
   }),
 );
 
@@ -113,9 +150,6 @@ async function resolveScheduledJob(row: {
 }
 
 async function runAiJob(job: AiJob): Promise<Record<string, unknown>> {
-  if (!aiJobApiUrl || !aiJobWorkerSecret) {
-    throw new Error("AI job API configuration is missing.");
-  }
   const response = await fetch(`${aiJobApiUrl}/v1/internal/ai-jobs/${job.jobId}/run`, {
     method: "POST",
     headers: {
@@ -144,7 +178,6 @@ async function runAiJob(job: AiJob): Promise<Record<string, unknown>> {
 }
 
 async function tickAiJobs() {
-  if (!aiJobApiUrl || !aiJobWorkerSecret) return;
   const claimed = await aiJobs.claim(workerId, 5);
   for (const job of claimed) {
     try {
@@ -162,10 +195,11 @@ async function tickAiJobs() {
       );
     } catch (error) {
       const delaySeconds = aiJobRetryDelaySeconds(job.attempts);
+      const errorCode = aiJobErrorCode(error);
       const updated = await aiJobs.retryOrFail(
         workerId,
         job.jobId,
-        aiJobErrorCode(error),
+        errorCode,
         delaySeconds,
       );
       console.error(
@@ -177,6 +211,7 @@ async function tickAiJobs() {
           kind: job.kind,
           attempt: job.attempts,
           next_delay_seconds: updated.status === "retrying" ? delaySeconds : null,
+          error_code: errorCode,
           error: String(error),
         }),
       );
@@ -239,6 +274,7 @@ async function tickScheduledJobs() {
 async function tick() {
   if (shuttingDown) return;
   try {
+    await recordHeartbeat();
     await Promise.all([tickAiJobs(), tickScheduledJobs()]);
   } catch (error) {
     console.error(
