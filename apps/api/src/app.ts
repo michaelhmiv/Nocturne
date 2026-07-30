@@ -1,5 +1,5 @@
 import cors from "@fastify/cors";
-import { createModelPolicy, OpenRouterClient } from "@nocturne/ai-gm";
+import { AiProviderClient, createModelPolicy } from "@nocturne/ai-gm";
 import { closeAuthFromEnv, getAuthFromEnv, getSessionFromNodeHeaders } from "@nocturne/auth";
 import { validateGeneratedContent } from "@nocturne/content-engine";
 import {
@@ -44,9 +44,12 @@ export async function buildApp() {
   const conversationTurns = createConversationStore(database);
   const context = createAuthoritativeContextStore(database);
   const conversations = createConversationService({
-    client: new OpenRouterClient({
+    client: new AiProviderClient({
       apiKey: process.env.OPENROUTER_API_KEY,
       deepseekApiKey: process.env.DEEPSEEK_API_KEY,
+      fallbackModel: process.env.OPENROUTER_FALLBACK_MODEL,
+      authoritativeModel: process.env.AI_AUTHORITATIVE_MODEL || process.env.DEEPSEEK_MODEL,
+      creativeModel: process.env.AI_CREATIVE_MODEL || process.env.DEEPSEEK_MODEL,
     }),
     turns: conversationTurns,
     rollSecret: process.env.NOCTURNE_ROLL_SECRET || process.env.BETTER_AUTH_SECRET,
@@ -106,7 +109,10 @@ export async function buildApp() {
   }
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof ZodError) {
-      request.log.error({ body: request.body, method: request.method, url: request.url }, "request validation failed");
+      request.log.error(
+        { body: request.body, method: request.method, url: request.url, issues: error.issues },
+        "request validation failed",
+      );
       return reply.code(400).send({ error: "invalid_request", issues: error.issues });
     }
     if (
@@ -133,7 +139,9 @@ export async function buildApp() {
       return reply.code(status).send({ error: error.code, message: error.message });
     }
     const providerCode =
-      error instanceof Error && "code" in error ? String((error as { code: unknown }).code) : null;
+      error instanceof Error && "code" in error
+        ? String((error as { code: unknown }).code)
+        : null;
     if (providerCode) {
       app.log.error(error);
       return reply.code(providerCode === "configuration" ? 503 : 502).send({
@@ -145,11 +153,43 @@ export async function buildApp() {
     return reply.code(500).send({ error: "internal_error" });
   });
 
+  const primaryProvider = process.env.DEEPSEEK_API_KEY ? "deepseek" : "openrouter";
+  const primaryConfigured = Boolean(
+    primaryProvider === "deepseek"
+      ? process.env.DEEPSEEK_API_KEY
+      : process.env.OPENROUTER_API_KEY,
+  );
+  const fallbackConfigured = Boolean(
+    process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_FALLBACK_MODEL,
+  );
+
   app.get("/health", async () => ({
     status: "ok",
     service: "api",
-    openRouterConfigured: Boolean(process.env.OPENROUTER_API_KEY),
+    ai: {
+      primaryProvider,
+      primaryConfigured,
+      fallbackConfigured,
+    },
   }));
+  app.get("/ready", async (_request, reply) => {
+    let databaseReady = false;
+    try {
+      await database.client`SELECT 1`;
+      databaseReady = true;
+    } catch (error) {
+      app.log.error({ error }, "database readiness check failed");
+    }
+    const ready = databaseReady && primaryConfigured;
+    return reply.code(ready ? 200 : 503).send({
+      status: ready ? "ready" : "not_ready",
+      service: "api",
+      databaseReady,
+      aiReady: primaryConfigured,
+      primaryProvider,
+      fallbackConfigured,
+    });
+  });
   app.get("/v1/me", async (request, reply) => {
     const session = await getSessionFromNodeHeaders(request.headers);
     return session
@@ -157,8 +197,14 @@ export async function buildApp() {
       : reply.code(401).send({ error: "unauthorized" });
   });
   app.get("/v1/system/model-policy", async () => ({
-    authoritative: createModelPolicy({ task: "parse_intent" }),
-    creative: createModelPolicy({ task: "narrate_event" }),
+    authoritative: createModelPolicy({
+      task: "parse_intent",
+      authoritativeModel: process.env.AI_AUTHORITATIVE_MODEL || process.env.DEEPSEEK_MODEL,
+    }),
+    creative: createModelPolicy({
+      task: "narrate_event",
+      creativeModel: process.env.AI_CREATIVE_MODEL || process.env.DEEPSEEK_MODEL,
+    }),
   }));
   app.post("/v1/content/validate", async (request, reply) => {
     const result = validateGeneratedContent(request.body);
@@ -295,7 +341,8 @@ export async function buildApp() {
       .object({ ownerId: z.string().uuid(), vehicleId: z.string().uuid() })
       .parse(request.body);
     const claimed = await locations.claimVehicle(body.ownerId, body.vehicleId);
-    if (!claimed) return reply.code(409).send({ error: "unavailable", message: "Vehicle not free." });
+    if (!claimed)
+      return reply.code(409).send({ error: "unavailable", message: "Vehicle not free." });
     return reply.code(201).send(claimed);
   });
   app.get("/v1/travel/path", async (request) => {

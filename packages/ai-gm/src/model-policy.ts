@@ -34,11 +34,13 @@ export function createModelPolicy(input: {
   requestedModel?: string;
 }): ModelPolicy {
   const authority: AiAuthority = authoritativeTasks.has(input.task) ? "authoritative" : "creative";
+  const configuredModel =
+    authority === "authoritative" ? input.authoritativeModel : input.creativeModel;
 
   return {
     task: input.task,
     authority,
-    model: "deepseek-v4-flash",
+    model: input.requestedModel || configuredModel || "deepseek-v4-flash",
     allowUserOverride: false,
     requireStructuredOutput: authority === "authoritative" || input.task === "brainstorm_content",
     temperature: authority === "authoritative" ? 0.1 : 0.8,
