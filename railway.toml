@@ -1,0 +1,16 @@
+[build]
+watchPatterns = [
+  "/apps/**",
+  "/packages/**",
+  "/scripts/**",
+  "/package.json",
+  "/pnpm-lock.yaml",
+  "/pnpm-workspace.yaml",
+  "/turbo.json",
+  "/tsconfig.base.json",
+  "/tsup.app.config.ts",
+  "/railway.toml"
+]
+
+[deploy]
+preDeployCommand = ["node scripts/railway-predeploy.mjs"]
