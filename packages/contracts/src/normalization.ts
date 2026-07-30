@@ -4,7 +4,7 @@ import { GeneratedDefinitionDraftSchema } from "./content.js";
 export const NormalizeContentRequestSchema = z.object({
   characterId: z.string().uuid(),
   residenceId: z.string().uuid().optional(),
-  rawConcept: z.string().trim().min(20).max(8_000),
+  rawConcept: z.string().trim().min(1).max(8_000),
   intendedUse: z.string().trim().min(1).max(1_000).optional(),
 });
 
