@@ -1,6 +1,8 @@
+export * from "./effect-catalogue.js";
 export * from "./installation.js";
 
 import { GeneratedDefinitionDraftSchema, type GeneratedDefinitionDraft } from "@nocturne/contracts";
+import { isKnownCapacityRuleId, isKnownEffectId } from "./effect-catalogue.js";
 
 export interface ContentValidationIssue {
   code: string;
@@ -33,7 +35,38 @@ export function validateGeneratedContent(input: unknown): ContentValidationResul
   const draft = parsed.data;
   const issues: ContentValidationIssue[] = [];
   const allEffects = [...draft.effects, ...draft.modes.flatMap((mode) => mode.effects)];
+  const allRequirements = [
+    ...draft.requirements,
+    ...draft.modes.flatMap((mode) => mode.requirements),
+  ];
   const peakStrength = allEffects.reduce((peak, effect) => Math.max(peak, effect.strength), 0);
+
+  for (const effect of allEffects) {
+    if (!isKnownEffectId(effect.effectId)) {
+      issues.push({
+        code: "mechanics.unknown_effect",
+        severity: "error",
+        message: `Unknown mechanical effect: ${effect.effectId}`,
+        suggestions: ["Use a canonical effect from the Nocturne mechanics catalogue."],
+      });
+    }
+  }
+  for (const requirement of allRequirements) {
+    if (
+      requirement.phase === "installation" &&
+      requirement.ruleId.startsWith("capacity.") &&
+      !isKnownCapacityRuleId(requirement.ruleId)
+    ) {
+      issues.push({
+        code: "installation.unknown_capacity",
+        severity: "error",
+        message: `Unknown installation capacity: ${requirement.ruleId}`,
+        suggestions: [
+          "Use capacity.space, capacity.power, capacity.concealment, capacity.security, or capacity.access.",
+        ],
+      });
+    }
+  }
   if (allEffects.length === 0) {
     issues.push({
       code: "mechanics.no_effects",
