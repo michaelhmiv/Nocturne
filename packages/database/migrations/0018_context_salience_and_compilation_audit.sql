@@ -15,11 +15,15 @@ CREATE TABLE IF NOT EXISTS game.entity_salience (
   CHECK (viewpoint_instance_id <> entity_instance_id)
 );
 
+-- Expiration is evaluated by queries. `now()` cannot be used in a PostgreSQL
+-- partial-index predicate because it is not immutable.
 CREATE INDEX IF NOT EXISTS entity_salience_viewpoint_idx
   ON game.entity_salience (
     world_id, shard_id, viewpoint_instance_id, score DESC, last_referenced_at DESC
-  )
-  WHERE expires_at IS NULL OR expires_at > now();
+  );
+CREATE INDEX IF NOT EXISTS entity_salience_expiry_idx
+  ON game.entity_salience (world_id, shard_id, expires_at)
+  WHERE expires_at IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS game.context_compilation_audits (
   compilation_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
