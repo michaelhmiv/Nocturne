@@ -6,7 +6,7 @@ import {
 } from "@nocturne/contracts";
 import { AiProviderClient, type StructuredGenerationResult } from "./ai-provider.js";
 
-export const CONSUMABLE_ANALYSIS_POLICY_VERSION = "consumable-analysis-v2";
+export const CONSUMABLE_ANALYSIS_POLICY_VERSION = "consumable-analysis-v3";
 
 const resourceDelta = {
   type: "object",
@@ -82,7 +82,7 @@ const consumableAnalysisJsonSchema = {
         },
       },
       requestedUnits: { type: "integer", minimum: 1, maximum: 100 },
-      consumeUnits: { type: "integer", minimum: 1, maximum: 5 },
+      consumeUnits: { type: "integer", minimum: 0, maximum: 5 },
       materialization: {
         type: "object",
         additionalProperties: false,
@@ -129,9 +129,10 @@ Rules:
 - Select sourceType "ambient_pool" only for an exact supplied ambient pool. You may then materialize one concrete, mundane substance that is plausible under that pool's description and every constraint.
 - Ambient materialization is not permission to satisfy a specific luxury, specialty, rare, prepared, or celebratory request unless the pool explicitly supports it.
 - Select "none" when no candidate plausibly satisfies the request.
-- requestedUnits is the amount the player asked for. Preserve that request even when inventory is insufficient.
-- consumeUnits is the amount that can actually be consumed now. It must never exceed the selected candidate's authoritative quantity, five units, or materialized units.
-- When requestedUnits exceeds consumeUnits, state the exact shortfall in assumptions and narrationFacts. Do not turn a quantity shortfall into a total failure.
+- requestedUnits is the amount the player asked for and must be at least 1. Preserve that request even when inventory is insufficient.
+- Set consumeUnits to 0 when sourceType is "none" or when the selected substance is not consumable as requested. In those cases return no resource deltas, conditions, or risks.
+- For a selected consumable source, consumeUnits must be at least 1 and must never exceed the selected candidate's authoritative quantity, five units, or materialized units.
+- When requestedUnits exceeds consumeUnits but at least one unit can be consumed, state the exact shortfall in assumptions and narrationFacts. Do not turn a quantity shortfall into a total failure.
 - Ordinary eating and drinking are not medical treatment and do not automatically repair injury.
 - Derive bounded resource deltas, temporary conditions, and risks causally from the amount actually consumed. Resource and condition keys are semantic slugs, not catalogue IDs.
 - Do not decide random outcomes. Report risk probabilities and effects; the rules engine resolves them deterministically.
@@ -162,6 +163,9 @@ function reconcileEffects(
   analysis: ConsumableAnalysis,
   appliedUnits: number,
 ): Pick<ConsumableAnalysis, "resourceDeltas" | "conditions" | "risks"> {
+  if (appliedUnits <= 0) {
+    return { resourceDeltas: [], conditions: [], risks: [] };
+  }
   const modeledUnits = Math.max(1, analysis.consumeUnits);
   const ratio = Math.min(1, appliedUnits / modeledUnits);
   if (ratio >= 1) {
@@ -202,7 +206,32 @@ export function validateConsumableAnalysisAgainstContext(
   input: ConsumptionAnalysisRequest,
 ): ConsumableAnalysis {
   const parsed = ConsumableAnalysisSchema.parse(analysis);
-  if (parsed.selection.sourceType === "none") return parsed;
+  const requestedUnits = parsed.requestedUnits ?? Math.max(1, parsed.consumeUnits);
+
+  if (parsed.selection.sourceType === "none") {
+    const fact = `Requested ${requestedUnits} unit${requestedUnits === 1 ? "" : "s"}; no accessible matching source was available, so 0 units were consumed.`;
+    return ConsumableAnalysisSchema.parse({
+      ...parsed,
+      classification: { ...parsed.classification, consumable: false },
+      requestedUnits,
+      consumeUnits: 0,
+      quantityResolution: {
+        requestedUnits,
+        availableUnits: 0,
+        appliedUnits: 0,
+        limitedByAvailability: true,
+        limitedByEngine: false,
+      },
+      resourceDeltas: [],
+      conditions: [],
+      risks: [],
+      narrationFacts: [...parsed.narrationFacts, fact].slice(-12),
+      assumptions: [
+        ...parsed.assumptions,
+        "No authoritative candidate matched the requested substance.",
+      ].slice(-8),
+    });
+  }
 
   const candidate = input.candidates.find(
     (value) =>
@@ -213,11 +242,35 @@ export function validateConsumableAnalysisAgainstContext(
     throw new Error("Consumable analysis selected a source outside the authoritative context.");
   }
 
-  const requestedUnits = parsed.requestedUnits ?? parsed.consumeUnits;
   const availableUnits = Math.max(0, Math.floor(candidate.quantity ?? 1));
   if (availableUnits < 1) {
     throw new Error("Consumable analysis selected a depleted authoritative source.");
   }
+
+  if (!parsed.classification.consumable) {
+    const fact = `Requested ${requestedUnits} unit${requestedUnits === 1 ? "" : "s"}; 0 units were consumed because the selected source is not consumable as intended.`;
+    return ConsumableAnalysisSchema.parse({
+      ...parsed,
+      requestedUnits,
+      consumeUnits: 0,
+      quantityResolution: {
+        requestedUnits,
+        availableUnits,
+        appliedUnits: 0,
+        limitedByAvailability: false,
+        limitedByEngine: false,
+      },
+      resourceDeltas: [],
+      conditions: [],
+      risks: [],
+      narrationFacts: [...parsed.narrationFacts, fact].slice(-12),
+      assumptions: [
+        ...parsed.assumptions,
+        "The selected source remains unchanged because no consumption occurred.",
+      ].slice(-8),
+    });
+  }
+
   const appliedUnits = Math.max(1, Math.min(requestedUnits, availableUnits, 5));
   const limitedByAvailability = requestedUnits > availableUnits;
   const limitedByEngine = requestedUnits > 5;
