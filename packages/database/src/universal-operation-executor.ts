@@ -1222,11 +1222,12 @@ export function createUniversalOperationExecutor(
               };
               await sql`
                 INSERT INTO game.scheduled_actions (
-                  schedule_id, intent_id, world_id, shard_id, resolves_at, status,
-                  kind, payload, source_event_id, subject_entity_ids,
-                  expected_versions, resolution_policy
+                  schedule_id, idempotency_key, intent_id, world_id, shard_id,
+                  resolves_at, status, kind, payload, source_event_id,
+                  subject_entity_ids, expected_versions, resolution_policy
                 ) VALUES (
-                  ${scheduleId}, ${input.sourceIntentId || null}, ${input.scope.worldId},
+                  ${scheduleId}, ${`${input.idempotencyKey}:schedule:${order}`},
+                  ${input.sourceIntentId || null}, ${input.scope.worldId},
                   ${input.scope.shardId}, ${resolvesAt.toISOString()}, 'pending',
                   ${operation.kind}, ${json(payload)}::jsonb, ${eventId},
                   ${json(subjectEntityIds)}::jsonb,
