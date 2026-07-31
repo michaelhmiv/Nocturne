@@ -67,6 +67,47 @@ function sendStoreError(reply: FastifyReply, error: unknown) {
   return reply.code(status).send({ error: error.code, message: error.message });
 }
 
+type CodedError = Error & { code?: unknown };
+
+function sendInternalJobError(reply: FastifyReply, error: unknown) {
+  const message = error instanceof Error ? error.message : "Internal AI job execution failed.";
+  const sourceCode =
+    error instanceof Error && typeof (error as CodedError).code === "string"
+      ? String((error as CodedError).code)
+      : "internal_error";
+
+  const policy =
+    sourceCode === "validation"
+      ? { error: "ai_validation_failed", retryable: false, status: 422 }
+      : sourceCode === "configuration"
+        ? { error: "ai_configuration_missing", retryable: false, status: 503 }
+        : sourceCode === "provider_rejected"
+          ? { error: "provider_rejected", retryable: false, status: 422 }
+          : sourceCode === "timeout"
+            ? { error: "provider_timeout", retryable: true, status: 504 }
+            : sourceCode === "rate_limited"
+              ? { error: "provider_rate_limited", retryable: true, status: 503 }
+              : sourceCode === "provider_failure" || sourceCode === "malformed_response"
+                ? { error: sourceCode, retryable: true, status: 502 }
+                : [
+                      "invalid_analysis",
+                      "forbidden",
+                      "not_found",
+                      "unavailable",
+                      "duplicate",
+                      "invalid_transition",
+                      "idempotency_conflict",
+                    ].includes(sourceCode)
+                  ? { error: sourceCode, retryable: false, status: 422 }
+                  : { error: "internal_error", retryable: true, status: 500 };
+
+  return reply.code(policy.status).send({
+    error: policy.error,
+    message: message.slice(0, 2_000),
+    retryable: policy.retryable,
+  });
+}
+
 export async function registerAiJobRoutesFromEnv(app: FastifyInstance) {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required for AI job routes.");
@@ -207,7 +248,7 @@ export async function registerAiJobRoutesFromEnv(app: FastifyInstance) {
       const supplied = request.headers["x-nocturne-worker-secret"];
       const suppliedSecret = Array.isArray(supplied) ? supplied[0] : supplied;
       if (!configuredSecret || !suppliedSecret || !safeEqual(configuredSecret, suppliedSecret)) {
-        return reply.code(403).send({ error: "forbidden" });
+        return reply.code(403).send({ error: "forbidden", retryable: false });
       }
 
       const body = z
@@ -221,43 +262,48 @@ export async function registerAiJobRoutesFromEnv(app: FastifyInstance) {
         })
         .parse(request.body);
 
-      if (body.kind === "action_resolution") {
-        const claimedJob = await jobs.getForUser(body.payload.userId, jobId);
-        if (
-          claimedJob.kind !== body.kind ||
-          claimedJob.idempotencyKey !== body.payload.idempotencyKey
-        ) {
-          throw new AiJobStoreError(
-            "invalid_transition",
-            "Claimed AI job does not match the supplied resolution payload.",
+      try {
+        if (body.kind === "action_resolution") {
+          const claimedJob = await jobs.getForUser(body.payload.userId, jobId);
+          if (
+            claimedJob.kind !== body.kind ||
+            claimedJob.idempotencyKey !== body.payload.idempotencyKey
+          ) {
+            throw new AiJobStoreError(
+              "invalid_transition",
+              "Claimed AI job does not match the supplied resolution payload.",
+            );
+          }
+          const storedPlan = ActionPlanEnvelopeSchema.safeParse(claimedJob.payload.plan);
+          return await actionPlans.execute(
+            body.payload.userId,
+            body.payload.input,
+            body.payload.idempotencyKey,
+            {
+              ...(storedPlan.success ? { existingPlan: storedPlan.data } : {}),
+              persistPlan: async (plan) => {
+                await database.client`
+                  UPDATE system.ai_jobs
+                  SET payload = jsonb_set(
+                        payload,
+                        '{plan}',
+                        ${serializeJson(plan)}::jsonb,
+                        true
+                      ),
+                      updated_at = now()
+                  WHERE job_id = ${jobId}
+                    AND user_id = ${body.payload.userId}
+                    AND kind = 'action_resolution'
+                `;
+              },
+            },
           );
         }
-        const storedPlan = ActionPlanEnvelopeSchema.safeParse(claimedJob.payload.plan);
-        return actionPlans.execute(
-          body.payload.userId,
-          body.payload.input,
-          body.payload.idempotencyKey,
-          {
-            ...(storedPlan.success ? { existingPlan: storedPlan.data } : {}),
-            persistPlan: async (plan) => {
-              await database.client`
-                UPDATE system.ai_jobs
-                SET payload = jsonb_set(
-                      payload,
-                      '{plan}',
-                      ${serializeJson(plan)}::jsonb,
-                      true
-                    ),
-                    updated_at = now()
-                WHERE job_id = ${jobId}
-                  AND user_id = ${body.payload.userId}
-                  AND kind = 'action_resolution'
-              `;
-            },
-          },
-        );
+        return await inventions.normalize(body.payload.userId, body.payload.input);
+      } catch (error) {
+        app.log.error(error);
+        return sendInternalJobError(reply, error);
       }
-      return inventions.normalize(body.payload.userId, body.payload.input);
     },
   );
 
