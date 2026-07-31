@@ -13,5 +13,6 @@ export * from "./relevance-context.js";
 export * from "./resolution.js";
 export * from "./scene.js";
 export * from "./search-discovery.js";
+export * from "./simulation.js";
 export * from "./world-operations.js";
 export * from "./world.js";
