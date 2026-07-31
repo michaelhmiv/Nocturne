@@ -27,6 +27,7 @@ export * from "./entity-lifecycle-store.js";
 export * from "./game-store.js";
 export * from "./invention-store.js";
 export * from "./json.js";
+export * from "./location-materialization-store.js";
 export * from "./location-store.js";
 export * from "./market-store.js";
 export * from "./state-operation-executor.js";
