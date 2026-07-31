@@ -1,7 +1,14 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { GameplayTelemetryWriter } from "@nocturne/contracts";
 import { WorldActionRequestSchema } from "../../../packages/contracts/src/world-action.js";
 import { OperatorRepairRequestSchema } from "../../../packages/contracts/src/world-inspector.js";
 import type { WorldScope } from "@nocturne/database";
+import {
+  createGameplayTraceId,
+  hashIdempotencyKey,
+  runWithGameplayTrace,
+  writeGameplayTelemetry,
+} from "./gameplay-telemetry.js";
 import type { PersistentWorldActionService } from "./persistent-world-action-service.js";
 
 type PersistentSceneStoreLike = {
@@ -72,6 +79,7 @@ export async function registerPersistentWorldRoutes(
     actions: PersistentWorldActionService;
     scene: PersistentSceneStoreLike;
     inspector: WorldInspectorStoreLike;
+    telemetry?: GameplayTelemetryWriter;
     resolveScope(request: FastifyRequest): Promise<WorldScope>;
     isRuntimeEnabled(scope: Pick<WorldScope, "worldId">): Promise<boolean>;
   },
@@ -104,39 +112,100 @@ export async function registerPersistentWorldRoutes(
     }),
   );
 
-  app.post("/v1/persistent-world/actions", async (request, reply) =>
-    replyWithPersistentError(reply, async () => {
-      const scope = await scopeFor(request);
-      const body = WorldActionRequestSchema.parse(request.body);
-      if (body.actorId && body.actorId !== scope.selectedCharacterId) {
-        throw new PersistentWorldRouteError(
-          "forbidden",
-          "The requested actor is not the selected character for this world membership.",
-        );
-      }
-      const actorId = body.actorId || scope.selectedCharacterId;
-      if (!actorId) {
-        throw new PersistentWorldRouteError(
-          "actor_required",
-          "Select a character before acting in the persistent world.",
-        );
-      }
-      const idempotencyKey = String(request.headers["idempotency-key"] || "").trim();
-      if (!idempotencyKey) {
-        return reply.code(400).send({
-          error: "idempotency_key_required",
-          message: "The idempotency-key header is required.",
+  app.post("/v1/persistent-world/actions", async (request, reply) => {
+    const traceId = createGameplayTraceId(
+      request.headers["x-nocturne-trace-id"] || request.headers["x-request-id"],
+    );
+    return runWithGameplayTrace(traceId, () =>
+      replyWithPersistentError(reply, async () => {
+        const startedAt = Date.now();
+        const scope = await scopeFor(request);
+        const body = WorldActionRequestSchema.parse(request.body);
+        if (body.actorId && body.actorId !== scope.selectedCharacterId) {
+          throw new PersistentWorldRouteError(
+            "forbidden",
+            "The requested actor is not the selected character for this world membership.",
+          );
+        }
+        const actorId = body.actorId || scope.selectedCharacterId;
+        if (!actorId) {
+          throw new PersistentWorldRouteError(
+            "actor_required",
+            "Select a character before acting in the persistent world.",
+          );
+        }
+        const idempotencyKey = String(request.headers["idempotency-key"] || "").trim();
+        if (!idempotencyKey) {
+          return reply.code(400).send({
+            error: "idempotency_key_required",
+            message: "The idempotency-key header is required.",
+          });
+        }
+        const common = {
+          traceId,
+          idempotencyKeyHash: hashIdempotencyKey(idempotencyKey),
+          worldId: scope.worldId,
+          shardId: scope.shardId,
+          userId: scope.userId,
+          actorId,
+        } as const;
+        await writeGameplayTelemetry(dependencies.telemetry, {
+          ...common,
+          level: "info",
+          eventName: "request_received",
+          status: "started",
+          committed: false,
+          details: { commandLength: body.command.length },
         });
-      }
-      const result = await dependencies.actions.submit({
-        scope,
-        actorId,
-        command: body.command,
-        idempotencyKey,
-      });
-      return reply.code(result.state === "completed" ? 200 : 202).send(result);
-    }),
-  );
+        await writeGameplayTelemetry(dependencies.telemetry, {
+          ...common,
+          level: "info",
+          eventName: "scope_resolved",
+          status: "completed",
+          committed: false,
+        });
+        try {
+          const result = await dependencies.actions.submit({
+            scope,
+            actorId,
+            command: body.command,
+            idempotencyKey,
+          });
+          const actionKind =
+            result.state === "waiting_for_clarification"
+              ? undefined
+              : result.plan.steps[0]?.kind;
+          await writeGameplayTelemetry(dependencies.telemetry, {
+            ...common,
+            requestId: result.requestId,
+            actionKind,
+            level: "info",
+            eventName: result.state === "completed" ? "request_completed" : "request_waiting",
+            status: result.state === "completed" ? "completed" : "waiting",
+            durationMs: Date.now() - startedAt,
+            committed: result.state !== "waiting_for_clarification",
+            details: { resultState: result.state },
+          });
+          return reply.code(result.state === "completed" ? 200 : 202).send(result);
+        } catch (error) {
+          await writeGameplayTelemetry(dependencies.telemetry, {
+            ...common,
+            level: "error",
+            eventName: "request_failed",
+            status: "failed",
+            errorCode: errorCode(error) || "internal_error",
+            durationMs: Date.now() - startedAt,
+            committed: false,
+            details: {
+              errorName: error instanceof Error ? error.name : "UnknownError",
+              errorMessage: error instanceof Error ? error.message : String(error),
+            },
+          });
+          throw error;
+        }
+      }),
+    );
+  });
 
   app.get("/v1/operator/world/entities/:entityId", async (request, reply) =>
     replyWithPersistentError(reply, async () => {
