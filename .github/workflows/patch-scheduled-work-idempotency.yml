@@ -1,0 +1,88 @@
+name: Patch Scheduled Work Idempotency
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: patch-scheduled-work-idempotency
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    name: Patch / Scheduled Work Idempotency
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'ci/exhaustive-gameplay-certification'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ci/exhaustive-gameplay-certification
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Add deterministic child idempotency key
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("packages/database/src/universal-operation-executor.ts")
+          source = path.read_text()
+
+          old_columns = '''                  schedule_id, intent_id, world_id, shard_id, resolves_at, status,
+                  kind, payload, source_event_id, subject_entity_ids,
+                  expected_versions, resolution_policy
+          '''
+          new_columns = '''                  schedule_id, idempotency_key, intent_id, world_id, shard_id,
+                  resolves_at, status, kind, payload, source_event_id,
+                  subject_entity_ids, expected_versions, resolution_policy
+          '''
+          old_values = '''                  ${scheduleId}, ${input.sourceIntentId || null}, ${input.scope.worldId},
+                  ${input.scope.shardId}, ${resolvesAt.toISOString()}, 'pending',
+                  ${operation.kind}, ${json(payload)}::jsonb, ${eventId},
+          '''
+          new_values = '''                  ${scheduleId}, ${`${input.idempotencyKey}:schedule:${order}`},
+                  ${input.sourceIntentId || null}, ${input.scope.worldId},
+                  ${input.scope.shardId}, ${resolvesAt.toISOString()}, 'pending',
+                  ${operation.kind}, ${json(payload)}::jsonb, ${eventId},
+          '''
+
+          if old_columns not in source:
+              if "schedule_id, idempotency_key, intent_id" in source:
+                  print("Scheduled work idempotency is already patched.")
+                  raise SystemExit(0)
+              raise SystemExit("Scheduled work insert columns were not found")
+          if old_values not in source:
+              raise SystemExit("Scheduled work insert values were not found")
+
+          source = source.replace(old_columns, new_columns, 1)
+          source = source.replace(old_values, new_values, 1)
+          path.write_text(source)
+          PY
+          pnpm exec prettier --write packages/database/src/universal-operation-executor.ts
+          pnpm --filter @nocturne/database typecheck
+      - name: Commit scheduled work correction
+        run: |
+          if git diff --quiet; then
+            echo "Scheduled work idempotency is already present."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/database/src/universal-operation-executor.ts
+          git commit -m "fix: persist scheduled work idempotency keys"
+          git push origin HEAD:ci/exhaustive-gameplay-certification
