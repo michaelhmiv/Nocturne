@@ -1,0 +1,56 @@
+name: AI Provider Contract
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 9 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-provider-contract
+  cancel-in-progress: false
+
+jobs:
+  provider-contract:
+    name: Provider Contract / Structured Output
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AI_PROVIDER: ${{ vars.AI_PROVIDER || 'deepseek' }}
+      AI_MODEL: ${{ vars.AI_MODEL || 'deepseek-v4-flash' }}
+      AI_AUTHORITATIVE_MODEL: ${{ vars.AI_AUTHORITATIVE_MODEL || vars.AI_MODEL || 'deepseek-v4-flash' }}
+      AI_CREATIVE_MODEL: ${{ vars.AI_CREATIVE_MODEL || vars.AI_MODEL || 'deepseek-v4-flash' }}
+      AI_BASE_URL: ${{ vars.AI_BASE_URL || 'https://api.deepseek.com' }}
+      AI_THINKING_MODE: ${{ vars.AI_THINKING_MODE || 'disabled' }}
+      AI_JSON_MODE: ${{ vars.AI_JSON_MODE || 'true' }}
+      AI_SEND_TEMPERATURE: ${{ vars.AI_SEND_TEMPERATURE || 'true' }}
+      AI_MAX_TOKENS: ${{ vars.AI_MAX_TOKENS || '4096' }}
+      AI_TIMEOUT_MS: ${{ vars.AI_TIMEOUT_MS || '60000' }}
+      AI_API_KEY: ${{ secrets.AI_API_KEY }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Verify configured provider and model
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          pnpm --filter @nocturne/ai-gm test:provider-contract 2>&1 | tee artifacts/provider-contract.log
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: provider-contract-${{ github.run_id }}
+          path: artifacts/
+          retention-days: 30
