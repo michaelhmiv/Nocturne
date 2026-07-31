@@ -1,0 +1,211 @@
+.persistent-world-panel {
+  display: grid;
+  gap: 1rem;
+  width: min(100%, 64rem);
+  margin: 0 auto;
+  padding: 1rem 1rem calc(7rem + env(safe-area-inset-bottom));
+}
+
+.persistent-world-panel__location,
+.persistent-plan-card__header,
+.persistent-entity-card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.persistent-world-panel__location h1 {
+  margin: 0.15rem 0 0;
+  font-size: clamp(1.35rem, 5vw, 2rem);
+}
+
+.persistent-world-panel__location small,
+.persistent-world-panel__location > span,
+.persistent-plan-card__header span,
+.persistent-entity-card__presence,
+.persistent-entity-card__canonical {
+  opacity: 0.68;
+  font-size: 0.78rem;
+}
+
+.persistent-plan-card,
+.persistent-entity-card,
+.persistent-world-panel__clarification,
+.persistent-world-panel__result,
+.persistent-world-panel__known {
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, canvas 92%, currentColor 8%);
+}
+
+.persistent-plan-card,
+.persistent-world-panel__clarification,
+.persistent-world-panel__result,
+.persistent-world-panel__known {
+  padding: 0.9rem;
+}
+
+.persistent-plan-card__steps {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.persistent-plan-card__step {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.65rem;
+  border-radius: 0.65rem;
+  opacity: 0.68;
+}
+
+.persistent-plan-card__step.is-active {
+  opacity: 1;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.persistent-plan-card__step > div {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.persistent-plan-card__step-number {
+  display: grid;
+  place-items: center;
+  flex: 0 0 1.45rem;
+  height: 1.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  font-size: 0.76rem;
+}
+
+.persistent-plan-card__step p {
+  margin: 0 0 0 2.05rem;
+  font-size: 0.84rem;
+}
+
+.persistent-world-panel__section h2 {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.72;
+}
+
+.persistent-world-panel__entities {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 0.7rem;
+}
+
+.persistent-entity-card {
+  padding: 0.8rem;
+}
+
+.persistent-entity-card__header > div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.persistent-entity-card__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0.75rem 0 0;
+}
+
+.persistent-entity-card__facts div {
+  min-width: 0;
+}
+
+.persistent-entity-card__facts dt {
+  opacity: 0.58;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.persistent-entity-card__facts dd {
+  margin: 0.12rem 0 0;
+  overflow-wrap: anywhere;
+  font-size: 0.86rem;
+}
+
+.persistent-world-panel__scheduled {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0;
+  list-style: none;
+}
+
+.persistent-world-panel__scheduled li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.persistent-world-panel__composer {
+  position: fixed;
+  z-index: 20;
+  right: max(0.75rem, env(safe-area-inset-right));
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
+  left: max(0.75rem, env(safe-area-inset-left));
+  width: min(calc(100% - 1.5rem), 62rem);
+  margin: 0 auto;
+  padding: 0.7rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 1rem;
+  background: color-mix(in srgb, canvas 94%, transparent);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 0.75rem 2rem rgb(0 0 0 / 0.18);
+}
+
+.persistent-world-panel__composer label {
+  display: block;
+  margin: 0 0 0.35rem;
+  font-size: 0.76rem;
+  opacity: 0.68;
+}
+
+.persistent-world-panel__composer > div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.55rem;
+}
+
+.persistent-world-panel__composer textarea {
+  min-width: 0;
+  resize: none;
+  padding: 0.72rem;
+  border-radius: 0.7rem;
+  font: inherit;
+  font-size: 16px;
+}
+
+.persistent-world-panel__composer button {
+  min-width: 4.5rem;
+  border-radius: 0.7rem;
+}
+
+@media (max-width: 38rem) {
+  .persistent-world-panel {
+    gap: 0.75rem;
+    padding-inline: 0.7rem;
+  }
+
+  .persistent-world-panel__entities {
+    grid-template-columns: 1fr;
+  }
+
+  .persistent-entity-card__facts {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .persistent-world-panel__location > span {
+    display: none;
+  }
+}
