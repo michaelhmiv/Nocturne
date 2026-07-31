@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const migrationsDirectory = join(dirname(fileURLToPath(import.meta.url)), "../migrations");
 const files = (await readdir(migrationsDirectory)).filter((file) => file.endsWith(".sql")).sort();
-const pattern = /^\d{4}_[a-z0-9_]+\.sql$/;
+const pattern = /^\d{4}[a-z]?_[a-z0-9_]+\.sql$/;
 
 if (files.length === 0) {
   throw new Error("No SQL migrations were found.");
@@ -12,7 +12,9 @@ if (files.length === 0) {
 
 for (const file of files) {
   if (!pattern.test(file)) {
-    throw new Error(`Migration ${file} does not match ####_name.sql.`);
+    throw new Error(
+      `Migration ${file} does not match ####_name.sql or ####a_corrective_name.sql.`,
+    );
   }
   const sql = (await readFile(join(migrationsDirectory, file), "utf8")).trim();
   if (!sql) {
