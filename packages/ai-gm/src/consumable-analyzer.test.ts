@@ -54,6 +54,7 @@ const analysis: ConsumableAnalysis = {
     freshnessAssessment: "Sealed and apparently stable.",
     confidence: 0.9,
   },
+  requestedUnits: 1,
   consumeUnits: 1,
   resourceDeltas: [
     { resource: "satiety", delta: 12, rationale: "A full ration provides substantial food." },
@@ -74,7 +75,19 @@ const analysis: ConsumableAnalysis = {
 
 describe("AI-derived consumable semantics", () => {
   it("supports arbitrary fictional substances without a food catalogue", () => {
-    expect(validateConsumableAnalysisAgainstContext(analysis, request)).toEqual(analysis);
+    const result = validateConsumableAnalysisAgainstContext(analysis, request);
+    expect(result.selection).toEqual(analysis.selection);
+    expect(result.classification).toEqual(analysis.classification);
+    expect(result.consumeUnits).toBe(1);
+    expect(result.resourceDeltas).toEqual(analysis.resourceDeltas);
+    expect(result.conditions).toEqual(analysis.conditions);
+    expect(result.quantityResolution).toEqual({
+      requestedUnits: 1,
+      availableUnits: 2,
+      appliedUnits: 1,
+      limitedByAvailability: false,
+      limitedByEngine: false,
+    });
   });
 
   it("rejects an AI-selected source that is not in authoritative context", () => {
@@ -96,10 +109,37 @@ describe("AI-derived consumable semantics", () => {
     const prompt = buildConsumableAnalysisPrompt(request);
     expect(prompt).toContain("There is no food catalogue");
     expect(prompt).toContain("No specialty, luxury, celebratory, or prepared foods");
+    expect(prompt).toContain("requestedUnits");
     expect(prompt).toContain(poolId);
   });
 
-  it("prevents materialization beyond an ambient pool allowance", () => {
+  it("reconciles five requested servings to one authoritative serving", () => {
+    const result = validateConsumableAnalysisAgainstContext(
+      {
+        ...analysis,
+        requestedUnits: 5,
+        consumeUnits: 5,
+      },
+      {
+        ...request,
+        rawText: "Eat 5 bowls of the ration",
+        candidates: [{ ...request.candidates[0]!, quantity: 1 }],
+      },
+    );
+
+    expect(result.consumeUnits).toBe(1);
+    expect(result.quantityResolution).toEqual({
+      requestedUnits: 5,
+      availableUnits: 1,
+      appliedUnits: 1,
+      limitedByAvailability: true,
+      limitedByEngine: false,
+    });
+    expect(result.resourceDeltas[0]?.delta).toBe(2);
+    expect(result.narrationFacts.join(" ")).toContain("Requested 5 units; 1 unit can be consumed");
+  });
+
+  it("caps ambient materialization to the authoritative pool instead of throwing", () => {
     const ambient: ConsumableAnalysis = {
       ...analysis,
       selection: {
@@ -109,6 +149,7 @@ describe("AI-derived consumable semantics", () => {
         rationale: "A mundane pantry item consistent with the pool.",
         confidence: 0.8,
       },
+      requestedUnits: 4,
       consumeUnits: 4,
       materialization: {
         name: "Plain crackers",
@@ -118,8 +159,9 @@ describe("AI-derived consumable semantics", () => {
       },
     };
 
-    expect(() => validateConsumableAnalysisAgainstContext(ambient, request)).toThrow(
-      /exceeds the available source quantity|exceeds the ambient resource allowance/,
-    );
+    const result = validateConsumableAnalysisAgainstContext(ambient, request);
+    expect(result.consumeUnits).toBe(3);
+    expect(result.materialization?.unitsCreated).toBe(3);
+    expect(result.quantityResolution?.limitedByAvailability).toBe(true);
   });
 });

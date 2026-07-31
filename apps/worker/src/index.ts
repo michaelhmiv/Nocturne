@@ -1,7 +1,7 @@
 import { hostname } from "node:os";
 import { createAiJobStore, createDatabase, type AiJob } from "@nocturne/database";
 import { readAiJobWorkerConfig } from "./ai-job-config.js";
-import { aiJobErrorCode, aiJobRetryDelaySeconds } from "./ai-job-policy.js";
+import { aiJobErrorCode, aiJobIsRetryable, aiJobRetryDelaySeconds } from "./ai-job-policy.js";
 
 const json = (value: unknown) => JSON.stringify(value);
 
@@ -196,11 +196,13 @@ async function tickAiJobs() {
     } catch (error) {
       const delaySeconds = aiJobRetryDelaySeconds(job.attempts);
       const errorCode = aiJobErrorCode(error);
+      const retryable = aiJobIsRetryable(error);
       const updated = await aiJobs.retryOrFail(
         workerId,
         job.jobId,
         errorCode,
         delaySeconds,
+        retryable,
       );
       console.error(
         JSON.stringify({
@@ -210,6 +212,7 @@ async function tickAiJobs() {
           job_id: job.jobId,
           kind: job.kind,
           attempt: job.attempts,
+          retryable,
           next_delay_seconds: updated.status === "retrying" ? delaySeconds : null,
           error_code: errorCode,
           error: String(error),
