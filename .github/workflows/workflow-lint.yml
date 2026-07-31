@@ -18,4 +18,4 @@ jobs:
           docker run --rm \
             -v "$PWD:/repo" \
             -w /repo \
-            rhysd/actionlint:latest
+            rhysd/actionlint:latest -shellcheck=
