@@ -152,10 +152,20 @@ function omitUnexpectedNulls(value: unknown, schema: unknown, root: JsonObject):
   return cleaned;
 }
 
+function numericExample(resolved: JsonObject, integer: boolean): number {
+  if (typeof resolved.minimum === "number") return resolved.minimum;
+  if (typeof resolved.exclusiveMinimum === "number") {
+    return integer ? Math.floor(resolved.exclusiveMinimum) + 1 : resolved.exclusiveMinimum + 0.1;
+  }
+  return 0;
+}
+
 function exampleFromSchema(schema: unknown, root: JsonObject, depth = 0): unknown {
   if (depth > 8) return null;
   const resolved = resolveSchema(schema, root);
   if (!resolved) return null;
+  if ("const" in resolved) return resolved.const;
+  if ("default" in resolved) return resolved.default;
   if (Array.isArray(resolved.enum) && resolved.enum.length > 0) return resolved.enum[0];
   const variants = Array.isArray(resolved.anyOf)
     ? resolved.anyOf
@@ -179,10 +189,24 @@ function exampleFromSchema(schema: unknown, root: JsonObject, depth = 0): unknow
     );
   }
   if (type === "array") return [];
-  if (type === "integer" || type === "number") return 0;
+  if (type === "integer") return numericExample(resolved, true);
+  if (type === "number") return numericExample(resolved, false);
   if (type === "boolean") return false;
   if (type === "null") return null;
+  if (type === "string" && typeof resolved.minLength === "number" && resolved.minLength > 0) {
+    return "x".repeat(Math.min(resolved.minLength, 32));
+  }
   return "<string>";
+}
+
+function validationRepairPrompt<T>(
+  request: StructuredGenerationRequest<T>,
+  error: AiProviderError,
+): string | null {
+  if (error.code !== "validation" || !object(error.cause)) return null;
+  const decoded = JSON.stringify(error.cause.decoded ?? null).slice(0, 8_000);
+  const issues = JSON.stringify(error.cause.issues ?? []).slice(0, 4_000);
+  return `${request.prompt}\n\nCORRECTION REQUIRED:\nThe previous JSON object failed validation. Return a corrected complete object, not a patch.\nValidation issues: ${issues}\nPrevious JSON: ${decoded}`;
 }
 
 const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
@@ -197,11 +221,12 @@ export class AiProviderClient {
     const policy = createModelPolicy({ task: request.task });
     const startedAt = Date.now();
     let lastError: unknown;
+    let activeRequest = request;
 
     for (let attempt = 1; attempt <= retries + 1; attempt += 1) {
       const attemptStartedAt = Date.now();
       try {
-        const result = await this.callDeepSeek(request, policy.temperature);
+        const result = await this.callDeepSeek(activeRequest, policy.temperature);
         this.config.logger?.({
           task: request.task,
           provider: "deepseek",
@@ -229,6 +254,10 @@ export class AiProviderClient {
           errorCode: code,
         });
         if (!isTransientAiProviderError(error) || attempt > retries) throw error;
+        if (error instanceof AiProviderError) {
+          const repairedPrompt = validationRepairPrompt(request, error);
+          if (repairedPrompt) activeRequest = { ...request, prompt: repairedPrompt };
+        }
       }
     }
     throw lastError;
@@ -352,6 +381,7 @@ export class AiProviderClient {
       throw new AiProviderError(
         "validation",
         `DeepSeek structured output failed validation: ${validated.error.message}`,
+        { cause: { decoded, issues: validated.error.issues } },
       );
     }
 
