@@ -1,6 +1,10 @@
 name: AI Provider Contract
 
 on:
+  pull_request:
+  push:
+    branches:
+      - main
   workflow_dispatch:
   schedule:
     - cron: "17 9 * * *"
@@ -9,14 +13,15 @@ permissions:
   contents: read
 
 concurrency:
-  group: ai-provider-contract
-  cancel-in-progress: false
+  group: ai-provider-contract-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   provider-contract:
-    name: Provider Contract / Structured Output
+    name: Provider Contract / Production Planner
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       AI_PROVIDER: ${{ vars.AI_PROVIDER || 'deepseek' }}
       AI_MODEL: ${{ vars.AI_MODEL || 'deepseek-v4-flash' }}
@@ -28,6 +33,7 @@ jobs:
       AI_SEND_TEMPERATURE: ${{ vars.AI_SEND_TEMPERATURE || 'true' }}
       AI_MAX_TOKENS: ${{ vars.AI_MAX_TOKENS || '4096' }}
       AI_TIMEOUT_MS: ${{ vars.AI_TIMEOUT_MS || '60000' }}
+      AI_EXTRA_BODY_JSON: ${{ vars.AI_EXTRA_BODY_JSON || '{}' }}
       AI_API_KEY: ${{ secrets.AI_API_KEY }}
       DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -43,7 +49,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Verify configured provider and model
+      - name: Verify configured provider, model, and production planner schema
         run: |
           mkdir -p artifacts
           set -o pipefail
