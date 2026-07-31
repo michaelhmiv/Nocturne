@@ -40,37 +40,19 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-
           path = Path("packages/database/src/consumption-store.ts")
           source = path.read_text()
-
-          entity_old = '''        quantity,
-        state,
-        constraints: arrayOfStrings(state.constraints),
-          '''
-          entity_new = '''        quantity: Math.min(quantity, 1_000),
-        state,
-        constraints: arrayOfStrings(state.constraints),
-          '''
-          pool_old = '''          quantity: numeric(row.units_remaining, 0),
-          state: object(row.state),
-          '''
-          pool_new = '''          quantity: Math.min(numeric(row.units_remaining, 0), 1_000),
-          state: object(row.state),
-          '''
-
-          already = (
-              "quantity: Math.min(quantity, 1_000)" in source
-              and "quantity: Math.min(numeric(row.units_remaining, 0), 1_000)" in source
-          )
-          if already:
+          entity_old = "        quantity,\n        state,\n        constraints: arrayOfStrings(state.constraints),"
+          entity_new = "        quantity: Math.min(quantity, 1_000),\n        state,\n        constraints: arrayOfStrings(state.constraints),"
+          pool_old = "          quantity: numeric(row.units_remaining, 0),\n          state: object(row.state),"
+          pool_new = "          quantity: Math.min(numeric(row.units_remaining, 0), 1_000),\n          state: object(row.state),"
+          if entity_new in source and pool_new in source:
               print("Consumption analysis quantities are already saturated.")
               raise SystemExit(0)
           if entity_old not in source:
               raise SystemExit("Entity candidate quantity block was not found")
           if pool_old not in source:
               raise SystemExit("Ambient pool quantity block was not found")
-
           source = source.replace(entity_old, entity_new, 1)
           source = source.replace(pool_old, pool_new, 1)
           path.write_text(source)
