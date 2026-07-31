@@ -1,0 +1,75 @@
+name: Patch Exact Action Classification
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: patch-exact-action-classification
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    name: Patch / Exact Action Classification
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'ci/exhaustive-gameplay-certification'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ci/exhaustive-gameplay-certification
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Prioritize explicit detect classification
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/ci/fake-ai-provider.ts")
+          source = path.read_text()
+          detect_line = '  if (/\\b(detect|scan|check .*watching|hidden threats)\\b/.test(text)) return "detect";\n'
+          move_line = '  if (/\\b(walk|move|head toward|go to|travel)\\b/.test(text)) return "move";\n'
+          search_line = '  if (/\\b(search|look through|look for|scan .*for)\\b/.test(text)) return "search";\n'
+
+          if detect_line not in source:
+              raise SystemExit("Detect classifier line was not found")
+          source = source.replace(detect_line, "", 1)
+          if search_line not in source:
+              raise SystemExit("Search classifier line was not found")
+          source = source.replace(search_line, detect_line + search_line, 1)
+
+          # Keep movement after exact search/detect classification; avoid a future
+          # broad ordering regression when prompts contain both observation and travel terms.
+          if move_line not in source:
+              raise SystemExit("Move classifier line was not found")
+
+          path.write_text(source)
+          PY
+          pnpm exec prettier --write scripts/ci/fake-ai-provider.ts
+          pnpm exec tsc --noEmit --target ES2023 --module NodeNext --moduleResolution NodeNext --types node scripts/ci/fake-ai-provider.ts
+      - name: Commit classification correction
+        run: |
+          if git diff --quiet; then
+            echo "Exact action classification is already ordered correctly."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/ci/fake-ai-provider.ts
+          git commit -m "test: preserve exact detect classification"
+          git push origin HEAD:ci/exhaustive-gameplay-certification
