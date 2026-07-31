@@ -6,6 +6,7 @@ export * from "./conversation.js";
 export * from "./event.js";
 export * from "./materialization.js";
 export * from "./normalization.js";
+export * from "./relevance-context.js";
 export * from "./resolution.js";
 export * from "./scene.js";
 export * from "./world-operations.js";
