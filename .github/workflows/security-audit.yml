@@ -1,0 +1,65 @@
+name: Public Repository Security Audit
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+  schedule:
+    - cron: "41 8 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-security-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository-secret-scan:
+    name: Security / Full History Secret Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reject tracked environment and private-key files
+        shell: bash
+        run: |
+          set -euo pipefail
+          forbidden="$({
+            git ls-files | grep -E '(^|/)\.env($|\.)|\.(pem|p12|pfx|key)$|(^|/)(id_rsa|id_ed25519)$' || true
+          } | grep -vE '(^|/)\.env\.example$' || true)"
+          if [ -n "$forbidden" ]; then
+            echo "Sensitive file types are tracked:"
+            echo "$forbidden"
+            exit 1
+          fi
+
+      - name: Enforce public-client environment boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          matches="$(git grep -nI -E 'NEXT_PUBLIC_[A-Z0-9_]*(SECRET|TOKEN|PASSWORD|PRIVATE|API_KEY)' -- ':!docs/**' ':!*.md' || true)"
+          if [ -n "$matches" ]; then
+            echo "Server-only credential names were exposed through NEXT_PUBLIC variables:"
+            echo "$matches"
+            exit 1
+          fi
+
+      - name: Scan complete Git history with Gitleaks
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/repo" \
+            ghcr.io/gitleaks/gitleaks:v8.30.1 \
+            detect \
+            --source=/repo \
+            --no-banner \
+            --redact \
+            --verbose \
+            --log-opts="--all"
