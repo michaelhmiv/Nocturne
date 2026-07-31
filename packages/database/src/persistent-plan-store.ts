@@ -99,8 +99,8 @@ export function createPersistentPlanStore(database: ReturnType<typeof createData
         plan_version: string;
         active_step_id: string | null;
         exclusive_physical: boolean;
-        created_at: Date;
-        updated_at: Date;
+        created_at: Date | string;
+        updated_at: Date | string;
       }[]
     >`
       SELECT plan_id, actor_id, status, plan_version::text, active_step_id,
@@ -147,8 +147,8 @@ export function createPersistentPlanStore(database: ReturnType<typeof createData
         waitingReason: step.waiting_reason,
         outcomeGrade: step.outcome_grade,
       })),
-      createdAt: plan.created_at.toISOString(),
-      updatedAt: plan.updated_at.toISOString(),
+      createdAt: new Date(plan.created_at).toISOString(),
+      updatedAt: new Date(plan.updated_at).toISOString(),
     });
   }
 
