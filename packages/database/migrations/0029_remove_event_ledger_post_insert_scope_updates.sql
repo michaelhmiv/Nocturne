@@ -5,35 +5,42 @@
 -- unnecessary in the launch world.
 --
 -- Drop only triggers whose function body performs the invalid event-ledger
--- UPDATE. Use catalog introspection so this corrective migration works across
--- databases where the historical trigger/function names differ.
+-- UPDATE. Materialize actual trigger functions before calling
+-- pg_get_functiondef so PostgreSQL cannot reorder evaluation across aggregate
+-- pg_proc rows such as array_agg.
 
 DO $$
 DECLARE
   trigger_record record;
 BEGIN
   FOR trigger_record IN
-    SELECT
-      trigger.oid AS trigger_oid,
-      namespace.nspname AS table_schema,
-      relation.relname AS table_name,
-      trigger.tgname AS trigger_name,
-      function_namespace.nspname AS function_schema,
-      function.proname AS function_name,
-      function.oid AS function_oid
-    FROM pg_trigger trigger
-    JOIN pg_class relation
-      ON relation.oid = trigger.tgrelid
-    JOIN pg_namespace namespace
-      ON namespace.oid = relation.relnamespace
-    JOIN pg_proc function
-      ON function.oid = trigger.tgfoid
-    JOIN pg_namespace function_namespace
-      ON function_namespace.oid = function.pronamespace
-    WHERE NOT trigger.tgisinternal
-      AND pg_get_functiondef(function.oid) ILIKE '%UPDATE game.event_ledger%'
-      AND pg_get_functiondef(function.oid) ILIKE '%world_id = NEW.world_id%'
-      AND pg_get_functiondef(function.oid) ILIKE '%shard_id = NEW.shard_id%'
+    WITH candidate_triggers AS MATERIALIZED (
+      SELECT
+        trigger.oid AS trigger_oid,
+        namespace.nspname AS table_schema,
+        relation.relname AS table_name,
+        trigger.tgname AS trigger_name,
+        function_namespace.nspname AS function_schema,
+        function.proname AS function_name,
+        function.oid AS function_oid,
+        pg_get_functiondef(trigger.tgfoid) AS function_definition
+      FROM pg_trigger trigger
+      JOIN pg_class relation
+        ON relation.oid = trigger.tgrelid
+      JOIN pg_namespace namespace
+        ON namespace.oid = relation.relnamespace
+      JOIN pg_proc function
+        ON function.oid = trigger.tgfoid
+       AND function.prokind = 'f'
+      JOIN pg_namespace function_namespace
+        ON function_namespace.oid = function.pronamespace
+      WHERE NOT trigger.tgisinternal
+    )
+    SELECT *
+    FROM candidate_triggers
+    WHERE function_definition ILIKE '%UPDATE game.event_ledger%'
+      AND function_definition ILIKE '%world_id = NEW.world_id%'
+      AND function_definition ILIKE '%shard_id = NEW.shard_id%'
   LOOP
     EXECUTE format(
       'DROP TRIGGER IF EXISTS %I ON %I.%I',
@@ -49,7 +56,7 @@ BEGIN
         AND NOT remaining.tgisinternal
     ) THEN
       EXECUTE format(
-        'DROP FUNCTION IF EXISTS %I.%I() ',
+        'DROP FUNCTION IF EXISTS %I.%I()',
         trigger_record.function_schema,
         trigger_record.function_name
       );
@@ -65,14 +72,19 @@ ALTER TABLE game.event_ledger
 DO $$
 BEGIN
   IF EXISTS (
+    WITH candidate_triggers AS MATERIALIZED (
+      SELECT pg_get_functiondef(trigger.tgfoid) AS function_definition
+      FROM pg_trigger trigger
+      JOIN pg_proc function
+        ON function.oid = trigger.tgfoid
+       AND function.prokind = 'f'
+      WHERE NOT trigger.tgisinternal
+    )
     SELECT 1
-    FROM pg_trigger trigger
-    JOIN pg_proc function
-      ON function.oid = trigger.tgfoid
-    WHERE NOT trigger.tgisinternal
-      AND pg_get_functiondef(function.oid) ILIKE '%UPDATE game.event_ledger%'
-      AND pg_get_functiondef(function.oid) ILIKE '%world_id = NEW.world_id%'
-      AND pg_get_functiondef(function.oid) ILIKE '%shard_id = NEW.shard_id%'
+    FROM candidate_triggers
+    WHERE function_definition ILIKE '%UPDATE game.event_ledger%'
+      AND function_definition ILIKE '%world_id = NEW.world_id%'
+      AND function_definition ILIKE '%shard_id = NEW.shard_id%'
   ) THEN
     RAISE EXCEPTION 'Invalid post-insert event-ledger scope mutation trigger remains installed';
   END IF;
