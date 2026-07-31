@@ -35,6 +35,7 @@ export * from "./persistent-plan-store.js";
 export * from "./reference-resolution-store.js";
 export * from "./relationship-store.js";
 export * from "./relevance-context-store.js";
+export * from "./scheduled-work-store.js";
 export * from "./state-operation-executor.js";
 export * from "./universal-operation-executor.js";
 export * from "./world-schema.js";
