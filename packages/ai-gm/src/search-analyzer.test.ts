@@ -40,7 +40,7 @@ const materializedAnalysis: SearchDiscoveryAnalysis = {
 describe("search and discovery analysis", () => {
   it("preserves search as a contest and does not equate a request with existence", () => {
     const prompt = buildSearchAnalysisPrompt(request);
-    expect(prompt).toContain("requesting something is not evidence");
+    expect(prompt).toContain("asking for something is not evidence");
     expect(prompt).toContain("Finding an entity creates observation/knowledge only");
   });
 
