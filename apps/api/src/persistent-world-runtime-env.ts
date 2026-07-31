@@ -143,6 +143,7 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
     rollSecret,
     resolveScope,
     listRecentPlayerSafeText: async ({ scope, limit }) => {
+      const boundedLimit = Math.max(1, Math.min(limit, 20));
       const rows = await database.client<
         { command: string; player_safe_result: Record<string, unknown> | null }[]
       >`
@@ -152,11 +153,12 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
           AND shard_id = ${scope.shardId}
           AND user_id = ${scope.userId}
         ORDER BY created_at DESC
-        LIMIT ${Math.max(1, Math.min(limit, 50))}
+        LIMIT ${boundedLimit}
       `;
       return rows
         .flatMap((row) => [row.command, playerText(row.player_safe_result)])
-        .filter((value): value is string => Boolean(value));
+        .filter((value): value is string => Boolean(value))
+        .slice(0, boundedLimit);
     },
     loadReusableDefinitions: async ({ scope, requestedConcept }) => {
       const exactPattern = `%${requestedConcept.trim()}%`;
