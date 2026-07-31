@@ -39,38 +39,49 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
           path = Path("packages/database/src/universal-operation-executor.ts")
           source = path.read_text()
 
-          old_columns = '''                  schedule_id, intent_id, world_id, shard_id, resolves_at, status,
-                  kind, payload, source_event_id, subject_entity_ids,
-                  expected_versions, resolution_policy
-          '''
-          new_columns = '''                  schedule_id, idempotency_key, intent_id, world_id, shard_id,
-                  resolves_at, status, kind, payload, source_event_id,
-                  subject_entity_ids, expected_versions, resolution_policy
-          '''
-          old_values = '''                  ${scheduleId}, ${input.sourceIntentId || null}, ${input.scope.worldId},
-                  ${input.scope.shardId}, ${resolvesAt.toISOString()}, 'pending',
-                  ${operation.kind}, ${json(payload)}::jsonb, ${eventId},
-          '''
-          new_values = '''                  ${scheduleId}, ${`${input.idempotencyKey}:schedule:${order}`},
-                  ${input.sourceIntentId || null}, ${input.scope.worldId},
-                  ${input.scope.shardId}, ${resolvesAt.toISOString()}, 'pending',
-                  ${operation.kind}, ${json(payload)}::jsonb, ${eventId},
-          '''
+          if "schedule_id, idempotency_key, intent_id" in source:
+              print("Scheduled work idempotency is already patched.")
+              raise SystemExit(0)
 
-          if old_columns not in source:
-              if "schedule_id, idempotency_key, intent_id" in source:
-                  print("Scheduled work idempotency is already patched.")
-                  raise SystemExit(0)
-              raise SystemExit("Scheduled work insert columns were not found")
-          if old_values not in source:
-              raise SystemExit("Scheduled work insert values were not found")
+          columns_pattern = re.compile(
+              r"schedule_id,\s*intent_id,\s*world_id,\s*shard_id,\s*resolves_at,\s*status,\s*"
+              r"kind,\s*payload,\s*source_event_id,\s*subject_entity_ids,\s*"
+              r"expected_versions,\s*resolution_policy",
+              re.DOTALL,
+          )
+          source, column_count = columns_pattern.subn(
+              "schedule_id, idempotency_key, intent_id, world_id, shard_id,\n"
+              "                  resolves_at, status, kind, payload, source_event_id,\n"
+              "                  subject_entity_ids, expected_versions, resolution_policy",
+              source,
+              count=1,
+          )
+          if column_count != 1:
+              raise SystemExit(f"Expected one scheduled work insert column list; found {column_count}")
 
-          source = source.replace(old_columns, new_columns, 1)
-          source = source.replace(old_values, new_values, 1)
+          values_pattern = re.compile(
+              r"\$\{scheduleId\},\s*\$\{input\.sourceIntentId \|\| null\},\s*"
+              r"\$\{input\.scope\.worldId\},\s*\$\{input\.scope\.shardId\},\s*"
+              r"\$\{resolvesAt\.toISOString\(\)\},\s*'pending',\s*"
+              r"\$\{operation\.kind\},\s*\$\{json\(payload\)\}::jsonb,\s*\$\{eventId\},",
+              re.DOTALL,
+          )
+          source, value_count = values_pattern.subn(
+              "${scheduleId}, ${`${input.idempotencyKey}:schedule:${order}`},\n"
+              "                  ${input.sourceIntentId || null}, ${input.scope.worldId},\n"
+              "                  ${input.scope.shardId}, ${resolvesAt.toISOString()}, 'pending',\n"
+              "                  ${operation.kind}, ${json(payload)}::jsonb, ${eventId},",
+              source,
+              count=1,
+          )
+          if value_count != 1:
+              raise SystemExit(f"Expected one scheduled work insert value list; found {value_count}")
+
           path.write_text(source)
           PY
           pnpm exec prettier --write packages/database/src/universal-operation-executor.ts
