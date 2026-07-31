@@ -1,0 +1,33 @@
+name: Migration Integrity
+
+on:
+  pull_request:
+    paths:
+      - "packages/database/migrations/**"
+      - "scripts/ci/check-migration-immutability.mjs"
+      - ".github/workflows/migration-integrity.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "packages/database/migrations/**"
+      - "scripts/ci/check-migration-immutability.mjs"
+      - ".github/workflows/migration-integrity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  immutable-history:
+    name: Migration / Immutable History
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reject changed or removed migrations from main
+        env:
+          MIGRATION_BASE_REF: origin/main
+        run: node scripts/ci/check-migration-immutability.mjs
