@@ -86,6 +86,7 @@ describe("persistent world cutover contracts", () => {
       },
     });
     expect(waiting.state).toBe("waiting");
+    if (waiting.state !== "waiting") throw new Error("Expected a waiting world action result.");
     expect(waiting.plan.steps[1]?.status).toBe("pending");
   });
 
@@ -97,6 +98,10 @@ describe("persistent world cutover contracts", () => {
       expectedVersion: 8,
       reason: "Repair a location corrupted by a failed prototype event.",
     });
+    expect(repair.actionType).toBe("relocate_entity");
+    if (repair.actionType !== "relocate_entity") {
+      throw new Error("Expected an entity relocation repair.");
+    }
     expect(repair.expectedVersion).toBe(8);
   });
 });
