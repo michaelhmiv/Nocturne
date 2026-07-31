@@ -1,13 +1,36 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { AiProviderClient, DEEPSEEK_FLASH_MODEL } from "./index.js";
+import {
+  AiProviderClient,
+  DEEPSEEK_FLASH_MODEL,
+  resolveAiProviderConfigFromEnv,
+} from "./index.js";
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("AiProviderClient DeepSeek Flash request", () => {
-  it("uses only the direct DeepSeek Flash JSON endpoint and builds valid examples", async () => {
+const request = () => ({
+  task: "parse_intent" as const,
+  system: "Return the requested object.",
+  prompt: "Return value ok.",
+  jsonSchema: {
+    name: "test_schema",
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["value", "count"],
+      properties: {
+        value: { type: "string", minLength: 1 },
+        count: { type: "integer", minimum: 1 },
+      },
+    },
+  },
+  validator: z.object({ value: z.string(), count: z.number().int().min(1) }),
+});
+
+describe("AiProviderClient structured requests", () => {
+  it("uses the direct DeepSeek Flash JSON endpoint by default and builds valid examples", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -26,24 +49,7 @@ describe("AiProviderClient DeepSeek Flash request", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const client = new AiProviderClient({ deepseekApiKey: "deepseek-test-key" });
-    const result = await client.generateStructured({
-      task: "parse_intent",
-      system: "Return the requested object.",
-      prompt: "Return value ok.",
-      jsonSchema: {
-        name: "test_schema",
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          required: ["value", "count"],
-          properties: {
-            value: { type: "string", minLength: 1 },
-            count: { type: "integer", minimum: 1 },
-          },
-        },
-      },
-      validator: z.object({ value: z.string(), count: z.number().int().min(1) }),
-    });
+    const result = await client.generateStructured(request());
 
     expect(result.data).toEqual({ value: "ok", count: 1 });
     expect(result.provider).toBe("deepseek");
@@ -60,6 +66,68 @@ describe("AiProviderClient DeepSeek Flash request", () => {
     expect(body).not.toHaveProperty("plugins");
     expect(body).not.toHaveProperty("provider");
     expect(body.messages[0].content).toContain('"count":1');
+  });
+
+  it("can switch to another OpenAI-compatible provider and model without code changes", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: "compatible-valid",
+          model: "provider-model-v2",
+          choices: [
+            {
+              finish_reason: "stop",
+              message: { content: JSON.stringify({ value: "ok", count: 1 }) },
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new AiProviderClient({
+      provider: "openai_compatible",
+      apiKey: "compatible-key",
+      baseUrl: "https://provider.example/v1/",
+      model: "provider-model-v2",
+      authoritativeModel: "provider-model-v2",
+      creativeModel: "provider-model-v2",
+      thinkingMode: "omit",
+    });
+    const result = await client.generateStructured(request());
+
+    expect(result.provider).toBe("openai_compatible");
+    expect(result.requestedModel).toBe("provider-model-v2");
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("https://provider.example/v1/chat/completions");
+    const body = JSON.parse(String(init?.body));
+    expect(body.model).toBe("provider-model-v2");
+    expect(body).not.toHaveProperty("thinking");
+    expect(body.response_format).toEqual({ type: "json_object" });
+  });
+
+  it("resolves Railway-style environment variables", () => {
+    const configuration = resolveAiProviderConfigFromEnv({
+      AI_PROVIDER: "openrouter",
+      AI_MODEL: "deepseek/deepseek-v4-flash",
+      AI_API_KEY: "test-key",
+      AI_THINKING_MODE: "omit",
+      AI_MAX_TOKENS: "8192",
+      AI_TIMEOUT_MS: "90000",
+      AI_HTTP_REFERER: "https://nocturne.example",
+      AI_APP_TITLE: "Nocturne",
+    });
+
+    expect(configuration.provider).toBe("openrouter");
+    expect(configuration.baseUrl).toBe("https://openrouter.ai/api/v1");
+    expect(configuration.model).toBe("deepseek/deepseek-v4-flash");
+    expect(configuration.maxTokens).toBe(8192);
+    expect(configuration.timeoutMs).toBe(90000);
+    expect(configuration.extraHeaders).toEqual({
+      "HTTP-Referer": "https://nocturne.example",
+      "X-Title": "Nocturne",
+    });
   });
 
   it("uses the validation error and prior JSON for one targeted repair attempt", async () => {

@@ -7,18 +7,16 @@ import type { AiProviderClient } from "@nocturne/ai-gm";
 import {
   createMaterializationStore,
   createPersistentPlanStore,
+  createPersistentSceneStore,
   createReferenceResolutionStore,
   createRelevanceContextStore,
   createUniversalOperationExecutor,
-  type WorldScope,
-  type createDatabase,
-} from "@nocturne/database";
-import {
-  createPersistentSceneStore,
   createWorldActionRequestStore,
   createWorldActionStepStore,
   createWorldInspectorStore,
-} from "../../../packages/database/src/persistent-world-index.js";
+  type WorldScope,
+  type createDatabase,
+} from "@nocturne/database";
 import { createPersistentWorldActionService } from "./persistent-world-action-service.js";
 import { registerPersistentWorldRoutes } from "./persistent-world-routes.js";
 import { createSearchDiscoveryService } from "./search-discovery-service.js";

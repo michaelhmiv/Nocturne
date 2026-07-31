@@ -1,5 +1,13 @@
 import type { ZodType } from "zod";
-import { DEEPSEEK_FLASH_MODEL, createModelPolicy, type AiTask } from "./model-policy.js";
+import {
+  DEFAULT_AI_MODEL,
+  createModelPolicy,
+  type AiAuthority,
+  type AiTask,
+} from "./model-policy.js";
+
+export type AiProviderName = "deepseek" | "openai" | "openrouter" | "openai_compatible";
+export type AiThinkingMode = "enabled" | "disabled" | "omit";
 
 export interface JsonSchemaDefinition {
   name: string;
@@ -9,8 +17,8 @@ export interface JsonSchemaDefinition {
 
 export interface AiProviderTelemetry {
   task: AiTask;
-  provider: "deepseek";
-  model: typeof DEEPSEEK_FLASH_MODEL;
+  provider: AiProviderName;
+  model: string;
   attempt: number;
   latencyMs: number;
   status: "success" | "error";
@@ -18,8 +26,38 @@ export interface AiProviderTelemetry {
 }
 
 export interface AiProviderConfig {
-  deepseekApiKey?: string;
+  provider?: AiProviderName;
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
+  authoritativeModel?: string;
+  creativeModel?: string;
+  thinkingMode?: AiThinkingMode;
   timeoutMs?: number;
+  maxTokens?: number;
+  jsonMode?: boolean;
+  sendTemperature?: boolean;
+  extraHeaders?: Record<string, string>;
+  extraBody?: Record<string, unknown>;
+  logger?: (entry: AiProviderTelemetry) => void;
+  /** Backward-compatible direct DeepSeek key used by older call sites. */
+  deepseekApiKey?: string;
+}
+
+export interface ResolvedAiProviderConfig {
+  provider: AiProviderName;
+  apiKey?: string;
+  baseUrl: string;
+  model: string;
+  authoritativeModel: string;
+  creativeModel: string;
+  thinkingMode: AiThinkingMode;
+  timeoutMs: number;
+  maxTokens: number;
+  jsonMode: boolean;
+  sendTemperature: boolean;
+  extraHeaders: Record<string, string>;
+  extraBody: Record<string, unknown>;
   logger?: (entry: AiProviderTelemetry) => void;
 }
 
@@ -29,6 +67,7 @@ export interface StructuredGenerationRequest<T> {
   prompt: string;
   jsonSchema: JsonSchemaDefinition;
   validator: ZodType<T>;
+  /** Internal task override. This is never accepted directly from a player request. */
   requestedModel?: string;
   signal?: AbortSignal;
 }
@@ -37,7 +76,7 @@ export interface StructuredGenerationResult<T> {
   data: T;
   requestedModel: string;
   actualModel: string;
-  provider?: "deepseek";
+  provider?: AiProviderName;
   providerRequestId?: string;
   attempts?: number;
   latencyMs?: number;
@@ -88,8 +127,153 @@ interface ProviderResponse {
 
 type JsonObject = Record<string, unknown>;
 
+type Environment = Record<string, string | undefined>;
+
+const PROVIDER_DEFAULTS: Record<AiProviderName, { baseUrl: string; model: string }> = {
+  deepseek: { baseUrl: "https://api.deepseek.com", model: DEFAULT_AI_MODEL },
+  openai: { baseUrl: "https://api.openai.com/v1", model: "gpt-4.1-mini" },
+  openrouter: { baseUrl: "https://openrouter.ai/api/v1", model: "deepseek/deepseek-v4-flash" },
+  openai_compatible: { baseUrl: "", model: DEFAULT_AI_MODEL },
+};
+
 function object(value: unknown): value is JsonObject {
   return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function configured(value: string | undefined) {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
+}
+
+function parseProvider(value: string | undefined): AiProviderName {
+  const normalized = configured(value)?.toLowerCase();
+  if (!normalized) return "deepseek";
+  if (["deepseek", "openai", "openrouter", "openai_compatible"].includes(normalized)) {
+    return normalized as AiProviderName;
+  }
+  throw new AiProviderError(
+    "configuration",
+    `Unsupported AI_PROVIDER ${JSON.stringify(value)}. Use deepseek, openai, openrouter, or openai_compatible.`,
+  );
+}
+
+function parsePositiveInteger(value: string | undefined, fallback: number, minimum: number, maximum: number) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(minimum, Math.min(maximum, Math.floor(parsed)));
+}
+
+function parseBoolean(value: string | undefined, fallback: boolean) {
+  if (value === undefined) return fallback;
+  return !["false", "0", "no", "off"].includes(value.trim().toLowerCase());
+}
+
+function parseJsonObject(value: string | undefined, field: string): Record<string, unknown> {
+  if (!configured(value)) return {};
+  try {
+    const decoded = JSON.parse(value!);
+    if (!object(decoded)) throw new Error("must be a JSON object");
+    return decoded;
+  } catch (error) {
+    throw new AiProviderError(
+      "configuration",
+      `${field} must contain a valid JSON object.`,
+      { cause: error },
+    );
+  }
+}
+
+function providerApiKey(provider: AiProviderName, environment: Environment) {
+  const generic = configured(environment.AI_API_KEY);
+  if (generic) return generic;
+  if (provider === "deepseek") return configured(environment.DEEPSEEK_API_KEY);
+  if (provider === "openai") return configured(environment.OPENAI_API_KEY);
+  if (provider === "openrouter") return configured(environment.OPENROUTER_API_KEY);
+  return undefined;
+}
+
+function providerHeaders(provider: AiProviderName, environment: Environment) {
+  const headers: Record<string, string> = {};
+  if (provider === "openrouter") {
+    const referer = configured(environment.AI_HTTP_REFERER || environment.OPENROUTER_HTTP_REFERER);
+    const title = configured(environment.AI_APP_TITLE || environment.OPENROUTER_APP_TITLE);
+    if (referer) headers["HTTP-Referer"] = referer;
+    if (title) headers["X-Title"] = title;
+  }
+  return headers;
+}
+
+export function resolveAiProviderConfigFromEnv(
+  environment: Environment = process.env,
+): ResolvedAiProviderConfig {
+  const provider = parseProvider(environment.AI_PROVIDER);
+  const defaults = PROVIDER_DEFAULTS[provider];
+  const model =
+    configured(environment.AI_MODEL) ||
+    configured(environment.DEEPSEEK_MODEL) ||
+    defaults.model;
+  const baseUrl = configured(environment.AI_BASE_URL) || defaults.baseUrl;
+  if (!baseUrl) {
+    throw new AiProviderError(
+      "configuration",
+      "AI_BASE_URL is required when AI_PROVIDER=openai_compatible.",
+    );
+  }
+  const thinkingSetting = configured(environment.AI_THINKING_MODE)?.toLowerCase();
+  const thinkingMode: AiThinkingMode =
+    thinkingSetting === "enabled" || thinkingSetting === "disabled" || thinkingSetting === "omit"
+      ? thinkingSetting
+      : provider === "deepseek"
+        ? "disabled"
+        : "omit";
+  return {
+    provider,
+    apiKey: providerApiKey(provider, environment),
+    baseUrl,
+    model,
+    authoritativeModel: configured(environment.AI_AUTHORITATIVE_MODEL) || model,
+    creativeModel: configured(environment.AI_CREATIVE_MODEL) || model,
+    thinkingMode,
+    timeoutMs: parsePositiveInteger(environment.AI_TIMEOUT_MS, 60_000, 1_000, 300_000),
+    maxTokens: parsePositiveInteger(environment.AI_MAX_TOKENS, 4_096, 128, 384_000),
+    jsonMode: parseBoolean(environment.AI_JSON_MODE, true),
+    sendTemperature: parseBoolean(environment.AI_SEND_TEMPERATURE, true),
+    extraHeaders: providerHeaders(provider, environment),
+    extraBody: parseJsonObject(environment.AI_EXTRA_BODY_JSON, "AI_EXTRA_BODY_JSON"),
+  };
+}
+
+function resolveClientConfig(config: AiProviderConfig): ResolvedAiProviderConfig {
+  const environmentConfig = resolveAiProviderConfigFromEnv();
+  const provider = config.provider || environmentConfig.provider;
+  const defaults = PROVIDER_DEFAULTS[provider];
+  const model = configured(config.model) || environmentConfig.model || defaults.model;
+  const baseUrl = configured(config.baseUrl) || environmentConfig.baseUrl || defaults.baseUrl;
+  const apiKey =
+    configured(config.apiKey) ||
+    (provider === "deepseek" ? configured(config.deepseekApiKey) : undefined) ||
+    environmentConfig.apiKey;
+  return {
+    provider,
+    apiKey,
+    baseUrl,
+    model,
+    authoritativeModel: configured(config.authoritativeModel) || environmentConfig.authoritativeModel || model,
+    creativeModel: configured(config.creativeModel) || environmentConfig.creativeModel || model,
+    thinkingMode: config.thinkingMode || environmentConfig.thinkingMode,
+    timeoutMs: config.timeoutMs || environmentConfig.timeoutMs,
+    maxTokens: config.maxTokens || environmentConfig.maxTokens,
+    jsonMode: config.jsonMode ?? environmentConfig.jsonMode,
+    sendTemperature: config.sendTemperature ?? environmentConfig.sendTemperature,
+    extraHeaders: { ...environmentConfig.extraHeaders, ...(config.extraHeaders || {}) },
+    extraBody: { ...environmentConfig.extraBody, ...(config.extraBody || {}) },
+    logger: config.logger,
+  };
+}
+
+export function createAiProviderClientFromEnv(environment: Environment = process.env) {
+  const resolved = resolveAiProviderConfigFromEnv(environment);
+  return new AiProviderClient(resolved);
 }
 
 function resolveSchema(schema: unknown, root: JsonObject): JsonObject | undefined {
@@ -209,16 +393,54 @@ function validationRepairPrompt<T>(
   return `${request.prompt}\n\nCORRECTION REQUIRED:\nThe previous JSON object failed validation. Return a corrected complete object, not a patch.\nValidation issues: ${issues}\nPrevious JSON: ${decoded}`;
 }
 
-const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
+function chatCompletionsUrl(baseUrl: string) {
+  const normalized = baseUrl.replace(/\/+$/, "");
+  return normalized.endsWith("/chat/completions")
+    ? normalized
+    : `${normalized}/chat/completions`;
+}
 
 export class AiProviderClient {
-  constructor(private readonly config: AiProviderConfig) {}
+  private readonly resolved: ResolvedAiProviderConfig;
+
+  constructor(config: AiProviderConfig = {}) {
+    this.resolved = resolveClientConfig(config);
+  }
+
+  getConfiguration() {
+    return {
+      provider: this.resolved.provider,
+      baseUrl: this.resolved.baseUrl,
+      model: this.resolved.model,
+      authoritativeModel: this.resolved.authoritativeModel,
+      creativeModel: this.resolved.creativeModel,
+      thinkingMode: this.resolved.thinkingMode,
+      maxTokens: this.resolved.maxTokens,
+      timeoutMs: this.resolved.timeoutMs,
+      jsonMode: this.resolved.jsonMode,
+      configured: Boolean(this.resolved.apiKey),
+    };
+  }
+
+  getModelForTask(task: AiTask, requestedModel?: string) {
+    return createModelPolicy({
+      task,
+      authoritativeModel: this.resolved.authoritativeModel,
+      creativeModel: this.resolved.creativeModel,
+      requestedModel,
+    }).model;
+  }
 
   async generateStructured<T>(
     request: StructuredGenerationRequest<T>,
     retries = 1,
   ): Promise<StructuredGenerationResult<T>> {
-    const policy = createModelPolicy({ task: request.task });
+    const policy = createModelPolicy({
+      task: request.task,
+      authoritativeModel: this.resolved.authoritativeModel,
+      creativeModel: this.resolved.creativeModel,
+      requestedModel: request.requestedModel,
+    });
     const startedAt = Date.now();
     let lastError: unknown;
     let activeRequest = request;
@@ -226,28 +448,28 @@ export class AiProviderClient {
     for (let attempt = 1; attempt <= retries + 1; attempt += 1) {
       const attemptStartedAt = Date.now();
       try {
-        const result = await this.callDeepSeek(activeRequest, policy.temperature);
-        this.config.logger?.({
+        const result = await this.callProvider(activeRequest, policy.authority, policy.model, policy.temperature);
+        this.resolved.logger?.({
           task: request.task,
-          provider: "deepseek",
-          model: DEEPSEEK_FLASH_MODEL,
+          provider: this.resolved.provider,
+          model: policy.model,
           attempt,
           latencyMs: Date.now() - attemptStartedAt,
           status: "success",
         });
         return {
           ...result,
-          provider: "deepseek",
+          provider: this.resolved.provider,
           attempts: attempt,
           latencyMs: Date.now() - startedAt,
         };
       } catch (error) {
         lastError = error;
         const code = error instanceof AiProviderError ? error.code : "provider_failure";
-        this.config.logger?.({
+        this.resolved.logger?.({
           task: request.task,
-          provider: "deepseek",
-          model: DEEPSEEK_FLASH_MODEL,
+          provider: this.resolved.provider,
+          model: policy.model,
           attempt,
           latencyMs: Date.now() - attemptStartedAt,
           status: "error",
@@ -263,16 +485,21 @@ export class AiProviderClient {
     throw lastError;
   }
 
-  private async callDeepSeek<T>(
+  private async callProvider<T>(
     request: StructuredGenerationRequest<T>,
+    _authority: AiAuthority,
+    model: string,
     temperature: number,
   ): Promise<Omit<StructuredGenerationResult<T>, "provider" | "attempts" | "latencyMs">> {
-    const apiKey = this.config.deepseekApiKey;
+    const apiKey = this.resolved.apiKey;
     if (!apiKey) {
-      throw new AiProviderError("configuration", "DEEPSEEK_API_KEY is not configured.");
+      throw new AiProviderError(
+        "configuration",
+        `No API key is configured for AI_PROVIDER=${this.resolved.provider}. Set AI_API_KEY or the provider-specific key.`,
+      );
     }
 
-    const timeoutSignal = AbortSignal.timeout(this.config.timeoutMs ?? 60_000);
+    const timeoutSignal = AbortSignal.timeout(this.resolved.timeoutMs);
     const signal = request.signal
       ? AbortSignal.any([request.signal, timeoutSignal])
       : timeoutSignal;
@@ -291,39 +518,45 @@ export class AiProviderClient {
       .filter(Boolean)
       .join("\n\n");
 
+    const body: Record<string, unknown> = {
+      ...this.resolved.extraBody,
+      model,
+      max_tokens: this.resolved.maxTokens,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: request.prompt },
+      ],
+    };
+    if (this.resolved.sendTemperature) body.temperature = temperature;
+    if (this.resolved.jsonMode) body.response_format = { type: "json_object" };
+    if (this.resolved.thinkingMode !== "omit") {
+      body.thinking = { type: this.resolved.thinkingMode };
+    }
+
     let response: Response;
     try {
-      response = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
+      response = await fetch(chatCompletionsUrl(this.resolved.baseUrl), {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
+          ...this.resolved.extraHeaders,
         },
-        body: JSON.stringify({
-          model: DEEPSEEK_FLASH_MODEL,
-          thinking: { type: "disabled" },
-          temperature,
-          max_tokens: 4096,
-          messages: [
-            { role: "system", content: system },
-            { role: "user", content: request.prompt },
-          ],
-          response_format: { type: "json_object" },
-        }),
+        body: JSON.stringify(body),
         signal,
       });
     } catch (error) {
       if (request.signal?.aborted) {
-        throw new AiProviderError("aborted", "DeepSeek request was aborted.", {
+        throw new AiProviderError("aborted", "AI provider request was aborted.", {
           cause: error,
         });
       }
       if (timeoutSignal.aborted) {
-        throw new AiProviderError("timeout", "DeepSeek request timed out.", {
+        throw new AiProviderError("timeout", "AI provider request timed out.", {
           cause: error,
         });
       }
-      throw new AiProviderError("provider_failure", "DeepSeek request failed.", {
+      throw new AiProviderError("provider_failure", "AI provider request failed.", {
         cause: error,
       });
     }
@@ -335,7 +568,7 @@ export class AiProviderClient {
     } catch (error) {
       throw new AiProviderError(
         "malformed_response",
-        `DeepSeek returned malformed JSON: ${responseText.slice(0, 500)}`,
+        `AI provider returned malformed JSON: ${responseText.slice(0, 500)}`,
         { cause: error },
       );
     }
@@ -350,7 +583,7 @@ export class AiProviderClient {
       const providerMessage = payload.error?.message || responseText.slice(0, 500);
       throw new AiProviderError(
         code,
-        `DeepSeek rejected the request (${response.status}): ${providerMessage}`,
+        `${this.resolved.provider} rejected model ${model} (${response.status}): ${providerMessage}`,
         { cause: payload.error },
       );
     }
@@ -360,7 +593,7 @@ export class AiProviderClient {
     if (!content) {
       throw new AiProviderError(
         "malformed_response",
-        `DeepSeek returned empty structured content (finish_reason=${choice?.finish_reason ?? "unknown"}).`,
+        `AI provider returned empty structured content (finish_reason=${choice?.finish_reason ?? "unknown"}).`,
       );
     }
 
@@ -371,7 +604,7 @@ export class AiProviderClient {
     } catch (error) {
       throw new AiProviderError(
         "malformed_response",
-        "DeepSeek returned invalid structured JSON.",
+        "AI provider returned invalid structured JSON.",
         { cause: error },
       );
     }
@@ -380,15 +613,15 @@ export class AiProviderClient {
     if (!validated.success) {
       throw new AiProviderError(
         "validation",
-        `DeepSeek structured output failed validation: ${validated.error.message}`,
+        `AI provider structured output failed validation: ${validated.error.message}`,
         { cause: { decoded, issues: validated.error.issues } },
       );
     }
 
     return {
       data: validated.data,
-      requestedModel: DEEPSEEK_FLASH_MODEL,
-      actualModel: payload.model || DEEPSEEK_FLASH_MODEL,
+      requestedModel: model,
+      actualModel: payload.model || model,
       providerRequestId: payload.id,
     };
   }
