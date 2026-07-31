@@ -7,4 +7,5 @@ export * from "./event.js";
 export * from "./normalization.js";
 export * from "./resolution.js";
 export * from "./scene.js";
+export * from "./world-operations.js";
 export * from "./world.js";
