@@ -1,5 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import type { GameplayTelemetryWriter } from "@nocturne/contracts";
+import {
+  WorldActionKindSchema,
+  type GameplayTelemetryWriter,
+} from "@nocturne/contracts";
 import { WorldActionRequestSchema } from "../../../packages/contracts/src/world-action.js";
 import { OperatorRepairRequestSchema } from "../../../packages/contracts/src/world-inspector.js";
 import type { WorldScope } from "@nocturne/database";
@@ -191,8 +194,10 @@ export async function registerPersistentWorldRoutes(
             command: body.command,
             idempotencyKey,
           });
-          const actionKind =
+          const candidateKind =
             result.state === "waiting_for_clarification" ? undefined : result.plan.steps[0]?.kind;
+          const parsedKind = WorldActionKindSchema.safeParse(candidateKind);
+          const actionKind = parsedKind.success ? parsedKind.data : undefined;
           await writeGameplayTelemetry(dependencies.telemetry, {
             ...common,
             requestId: result.requestId,
