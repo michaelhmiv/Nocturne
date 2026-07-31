@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   patch:
-    name: Source / Strict Index Assertions
+    name: Source / Persistent Plan Decoding
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'ci/exhaustive-gameplay-certification'
     runs-on: ubuntu-latest
     steps:
@@ -25,7 +25,7 @@ jobs:
         with:
           ref: ci/exhaustive-gameplay-certification
           fetch-depth: 0
-      - name: Repair statically validated plan indexes
+      - name: Repair validated plan indexes and timestamp decoding
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -35,6 +35,8 @@ jobs:
               '${stepIds[dependency.stepOrder - 1]},': '${stepIds[dependency.stepOrder - 1]!},',
               '${dependency.dependsOnStepOrder ? stepIds[dependency.dependsOnStepOrder - 1] : null},': '${dependency.dependsOnStepOrder ? stepIds[dependency.dependsOnStepOrder - 1]! : null},',
               'SET active_step_id = ${stepIds[0]}, updated_at = now()': 'SET active_step_id = ${stepIds[0]!}, updated_at = now()',
+              'created_at: Date;\n        updated_at: Date;': 'created_at: Date | string;\n        updated_at: Date | string;',
+              'createdAt: plan.created_at.toISOString(),\n      updatedAt: plan.updated_at.toISOString(),': 'createdAt: new Date(plan.created_at).toISOString(),\n      updatedAt: new Date(plan.updated_at).toISOString(),',
           }
           for before, after in replacements.items():
               if before in text:
@@ -52,5 +54,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add packages/database/src/persistent-plan-store.ts
-          git commit -m "fix: assert validated persistent plan step indexes"
+          git commit -m "fix: decode persistent plan timestamps consistently"
           git push origin HEAD:ci/exhaustive-gameplay-certification
