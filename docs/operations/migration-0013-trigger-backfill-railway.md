@@ -1,0 +1,1 @@
+Railway validation: the worker runs `pnpm --filter @nocturne/database db:migrate` before starting. A successful worker deployment confirms migration 0013 completed and subsequent migrations can proceed.
