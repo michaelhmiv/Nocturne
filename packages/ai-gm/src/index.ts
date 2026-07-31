@@ -6,3 +6,4 @@ export * from "./content-normalizer.js";
 export * from "./conversation-adjudicator.js";
 export * from "./materialization-analyzer.js";
 export * from "./model-policy.js";
+export * from "./reference-interpreter.js";
