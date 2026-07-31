@@ -1,4 +1,5 @@
-import type { WorldActionKind } from "@nocturne/contracts";
+import type { GameplayTelemetryWriter, WorldActionKind } from "@nocturne/contracts";
+import { hashIdempotencyKey, writeGameplayTelemetry } from "./gameplay-telemetry.js";
 import type { SearchDiscoveryService } from "./search-discovery-service.js";
 import type {
   WorldActionStepHandler,
@@ -26,7 +27,105 @@ const requiredString = (payload: Record<string, unknown>, key: string) => {
   return value;
 };
 
+const stableErrorCode = (error: unknown) =>
+  error instanceof Error && "code" in error && typeof (error as { code?: unknown }).code === "string"
+    ? String((error as { code: string }).code)
+    : "handler_failed";
+
+function instrumentHandler(
+  kind: WorldActionKind,
+  handler: WorldActionStepHandler,
+  telemetry?: GameplayTelemetryWriter,
+): WorldActionStepHandler {
+  return async (input) => {
+    const startedAt = Date.now();
+    const common = {
+      traceId: input.requestId,
+      requestId: input.requestId,
+      planId: input.planId,
+      stepId: input.step.stepId,
+      idempotencyKeyHash: hashIdempotencyKey(input.step.idempotencyKey),
+      worldId: input.scope.worldId,
+      shardId: input.scope.shardId,
+      userId: input.scope.userId,
+      actorId: input.actorId,
+      actionKind: kind,
+      actionType:
+        typeof input.step.intentPayload.actionType === "string"
+          ? input.step.intentPayload.actionType
+          : kind,
+      handler: kind,
+    } as const;
+    await writeGameplayTelemetry(telemetry, {
+      ...common,
+      level: "info",
+      eventName: "handler_started",
+      status: "started",
+      committed: false,
+    });
+    try {
+      const result = await handler(input);
+      await writeGameplayTelemetry(telemetry, {
+        ...common,
+        level: "info",
+        eventName: "handler_completed",
+        status: result.state === "waiting" ? "waiting" : "completed",
+        eventId: result.state === "completed" ? result.eventId : undefined,
+        mutationReceiptId: result.state === "completed" ? result.receiptId : undefined,
+        scheduleId: result.state === "waiting" ? result.scheduleId : undefined,
+        durationMs: Date.now() - startedAt,
+        committed: result.state === "completed",
+      });
+      if (result.state === "waiting" && result.scheduleId) {
+        await writeGameplayTelemetry(telemetry, {
+          ...common,
+          level: "info",
+          eventName: "schedule_created",
+          status: "waiting",
+          scheduleId: result.scheduleId,
+          committed: true,
+        });
+      }
+      if (result.state === "completed") {
+        await writeGameplayTelemetry(telemetry, {
+          ...common,
+          level: "info",
+          eventName: "event_committed",
+          status: "completed",
+          eventId: result.eventId,
+          mutationReceiptId: result.receiptId,
+          committed: true,
+        });
+        if (result.receiptId) {
+          await writeGameplayTelemetry(telemetry, {
+            ...common,
+            level: "info",
+            eventName: "mutation_receipt_committed",
+            status: "completed",
+            eventId: result.eventId,
+            mutationReceiptId: result.receiptId,
+            committed: true,
+          });
+        }
+      }
+      return result;
+    } catch (error) {
+      await writeGameplayTelemetry(telemetry, {
+        ...common,
+        level: "error",
+        eventName: "handler_failed",
+        status: "failed",
+        errorCode: stableErrorCode(error),
+        durationMs: Date.now() - startedAt,
+        committed: false,
+      });
+      throw error;
+    }
+  };
+}
+
 export function createWorldActionHandlerRegistry(dependencies: {
+  telemetry?: GameplayTelemetryWriter;
   search?: SearchDiscoveryService;
   scheduleMove?(input: {
     scope: Parameters<WorldActionStepHandler>[0]["scope"];
@@ -120,6 +219,13 @@ export function createWorldActionHandlerRegistry(dependencies: {
           payload: step.intentPayload,
         });
     }
+  }
+
+  for (const [kind, handler] of Object.entries(handlers) as [
+    WorldActionKind,
+    WorldActionStepHandler,
+  ][]) {
+    handlers[kind] = instrumentHandler(kind, handler, dependencies.telemetry);
   }
 
   return handlers;
