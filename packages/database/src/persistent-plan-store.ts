@@ -264,15 +264,15 @@ export function createPersistentPlanStore(database: ReturnType<typeof createData
           INSERT INTO game.action_plan_dependencies (
             plan_id, step_id, depends_on_step_id, dependency_type, parameters
           ) VALUES (
-            ${planId}, ${stepIds[dependency.stepOrder - 1]},
-            ${dependency.dependsOnStepOrder ? stepIds[dependency.dependsOnStepOrder - 1] : null},
+            ${planId}, ${stepIds[dependency.stepOrder - 1]!},
+            ${dependency.dependsOnStepOrder ? stepIds[dependency.dependsOnStepOrder - 1]! : null},
             ${dependency.dependencyType}, ${json(dependency.parameters)}::jsonb
           )
         `;
       }
       await sql`
         UPDATE game.action_plans
-        SET active_step_id = ${stepIds[0]}, updated_at = now()
+        SET active_step_id = ${stepIds[0]!}, updated_at = now()
         WHERE plan_id = ${planId}
       `;
       await sql`
