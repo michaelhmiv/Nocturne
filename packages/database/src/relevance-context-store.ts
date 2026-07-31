@@ -66,6 +66,8 @@ function estimateTokens(value: unknown) {
   return Math.ceil(JSON.stringify(value).length / 4);
 }
 
+const boundedRelevanceScore = (score: number) => Math.max(-100_000, Math.min(100_000, score));
+
 function addCandidate(
   candidates: Map<string, Candidate>,
   entityId: string,
@@ -75,14 +77,14 @@ function addCandidate(
 ) {
   const current = candidates.get(entityId);
   if (current) {
-    current.score += score;
+    current.score = boundedRelevanceScore(current.score + score);
     current.reasons.add(reason);
     current.known ||= known;
     return;
   }
   candidates.set(entityId, {
     entityId,
-    score,
+    score: boundedRelevanceScore(score),
     reasons: new Set([reason]),
     known,
   });
