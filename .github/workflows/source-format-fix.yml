@@ -1,0 +1,57 @@
+name: Source Format Fix
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: source-format-fix
+  cancel-in-progress: true
+
+jobs:
+  format:
+    name: Source / Format Changed Files
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'ci/exhaustive-gameplay-certification'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ci/exhaustive-gameplay-certification
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Format changed source files
+        run: >-
+          pnpm exec prettier --write
+          apps/api/src/persistent-world-routes.ts
+          apps/api/src/search-discovery-service.ts
+          packages/database/src/check-migrations.ts
+      - name: Commit source formatting
+        run: |
+          if git diff --quiet; then
+            echo "Changed source files already match Prettier."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            apps/api/src/persistent-world-routes.ts \
+            apps/api/src/search-discovery-service.ts \
+            packages/database/src/check-migrations.ts
+          git commit -m "style: format certification source changes"
+          git push origin HEAD:ci/exhaustive-gameplay-certification
