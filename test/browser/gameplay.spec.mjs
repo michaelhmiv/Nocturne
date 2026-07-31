@@ -4,6 +4,7 @@ import { test, expect } from "@playwright/test";
 const actions = JSON.parse(
   await readFile(new URL("./action-prompts.json", import.meta.url), "utf8"),
 );
+const webUrl = process.env.NOCTURNE_WEB_URL || "http://127.0.0.1:3000";
 
 test.describe.configure({ mode: "serial" });
 
@@ -27,7 +28,7 @@ test("onboards a character and resolves every supported action through the produ
     }
   });
 
-  await page.goto("/");
+  await page.goto(`${webUrl}/`);
   await expect(page.getByText("WHO ENTERS THE CITY?")).toBeVisible();
   await page.getByLabel("Name").fill("Browser Certification Agent");
   await page
