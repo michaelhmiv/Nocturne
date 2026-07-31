@@ -1,8 +1,9 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import {
   SearchDiscoveryResultSchema,
   type MaterializationAnalysisRequest,
   type SearchDiscoveryResult,
+  type UniversalWorldOperation,
 } from "@nocturne/contracts";
 import {
   analyzeMaterialization,
@@ -189,6 +190,10 @@ export function createSearchDiscoveryService(dependencies: {
         sourceCandidates: [selectedSource],
         reusableDefinitions,
       });
+      const sourceFactIds = context.authoritativeHiddenFacts
+        .filter(({ claim }) => claim === "materialization_source")
+        .map(({ factId }) => factId)
+        .slice(0, 16);
       if (proposed.data.decision === "reject") {
         await dependencies.materialization.commitProposal({
           scope: input.scope,
@@ -197,9 +202,7 @@ export function createSearchDiscoveryService(dependencies: {
           actorId: input.actorId,
           locationId: input.areaId,
           proposal: proposed.data,
-          preconditionFactIds: context.authoritativeHiddenFacts
-            .filter(({ claim }) => claim === "materialization_source")
-            .map(({ factId }) => factId),
+          preconditionFactIds: sourceFactIds,
         });
         throw new SearchDiscoveryServiceError(
           "materialization_rejected",
@@ -213,9 +216,7 @@ export function createSearchDiscoveryService(dependencies: {
         actorId: input.actorId,
         locationId: input.areaId,
         proposal: proposed.data,
-        preconditionFactIds: context.authoritativeHiddenFacts
-          .filter(({ claim }) => claim === "materialization_source")
-          .map(({ factId }) => factId),
+        preconditionFactIds: sourceFactIds,
       });
       if (committed.kind !== "materialized") {
         throw new SearchDiscoveryServiceError(
@@ -227,12 +228,14 @@ export function createSearchDiscoveryService(dependencies: {
       materialized = true;
     }
 
-    const informationId = randomUUID();
     const operationPreconditions = [
       ...context.playerKnownFacts,
       ...context.authoritativeHiddenFacts,
-    ].map(({ factId }) => factId);
-    const operations: Array<Record<string, unknown>> = [];
+    ]
+      .sort((left, right) => right.relevanceScore - left.relevanceScore)
+      .map(({ factId }) => factId)
+      .slice(0, 16);
+    const operations: UniversalWorldOperation[] = [];
     if (discoveredEntityId) {
       operations.push({
         type: "set_relation",
@@ -251,7 +254,7 @@ export function createSearchDiscoveryService(dependencies: {
       type: "create_information_asset",
       holderRef: { kind: "existing", entityId: input.actorId },
       ...(discoveredEntityId
-        ? { subjectRef: { kind: "existing", entityId: discoveredEntityId } }
+        ? { subjectRef: { kind: "existing" as const, entityId: discoveredEntityId } }
         : {}),
       content: outcomeFact,
       confidenceBasisPoints:
@@ -283,8 +286,6 @@ export function createSearchDiscoveryService(dependencies: {
     );
     if (typeof informationResult?.informationId === "string") {
       informationIds.push(informationResult.informationId);
-    } else {
-      void informationId;
     }
 
     if (discoveredEntityId) {
@@ -309,8 +310,7 @@ export function createSearchDiscoveryService(dependencies: {
         "Do not claim ownership, control, following, trust, capture, or acquisition unless separately committed.",
         ...(discoveredEntityId
           ? ["Describe only the discovered entity and committed observation."]
-          : ["Do not narrate a concrete entity as present."],
-        ),
+          : ["Do not narrate a concrete entity as present."]),
       ],
     });
   }
