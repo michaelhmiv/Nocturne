@@ -1,5 +1,9 @@
 import type { GameplayTelemetryWriter, WorldActionKind } from "@nocturne/contracts";
-import { hashIdempotencyKey, writeGameplayTelemetry } from "./gameplay-telemetry.js";
+import {
+  currentGameplayTraceId,
+  hashIdempotencyKey,
+  writeGameplayTelemetry,
+} from "./gameplay-telemetry.js";
 import type { SearchDiscoveryService } from "./search-discovery-service.js";
 import type {
   WorldActionStepHandler,
@@ -40,7 +44,7 @@ function instrumentHandler(
   return async (input) => {
     const startedAt = Date.now();
     const common = {
-      traceId: input.requestId,
+      traceId: currentGameplayTraceId(input.requestId),
       requestId: input.requestId,
       planId: input.planId,
       stepId: input.step.stepId,
