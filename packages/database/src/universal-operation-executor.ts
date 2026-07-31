@@ -482,14 +482,29 @@ export function createUniversalOperationExecutor(
           ...collectExistingEntityIds(branch.operations),
         ]);
 
+        const playerVisibleFacts = (input.playerVisibleFacts || []).slice(0, 64);
+        const hiddenFacts = (input.hiddenFacts || []).slice(0, 64);
+        const immutableEventPayload = {
+          status: "committed",
+          receiptId,
+          requestHash,
+          authority: input.authority,
+          sourcePlanId: input.sourcePlanId || null,
+          sourceStepId: input.sourceStepId || null,
+          operationTypes: branch.operations.map(({ type }) => type),
+          playerVisibleFacts,
+          hiddenFacts,
+        };
+
         await sql`
           INSERT INTO game.event_ledger (
             event_id, world_id, shard_id, idempotency_key, world_time,
             event_type, involved_entity_ids, payload, source_intent_id
           ) VALUES (
             ${eventId}, ${input.scope.worldId}, ${input.scope.shardId},
-            ${input.idempotencyKey}, now(), 'world_mutation', '[]'::jsonb,
-            ${json({ status: "applying", requestHash })}::jsonb,
+            ${input.idempotencyKey}, now(), 'world_mutation',
+              ${json([...involvedEntityIds])}::jsonb,
+              ${json(immutableEventPayload)}::jsonb,
             ${input.sourceIntentId || null}
           )
         `;
@@ -1320,28 +1335,7 @@ export function createUniversalOperationExecutor(
           }
           operationResults.push(result);
         }
-
         const symbolMap = publicSymbolMap(symbols);
-        const playerVisibleFacts = (input.playerVisibleFacts || []).slice(0, 64);
-        const hiddenFacts = (input.hiddenFacts || []).slice(0, 64);
-        const eventPayload = {
-          status: "committed",
-          receiptId,
-          requestHash,
-          authority: input.authority,
-          sourcePlanId: input.sourcePlanId || null,
-          sourceStepId: input.sourceStepId || null,
-          symbolMap,
-          operationResults,
-          playerVisibleFacts,
-          hiddenFacts,
-        };
-        await sql`
-          UPDATE game.event_ledger
-          SET involved_entity_ids = ${json([...involvedEntityIds])}::jsonb,
-              payload = ${json(eventPayload)}::jsonb
-          WHERE event_id = ${eventId}
-        `;
         await sql`
           INSERT INTO game.mutation_receipts (
             receipt_id, world_id, shard_id, idempotency_key, request_hash,
