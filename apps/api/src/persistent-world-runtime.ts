@@ -18,6 +18,13 @@ import {
   type createDatabase,
 } from "@nocturne/database";
 import { createGameplayTelemetryWriter } from "./gameplay-telemetry.js";
+import {
+  instrumentAiClient,
+  instrumentContextStore,
+  instrumentPlanStore,
+  instrumentReferenceStore,
+  instrumentStepStore,
+} from "./persistent-world-instrumentation.js";
 import { createPersistentWorldActionService } from "./persistent-world-action-service.js";
 import { registerPersistentWorldRoutes } from "./persistent-world-routes.js";
 import { createSearchDiscoveryService } from "./search-discovery-service.js";
@@ -83,15 +90,28 @@ export async function registerPersistentWorldRuntime(
   },
 ) {
   const executor = createUniversalOperationExecutor(dependencies.database);
-  const context = createRelevanceContextStore(dependencies.database);
-  const references = createReferenceResolutionStore(dependencies.database);
-  const plans = createPersistentPlanStore(dependencies.database);
-  const requests = createWorldActionRequestStore(dependencies.database);
-  const steps = createWorldActionStepStore(dependencies.database);
-  const materialization = createMaterializationStore(dependencies.database, executor);
   const telemetry = createGameplayTelemetryWriter(app.log);
+  const client = instrumentAiClient(dependencies.client, telemetry);
+  const context = instrumentContextStore(
+    createRelevanceContextStore(dependencies.database),
+    telemetry,
+  );
+  const references = instrumentReferenceStore(
+    createReferenceResolutionStore(dependencies.database),
+    telemetry,
+  );
+  const plans = instrumentPlanStore(
+    createPersistentPlanStore(dependencies.database),
+    telemetry,
+  );
+  const requests = createWorldActionRequestStore(dependencies.database);
+  const steps = instrumentStepStore(
+    createWorldActionStepStore(dependencies.database),
+    telemetry,
+  );
+  const materialization = createMaterializationStore(dependencies.database, executor);
   const search = createSearchDiscoveryService({
-    client: dependencies.client,
+    client,
     context,
     materialization,
     executor,
@@ -106,7 +126,7 @@ export async function registerPersistentWorldRuntime(
     executeExistingAction: dependencies.executeExistingAction,
   });
   const actions = createPersistentWorldActionService({
-    client: dependencies.client,
+    client,
     requests,
     context,
     references,
