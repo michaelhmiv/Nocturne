@@ -17,6 +17,7 @@ import {
   type WorldScope,
   type createDatabase,
 } from "@nocturne/database";
+import { createGameplayTelemetryWriter } from "./gameplay-telemetry.js";
 import { createPersistentWorldActionService } from "./persistent-world-action-service.js";
 import { registerPersistentWorldRoutes } from "./persistent-world-routes.js";
 import { createSearchDiscoveryService } from "./search-discovery-service.js";
@@ -88,6 +89,7 @@ export async function registerPersistentWorldRuntime(
   const requests = createWorldActionRequestStore(dependencies.database);
   const steps = createWorldActionStepStore(dependencies.database);
   const materialization = createMaterializationStore(dependencies.database, executor);
+  const telemetry = createGameplayTelemetryWriter(app.log);
   const search = createSearchDiscoveryService({
     client: dependencies.client,
     context,
@@ -98,6 +100,7 @@ export async function registerPersistentWorldRuntime(
     loadArea: dependencies.loadArea,
   });
   const handlers = createWorldActionHandlerRegistry({
+    telemetry,
     search,
     scheduleMove: dependencies.scheduleMove,
     executeExistingAction: dependencies.executeExistingAction,
@@ -121,6 +124,7 @@ export async function registerPersistentWorldRuntime(
     scene,
     inspector,
     resolveScope: dependencies.resolveScope,
+    telemetry,
     isRuntimeEnabled: async ({ worldId }) => {
       const rows = await dependencies.database.client<{ enabled: boolean }[]>`
         SELECT enabled
