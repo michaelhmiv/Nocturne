@@ -1,8 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import {
-  WorldActionKindSchema,
-  type GameplayTelemetryWriter,
-} from "@nocturne/contracts";
+import { WorldActionKindSchema, type GameplayTelemetryWriter } from "@nocturne/contracts";
 import { WorldActionRequestSchema } from "../../../packages/contracts/src/world-action.js";
 import { OperatorRepairRequestSchema } from "../../../packages/contracts/src/world-inspector.js";
 import type { WorldScope } from "@nocturne/database";

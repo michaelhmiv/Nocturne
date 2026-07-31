@@ -21,10 +21,7 @@ import { resolveContest } from "@nocturne/rules-engine";
 export class SearchDiscoveryServiceError extends Error {
   constructor(
     readonly code:
-      | "invalid_area"
-      | "analysis_rejected"
-      | "materialization_rejected"
-      | "unsupported_outcome",
+      "invalid_area" | "analysis_rejected" | "materialization_rejected" | "unsupported_outcome",
     message: string,
   ) {
     super(message);
@@ -206,8 +203,7 @@ export function createSearchDiscoveryService(dependencies: {
         });
         throw new SearchDiscoveryServiceError(
           "materialization_rejected",
-          proposed.data.rejectionReason ||
-            "Materialization was rejected by authoritative policy.",
+          proposed.data.rejectionReason || "Materialization was rejected by authoritative policy.",
         );
       }
       const committed = await dependencies.materialization.commitProposal({
