@@ -113,9 +113,6 @@ ALTER TABLE IF EXISTS system.ai_runs
   ADD COLUMN IF NOT EXISTS world_id uuid REFERENCES game.worlds(world_id),
   ADD COLUMN IF NOT EXISTS shard_id uuid REFERENCES game.world_shards(shard_id);
 
--- Install defaults before any updates. We intentionally leave legacy columns
--- nullable in this compatibility migration; defaults plus runtime scope checks
--- govern all new rows, and a later clean-world migration can validate NOT NULL.
 DO $$
 DECLARE
   relation_name text;
@@ -211,7 +208,9 @@ CREATE INDEX IF NOT EXISTS entity_relations_world_source_idx
 CREATE INDEX IF NOT EXISTS event_ledger_world_time_scope_idx
   ON game.event_ledger (world_id, shard_id, world_time DESC);
 
--- Backfill append-only and ordinary tables without firing user triggers.
+-- Backfill append-only and ordinary tables without firing user triggers. The
+-- companion 0013a migration restores triggers in a fresh transaction after all
+-- deferred constraint events from these updates have been processed.
 DO $$
 DECLARE
   relation_name text;
@@ -328,32 +327,3 @@ WHERE membership.world_id = selected.world_id
   AND membership.user_id = selected.user_id
   AND selected.selected
   AND membership.selected_character_id IS NULL;
-
-DO $$
-DECLARE
-  relation_name text;
-BEGIN
-  FOREACH relation_name IN ARRAY ARRAY[
-    'entity_definitions',
-    'definition_revisions',
-    'entity_instances',
-    'player_characters',
-    'entity_relations',
-    'residence_occupancies',
-    'generated_content_requests',
-    'installation_evaluations',
-    'action_intents',
-    'event_ledger',
-    'resolution_results',
-    'information_assets',
-    'conversations',
-    'conversation_turns',
-    'scheduled_actions',
-    'entity_semantic_profiles',
-    'ambient_asset_pools'
-  ] LOOP
-    IF to_regclass('game.' || relation_name) IS NOT NULL THEN
-      EXECUTE format('ALTER TABLE game.%I ENABLE TRIGGER USER', relation_name);
-    END IF;
-  END LOOP;
-END $$;
