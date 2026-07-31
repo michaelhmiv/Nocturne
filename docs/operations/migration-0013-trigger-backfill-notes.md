@@ -1,0 +1,1 @@
+Migration 0013 temporarily disables user triggers on world-scoped game tables while backfilling existing rows, then restores those triggers before the migration completes. PostgreSQL transactional DDL ensures a failed run restores both data and trigger state. The selected-character foreign key is created only when absent so Railway retries remain idempotent.
