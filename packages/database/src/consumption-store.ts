@@ -160,7 +160,7 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
           .filter(Boolean)
           .join("\n"),
         access: carried ? "carried" : owned ? "owned" : "visible",
-        quantity,
+        quantity: Math.min(quantity, 1_000),
         state,
         constraints: arrayOfStrings(state.constraints),
       });
@@ -185,7 +185,7 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
           name: String(row.name),
           description: String(row.description),
           access: "ambient",
-          quantity: numeric(row.units_remaining, 0),
+          quantity: Math.min(numeric(row.units_remaining, 0), 1_000),
           state: object(row.state),
           constraints: arrayOfStrings(row.constraints),
         });
