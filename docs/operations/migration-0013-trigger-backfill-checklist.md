@@ -1,4 +1,0 @@
-- Append-only user triggers are disabled only during the scope backfill.
-- Trigger state is restored before migration completion.
-- Foreign-key creation is retry-safe.
-- Railway worker migration startup is the validation path.
