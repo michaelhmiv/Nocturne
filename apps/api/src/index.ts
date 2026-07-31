@@ -2,6 +2,7 @@ import { registerAiJobRoutesFromEnv } from "./ai-job-routes.js";
 import { buildApp } from "./app.js";
 import { registerInventionCatalogueRoutes } from "./invention-catalogue-routes.js";
 import { registerSceneRoutesFromEnv } from "./scene-routes.js";
+import { registerScheduledWorkRoutesFromEnv } from "./scheduled-work-routes.js";
 
 const app = await buildApp().catch((error: unknown) => {
   console.error(
@@ -17,6 +18,7 @@ const app = await buildApp().catch((error: unknown) => {
 await registerAiJobRoutesFromEnv(app);
 await registerSceneRoutesFromEnv(app);
 await registerInventionCatalogueRoutes(app);
+await registerScheduledWorkRoutesFromEnv(app);
 
 const port = Number(process.env.PORT || 3001);
 let shuttingDown = false;
