@@ -93,6 +93,18 @@ function instrumentHandler(
         });
       }
       if (result.state === "completed") {
+        if (kind === "consume") {
+          await writeGameplayTelemetry(telemetry, {
+            ...common,
+            level: "info",
+            eventName: "resolution_committed",
+            status: "completed",
+            eventId: result.eventId,
+            mutationReceiptId: result.receiptId,
+            committed: true,
+            details: { outcomeGrade: result.outcomeGrade },
+          });
+        }
         await writeGameplayTelemetry(telemetry, {
           ...common,
           level: "info",
