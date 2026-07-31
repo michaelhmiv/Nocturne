@@ -1,4 +1,5 @@
-import { createHash } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { createHash, randomUUID } from "node:crypto";
 import {
   GameplayTelemetryEventSchema,
   type GameplayTelemetryEvent,
@@ -11,6 +12,21 @@ export type GameplayLogger = {
   error(payload: Record<string, unknown>, message?: string): void;
   debug?(payload: Record<string, unknown>, message?: string): void;
 };
+
+const gameplayTrace = new AsyncLocalStorage<string>();
+
+export function createGameplayTraceId(candidate?: string | string[]) {
+  const value = Array.isArray(candidate) ? candidate[0] : candidate;
+  return value?.trim().slice(0, 256) || randomUUID();
+}
+
+export function runWithGameplayTrace<T>(traceId: string, operation: () => Promise<T>) {
+  return gameplayTrace.run(traceId, operation);
+}
+
+export function currentGameplayTraceId(fallback: string) {
+  return gameplayTrace.getStore() || fallback;
+}
 
 export function hashIdempotencyKey(value: string) {
   return createHash("sha256").update(value).digest("hex");
