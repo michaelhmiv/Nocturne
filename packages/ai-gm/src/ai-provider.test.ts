@@ -91,6 +91,8 @@ describe("AiProviderClient structured requests", () => {
       apiKey: "compatible-key",
       baseUrl: "https://provider.example/v1/",
       model: "provider-model-v2",
+      authoritativeModel: "provider-model-v2",
+      creativeModel: "provider-model-v2",
       thinkingMode: "omit",
     });
     const result = await client.generateStructured(request());
