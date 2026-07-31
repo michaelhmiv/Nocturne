@@ -14,51 +14,22 @@ concurrency:
 
 jobs:
   action-by-action:
-    name: Nightly / Action ${{ matrix.shard + 1 }}/25
+    name: Nightly / Action shard ${{ matrix.shard }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        shard:
-          - 0
-          - 1
-          - 2
-          - 3
-          - 4
-          - 5
-          - 6
-          - 7
-          - 8
-          - 9
-          - 10
-          - 11
-          - 12
-          - 13
-          - 14
-          - 15
-          - 16
-          - 17
-          - 18
-          - 19
-          - 20
-          - 21
-          - 22
-          - 23
-          - 24
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
     env:
       ACTION_MATRIX_SHARD_INDEX: ${{ matrix.shard }}
       ACTION_MATRIX_SHARD_TOTAL: 25
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11.17.0
-          run_install: false
+        with: { version: 11.17.0, run_install: false }
       - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
+        with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:action-matrix
 
@@ -73,29 +44,19 @@ jobs:
     services:
       postgres:
         image: postgres:${{ matrix.postgres }}
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: nocturne_nightly
-        ports:
-          - 5432:5432
+        env: { POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: nocturne_nightly }
+        ports: [5432:5432]
         options: >-
           --health-cmd "pg_isready -U postgres -d nocturne_nightly"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
+          --health-interval 5s --health-timeout 5s --health-retries 20
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/nocturne_nightly
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11.17.0
-          run_install: false
+        with: { version: 11.17.0, run_install: false }
       - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
+        with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:check
       - run: pnpm db:migrate
@@ -109,13 +70,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11.17.0
-          run_install: false
+        with: { version: 11.17.0, run_install: false }
       - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
+        with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm verify
 
@@ -123,13 +80,9 @@ jobs:
     name: Nightly / Required Gate
     runs-on: ubuntu-latest
     if: always()
-    needs:
-      - action-by-action
-      - database-version-matrix
-      - full-workspace
+    needs: [action-by-action, database-version-matrix, full-workspace]
     steps:
-      - name: Require all nightly matrices
-        env:
+      - env:
           ACTION_RESULT: ${{ needs.action-by-action.result }}
           DATABASE_RESULT: ${{ needs.database-version-matrix.result }}
           WORKSPACE_RESULT: ${{ needs.full-workspace.result }}
