@@ -18,9 +18,7 @@ try {
   );
 }
 
-const currentFiles = new Set(
-  (await readdir(directory)).filter((file) => file.endsWith(".sql")),
-);
+const currentFiles = new Set((await readdir(directory)).filter((file) => file.endsWith(".sql")));
 const baseFiles = git("ls-tree", "-r", "--name-only", baseRef, directory)
   .split(/\r?\n/)
   .filter((path) => path.endsWith(".sql"));
