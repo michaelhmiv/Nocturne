@@ -3,7 +3,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const migrationsDirectory = join(dirname(fileURLToPath(import.meta.url)), "../migrations");
-const files = (await readdir(migrationsDirectory)).filter((file) => file.endsWith(".sql")).sort();
+const files = (await readdir(migrationsDirectory))
+  .filter((file) => file.endsWith(".sql"))
+  .sort();
 const pattern = /^\d{4}[a-z]?_[a-z0-9_]+\.sql$/;
 
 if (files.length === 0) {
