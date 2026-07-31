@@ -178,7 +178,11 @@ export function createActionStore(database: ReturnType<typeof createDatabase>) {
     ];
 
     return {
-      actor: { id: actorId, name: String(actor.name), state: (actor.state as Record<string, unknown>) ?? {} },
+      actor: {
+        id: actorId,
+        name: String(actor.name),
+        state: (actor.state as Record<string, unknown>) ?? {},
+      },
       residence: actor.residence_instance_id
         ? {
             id: String(actor.residence_instance_id),
@@ -525,9 +529,9 @@ export function createActionStore(database: ReturnType<typeof createDatabase>) {
     return dropped.length;
   }
 
-  async function findNearbyNpc(actorId: string): Promise<
-    { instanceId: string; name: string; schedule?: Record<string, string> } | null
-  > {
+  async function findNearbyNpc(
+    actorId: string,
+  ): Promise<{ instanceId: string; name: string; schedule?: Record<string, string> } | null> {
     // ponytail: any NPC; co-location match later.
     const any = await database.client`
       SELECT npc.instance_id, d.name, npc.state
@@ -654,7 +658,9 @@ export function createActionStore(database: ReturnType<typeof createDatabase>) {
     }));
   }
 
-  async function resolvePlaceByName(nameHint: string): Promise<{ id: string; name: string } | null> {
+  async function resolvePlaceByName(
+    nameHint: string,
+  ): Promise<{ id: string; name: string } | null> {
     const q = `%${nameHint.toLowerCase()}%`;
     const rows = await database.client`
       SELECT i.instance_id, d.name

@@ -91,9 +91,9 @@ describe("persistent reference interpretation", () => {
         },
       ],
     };
-    expect(validateReferenceInterpretation(interpretation, ambiguousRequest).mentions[0]?.status).toBe(
-      "ambiguous",
-    );
+    expect(
+      validateReferenceInterpretation(interpretation, ambiguousRequest).mentions[0]?.status,
+    ).toBe("ambiguous");
   });
 
   it("rejects an unsupplied selected entity", () => {

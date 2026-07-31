@@ -359,8 +359,7 @@ export function createInventionStore(database: ReturnType<typeof createDatabase>
     `;
     const skills =
       ((rows[0]?.state as Record<string, unknown> | undefined)?.skills as
-        | Record<string, number>
-        | undefined) ?? {};
+        Record<string, number> | undefined) ?? {};
     const xp = skills[skill] ?? 0;
     return Math.min(100, Math.max(0, Math.floor(Math.sqrt(Math.max(0, xp) / 10))));
   }

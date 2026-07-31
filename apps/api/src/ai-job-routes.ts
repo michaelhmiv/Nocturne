@@ -126,10 +126,7 @@ export async function registerAiJobRoutesFromEnv(app: FastifyInstance) {
     const bearer = Array.isArray(authorization) ? authorization[0] : authorization;
     const agent = await agents.authenticate(bearer);
     if (agent) return { id: agent.userId };
-    if (
-      process.env.NOCTURNE_GUEST_MODE === "true" &&
-      headers["x-nocturne-guest-mode"] === "1"
-    ) {
+    if (process.env.NOCTURNE_GUEST_MODE === "true" && headers["x-nocturne-guest-mode"] === "1") {
       return { id: process.env.NOCTURNE_GUEST_USER_ID || "nocturne-test-guest" };
     }
     const session = await getSessionFromNodeHeaders(headers);
@@ -159,14 +156,10 @@ export async function registerAiJobRoutesFromEnv(app: FastifyInstance) {
     const input = SubmitActionRequestSchema.parse(request.body);
     const idempotencyKey = idempotencySchema.parse(request.headers["idempotency-key"]);
     try {
-      const reserved = await enqueue(
-        user.id,
-        "action_resolution",
-        idempotencyKey,
-        input,
-        3,
-      );
-      return reply.code(reserved.job.status === "completed" ? 200 : 202).send(publicJob(reserved.job));
+      const reserved = await enqueue(user.id, "action_resolution", idempotencyKey, input, 3);
+      return reply
+        .code(reserved.job.status === "completed" ? 200 : 202)
+        .send(publicJob(reserved.job));
     } catch (error) {
       return sendStoreError(reply, error);
     }
@@ -179,14 +172,10 @@ export async function registerAiJobRoutesFromEnv(app: FastifyInstance) {
       request.headers["idempotency-key"] || randomUUID(),
     );
     try {
-      const reserved = await enqueue(
-        user.id,
-        "invention_normalization",
-        idempotencyKey,
-        input,
-        1,
-      );
-      return reply.code(reserved.job.status === "completed" ? 200 : 202).send(publicJob(reserved.job));
+      const reserved = await enqueue(user.id, "invention_normalization", idempotencyKey, input, 1);
+      return reply
+        .code(reserved.job.status === "completed" ? 200 : 202)
+        .send(publicJob(reserved.job));
     } catch (error) {
       return sendStoreError(reply, error);
     }

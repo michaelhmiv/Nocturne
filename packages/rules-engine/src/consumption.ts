@@ -1,7 +1,4 @@
-import type {
-  ConsumableAnalysis,
-  ConsumptionMechanicsResult,
-} from "@nocturne/contracts";
+import type { ConsumableAnalysis, ConsumptionMechanicsResult } from "@nocturne/contracts";
 
 function hashSeed(seed: string): number {
   let hash = 2166136261;
@@ -93,7 +90,8 @@ export function resolveConsumptionMechanics(
   });
   const consequence = risks.some((risk) => risk.occurred);
   const quantityLimited = Boolean(
-    analysis.quantityResolution?.limitedByAvailability || analysis.quantityResolution?.limitedByEngine,
+    analysis.quantityResolution?.limitedByAvailability ||
+    analysis.quantityResolution?.limitedByEngine,
   );
   const outcomeGrade = quantityLimited
     ? "partial_success"

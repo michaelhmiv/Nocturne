@@ -27,6 +27,7 @@ export const WorldActionPlannerRequestSchema = z
     enabledHandlers: z.array(WorldActionKindSchema).min(1),
   })
   .strict();
+export type WorldActionPlannerRequest = z.infer<typeof WorldActionPlannerRequestSchema>;
 
 export const WorldActionPlannerResultSchema = z
   .object({

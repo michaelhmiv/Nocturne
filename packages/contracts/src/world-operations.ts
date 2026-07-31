@@ -13,7 +13,9 @@ export const WorldEntityReferenceSchema = z.discriminatedUnion("kind", [
 export type WorldEntityReference = z.infer<typeof WorldEntityReferenceSchema>;
 
 export const WorldDefinitionReferenceSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("existing"), definitionId: z.string().trim().min(1).max(160) }).strict(),
+  z
+    .object({ kind: z.literal("existing"), definitionId: z.string().trim().min(1).max(160) })
+    .strict(),
   z.object({ kind: z.literal("symbol"), symbol: SymbolSchema }).strict(),
 ]);
 export type WorldDefinitionReference = z.infer<typeof WorldDefinitionReferenceSchema>;
@@ -263,10 +265,7 @@ export const MAX_UNIVERSAL_WORLD_OPERATIONS = 48;
 
 export const UniversalWorldOperationBranchSchema = z
   .object({
-    operations: z
-      .array(UniversalWorldOperationSchema)
-      .min(1)
-      .max(MAX_UNIVERSAL_WORLD_OPERATIONS),
+    operations: z.array(UniversalWorldOperationSchema).min(1).max(MAX_UNIVERSAL_WORLD_OPERATIONS),
   })
   .strict()
   .superRefine(({ operations }, context) => {

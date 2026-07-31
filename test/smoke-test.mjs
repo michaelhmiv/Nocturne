@@ -7,22 +7,45 @@ const BASE = `${API}/v1`;
 const H = { "content-type": "application/json", "x-nocturne-guest-mode": "1" };
 
 async function post(path, body) {
-  const res = await fetch(`${BASE}${path}`, { method: "POST", headers: H, body: JSON.stringify(body) });
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: H,
+    body: JSON.stringify(body),
+  });
   const text = await res.text();
-  let data; try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { raw: text };
+  }
   if (!res.ok) throw new Error(`${path} ${res.status}: ${text.slice(0, 300)}`);
   return data;
 }
 async function get(path) {
   const res = await fetch(`${BASE}${path}`, { headers: H });
   const text = await res.text();
-  let data; try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { raw: text };
+  }
   if (!res.ok) throw new Error(`${path} ${res.status}: ${text.slice(0, 300)}`);
   return data;
 }
 
-let ok = 0, bad = 0;
-const check = (c, m) => { if (c) { ok++; console.log("  ✓ " + m); } else { bad++; console.error("  ✗ " + m); } };
+let ok = 0,
+  bad = 0;
+const check = (c, m) => {
+  if (c) {
+    ok++;
+    console.log("  ✓ " + m);
+  } else {
+    bad++;
+    console.error("  ✗ " + m);
+  }
+};
 
 const ACTIONS = [
   ["detect", "I carefully check the alley for hidden cameras."],
@@ -58,7 +81,10 @@ async function main() {
   console.log("\n--- Roster ---");
   const roster = await get("/characters");
   const list = roster.characters || [];
-  check(list.some((c) => c.characterId === id), "character in roster");
+  check(
+    list.some((c) => c.characterId === id),
+    "character in roster",
+  );
 
   console.log("\n--- Actions ---");
   for (const [want, rawText] of ACTIONS) {
@@ -80,11 +106,17 @@ async function main() {
   console.log("\n--- History ---");
   const hist = await get(`/actions?actorId=${id}`);
   const acts = hist.actions || hist;
-  check(Array.isArray(acts) && acts.length >= 5, `history length ${Array.isArray(acts) ? acts.length : 0}`);
+  check(
+    Array.isArray(acts) && acts.length >= 5,
+    `history length ${Array.isArray(acts) ? acts.length : 0}`,
+  );
 
   console.log(`\n=== ${ok} passed / ${bad} failed ===`);
   if (bad) process.exit(1);
   console.log("✅ SMOKE PASSED");
 }
 
-main().catch((e) => { console.error("\n❌ " + e.message); process.exit(1); });
+main().catch((e) => {
+  console.error("\n❌ " + e.message);
+  process.exit(1);
+});

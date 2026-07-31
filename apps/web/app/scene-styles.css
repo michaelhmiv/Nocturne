@@ -360,8 +360,12 @@
 }
 
 @keyframes scene-pulse {
-  70% { box-shadow: 0 0 0 10px #d8b46a00; }
-  100% { box-shadow: 0 0 0 0 #d8b46a00; }
+  70% {
+    box-shadow: 0 0 0 10px #d8b46a00;
+  }
+  100% {
+    box-shadow: 0 0 0 0 #d8b46a00;
+  }
 }
 
 .scene-character-panel {

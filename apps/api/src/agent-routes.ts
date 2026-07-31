@@ -20,7 +20,9 @@ type Deps = {
   market: ReturnType<typeof createMarketStore>;
   locations: ReturnType<typeof createLocationStore>;
   requireUser: (headers: Record<string, string | string[] | undefined>) => Promise<User>;
-  tryAgent: (headers: Record<string, string | string[] | undefined>) => Promise<AgentIdentity | null>;
+  tryAgent: (
+    headers: Record<string, string | string[] | undefined>,
+  ) => Promise<AgentIdentity | null>;
 };
 
 function headerString(
@@ -85,7 +87,9 @@ export function registerAgentRoutes(app: FastifyInstance, deps: Deps) {
           "Agent bootstrap disabled. Set NOCTURNE_AGENT_BOOTSTRAP_KEY or enable open registration.",
       });
     }
-    const body = z.object({ label: z.string().min(1).max(80).optional() }).parse(request.body ?? {});
+    const body = z
+      .object({ label: z.string().min(1).max(80).optional() })
+      .parse(request.body ?? {});
     const minted = await agents.bootstrap({ label: body.label });
     return reply.code(201).send({
       tokenId: minted.tokenId,
@@ -267,7 +271,9 @@ export function registerAgentRoutes(app: FastifyInstance, deps: Deps) {
   app.get("/v1/agent/history", async (request) => {
     const { user, agent } = await requireActor(request.headers);
     requireAgentScope(agent, "character:read");
-    const query = z.object({ characterId: z.string().uuid().optional() }).parse(request.query ?? {});
+    const query = z
+      .object({ characterId: z.string().uuid().optional() })
+      .parse(request.query ?? {});
     const characterId = await resolveCharacterId(user.id, agent, query.characterId);
     if (!characterId) return { actions: [] };
     return { actions: await actions.list(user.id, characterId) };

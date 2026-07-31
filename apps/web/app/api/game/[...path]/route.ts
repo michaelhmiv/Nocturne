@@ -6,7 +6,13 @@ async function forward(request: Request, context: { params: Promise<{ path: stri
   const target = new URL(`/v1/${pathname}`, apiBase);
   target.search = new URL(request.url).search;
   const headers = new Headers();
-  for (const name of ["authorization", "cookie", "content-type", "idempotency-key", "x-nocturne-guest-mode"]) {
+  for (const name of [
+    "authorization",
+    "cookie",
+    "content-type",
+    "idempotency-key",
+    "x-nocturne-guest-mode",
+  ]) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
@@ -15,7 +21,8 @@ async function forward(request: Request, context: { params: Promise<{ path: stri
     const response = await fetch(target, {
       method: request.method,
       headers,
-      body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.text(),
+      body:
+        request.method === "GET" || request.method === "HEAD" ? undefined : await request.text(),
       cache: "no-store",
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -28,7 +35,8 @@ async function forward(request: Request, context: { params: Promise<{ path: stri
       return new Response(
         JSON.stringify({
           error: "gateway_timeout",
-          message: "The world action is taking too long to resolve. No in-world failure was committed.",
+          message:
+            "The world action is taking too long to resolve. No in-world failure was committed.",
         }),
         { status: 504, headers: { "content-type": "application/json" } },
       );

@@ -51,10 +51,7 @@ export function createLazySimulationService(dependencies: {
         });
       }
       const operations = proposal.operations.map((operation) => {
-        if (
-          "expectedVersion" in operation &&
-          operation.expectedVersion === undefined
-        ) {
+        if ("expectedVersion" in operation && operation.expectedVersion === undefined) {
           return { ...operation, expectedVersion: claim.entityVersion };
         }
         return operation;
@@ -89,11 +86,13 @@ export function createLazySimulationService(dependencies: {
           : error instanceof Error && /proposal|operation/i.test(error.message)
             ? "invalid_proposal"
             : "processing_error";
-      await dependencies.store.fail({
-        claim,
-        leaseOwner: input.leaseOwner,
-        errorCode: code,
-      }).catch(() => {});
+      await dependencies.store
+        .fail({
+          claim,
+          leaseOwner: input.leaseOwner,
+          errorCode: code,
+        })
+        .catch(() => {});
       throw new LazySimulationServiceError(
         code,
         error instanceof Error ? error.message : "Lazy simulation failed.",

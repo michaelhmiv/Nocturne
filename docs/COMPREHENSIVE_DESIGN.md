@@ -29,11 +29,11 @@ location types:
 
 ```yaml
 relation_type options:
-  - located_within     # room → building, building → neighborhood, etc.
-  - adjacent_to        # same-level connection (room↔room, street↔street)
-  - accessible_via     # through a transit node
-  - requires_keycard   # restricted access
-  - requires_breakin   # locked but bypassable
+  - located_within # room → building, building → neighborhood, etc.
+  - adjacent_to # same-level connection (room↔room, street↔street)
+  - accessible_via # through a transit node
+  - requires_keycard # restricted access
+  - requires_breakin # locked but bypassable
   - requires_credential # guard, membership, badge
 ```
 
@@ -74,15 +74,15 @@ move action:
 
 **Speed modifiers:**
 
-| Method | Time factor | Visibility |
-|---|---|---|
-| Walking | 1.0× | Normal |
-| Running | 0.5× | High (attracts attention) |
-| Sneaking | 1.5× | Low |
-| Car | 0.3× | Normal |
-| Motorcycle | 0.2× | Normal |
-| Taxi | 0.3× | Driver is a witness |
-| Transit (bus/subway) | Schedule-based | Public |
+| Method               | Time factor    | Visibility                |
+| -------------------- | -------------- | ------------------------- |
+| Walking              | 1.0×           | Normal                    |
+| Running              | 0.5×           | High (attracts attention) |
+| Sneaking             | 1.5×           | Low                       |
+| Car                  | 0.3×           | Normal                    |
+| Motorcycle           | 0.2×           | Normal                    |
+| Taxi                 | 0.3×           | Driver is a witness       |
+| Transit (bus/subway) | Schedule-based | Public                    |
 
 **AI's role in travel:** Parse "drive to the docks." The rules engine computes the path and time. The AI gets back "23 minutes via Calder Ave → Midtown → Dock Road" and narrates it. The AI never invents routes, distances, or travel times.
 
@@ -93,7 +93,7 @@ Player: "I drive from my apartment in Foundry Row to the Waterfront fish market"
 System:
   - Path: Foundry Row → Foundry Ward main street → Midtown bypass → Waterfront → Fish Market
   - Edges: 4 × 60s = 240s base walking → ×0.3 (car) = 72s
-  - Narrated: "About a minute and change. You take Foundry Ave through Midtown, 
+  - Narrated: "About a minute and change. You take Foundry Ave through Midtown,
     the docks coming into view as you round the old cannery."
 ```
 
@@ -103,52 +103,52 @@ System:
 
 Calder City — a full Atlantic coastal metropolis. Not just one neighborhood. The seeded starter world becomes one entry point.
 
-| District | Vibe | Key locations |
-|---|---|---|
-| Foundry Ward | Industrial, affordable | Apartments, repair shops, warehouses, dive bars |
-| Financial District | Corporate, policed | Banks, law firms, corporate HQs, courthouse, upscale restaurants |
-| Old Town | Historic, tourist-heavy | Museums, galleries, theaters, boutique hotels, consulates |
-| Waterfront | Port, crime-heavy | Docks, shipping offices, fish market, smuggling routes, ferry terminal |
-| University Heights | Academic, young | Campus, research labs, student housing, coffee shops, bookstores |
-| Hospital Row | Medical, quiet | Hospital, clinics, pharmacy, medical supply, morgue |
-| Midtown | Commercial, busy | Mall, chain stores, parking garages, hotels, convention center |
-| The Gardens | Wealthy, gated | Mansions, private security, country club, luxury dealership |
-| Ironbridge | Heavy industry | Factories, railyard, power plant, scrap yards, union halls |
-| Redlights | Entertainment, vice | Nightclubs, casinos, pawn shops, cheap motels, tattoo parlors |
-| City Hall District | Government | City hall, police HQ, records office, jail, federal building |
+| District           | Vibe                    | Key locations                                                          |
+| ------------------ | ----------------------- | ---------------------------------------------------------------------- |
+| Foundry Ward       | Industrial, affordable  | Apartments, repair shops, warehouses, dive bars                        |
+| Financial District | Corporate, policed      | Banks, law firms, corporate HQs, courthouse, upscale restaurants       |
+| Old Town           | Historic, tourist-heavy | Museums, galleries, theaters, boutique hotels, consulates              |
+| Waterfront         | Port, crime-heavy       | Docks, shipping offices, fish market, smuggling routes, ferry terminal |
+| University Heights | Academic, young         | Campus, research labs, student housing, coffee shops, bookstores       |
+| Hospital Row       | Medical, quiet          | Hospital, clinics, pharmacy, medical supply, morgue                    |
+| Midtown            | Commercial, busy        | Mall, chain stores, parking garages, hotels, convention center         |
+| The Gardens        | Wealthy, gated          | Mansions, private security, country club, luxury dealership            |
+| Ironbridge         | Heavy industry          | Factories, railyard, power plant, scrap yards, union halls             |
+| Redlights          | Entertainment, vice     | Nightclubs, casinos, pawn shops, cheap motels, tattoo parlors          |
+| City Hall District | Government              | City hall, police HQ, records office, jail, federal building           |
 
 ### 1.3 All City Stores
 
 Every store type a real city has. Each has a `business_type` and a known inventory category.
 
-| Category | Store types |
-|---|---|
-| **Food** | Grocery store, convenience store, bakery, butcher, fish market, farmer's market, restaurant (fast food, diner, upscale, ethnic), bar, coffee shop, liquor store |
-| **Retail** | Department store, clothing boutique, electronics shop, bookstore, toy store, music store, pawn shop, antique shop, flea market |
-| **Hardware** | Hardware store, lumber yard, plumbing supply, electrical supply, paint store, tool rental |
-| **Automotive** | Gas station, auto repair shop, tire shop, car dealership (new/used), motorcycle shop, scrapyard, tow lot, car wash, auto parts store |
-| **Medical** | Hospital, urgent care clinic, pharmacy, dentist, optometrist, veterinary clinic, medical supply store |
-| **Professional services** | Law firm, accounting office, insurance agency, real estate office, bank, credit union, post office, shipping/courier store, print shop |
-| **Personal services** | Barber, salon, tattoo parlor, gym, laundromat, dry cleaner, tailor, locksmith, phone repair |
-| **Security** | Locksmith, security system installer, gun shop (licensed), guard service office, private investigator |
-| **Entertainment** | Movie theater, arcade, bowling alley, pool hall, comedy club, concert venue, sports stadium |
-| **Travel** | Bus station, subway station, ferry terminal, airport (edge of city), taxi dispatch, car rental |
-| **Industrial** | Factory, warehouse, distribution center, recycling plant, water treatment, power substation |
-| **Institutional** | Police precinct, fire station, courthouse, city hall, DMV, library, post office, jail, military recruiting |
-| **Underground** | Illegal gambling den, unlicensed gun dealer, chop shop, safehouse, drug house, forgery operation, smuggling front |
+| Category                  | Store types                                                                                                                                                     |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Food**                  | Grocery store, convenience store, bakery, butcher, fish market, farmer's market, restaurant (fast food, diner, upscale, ethnic), bar, coffee shop, liquor store |
+| **Retail**                | Department store, clothing boutique, electronics shop, bookstore, toy store, music store, pawn shop, antique shop, flea market                                  |
+| **Hardware**              | Hardware store, lumber yard, plumbing supply, electrical supply, paint store, tool rental                                                                       |
+| **Automotive**            | Gas station, auto repair shop, tire shop, car dealership (new/used), motorcycle shop, scrapyard, tow lot, car wash, auto parts store                            |
+| **Medical**               | Hospital, urgent care clinic, pharmacy, dentist, optometrist, veterinary clinic, medical supply store                                                           |
+| **Professional services** | Law firm, accounting office, insurance agency, real estate office, bank, credit union, post office, shipping/courier store, print shop                          |
+| **Personal services**     | Barber, salon, tattoo parlor, gym, laundromat, dry cleaner, tailor, locksmith, phone repair                                                                     |
+| **Security**              | Locksmith, security system installer, gun shop (licensed), guard service office, private investigator                                                           |
+| **Entertainment**         | Movie theater, arcade, bowling alley, pool hall, comedy club, concert venue, sports stadium                                                                     |
+| **Travel**                | Bus station, subway station, ferry terminal, airport (edge of city), taxi dispatch, car rental                                                                  |
+| **Industrial**            | Factory, warehouse, distribution center, recycling plant, water treatment, power substation                                                                     |
+| **Institutional**         | Police precinct, fire station, courthouse, city hall, DMV, library, post office, jail, military recruiting                                                      |
+| **Underground**           | Illegal gambling den, unlicensed gun dealer, chop shop, safehouse, drug house, forgery operation, smuggling front                                               |
 
-**Ponytail rule for stores:** Each store knows its inventory *categories*, not item-level stock. The AI fills in reasonable items from those categories when needed. No supply/demand simulation yet.
+**Ponytail rule for stores:** Each store knows its inventory _categories_, not item-level stock. The AI fills in reasonable items from those categories when needed. No supply/demand simulation yet.
 
 ### 1.4 Housing
 
-| Type | Acquisition | Examples |
-|---|---|---|
-| Rental apartment | Pay rent (in-game currency, periodic) | Ashdown Apartments, tenement housing, mid-rise condos |
-| Owned condo | Purchase deed | Midtown towers, waterfront lofts |
-| House | Purchase deed | Gardens mansions, Old Town brownstones, suburban houses |
-| Commercial property | Purchase deed or lease | Warehouses, storefronts, offices |
-| Hidden/squat | Claim via gameplay (no deed) | Abandoned factory, sewer hideout, condemned building |
-| Institutional housing | Assigned (police barracks, prison cell, hospital bed) | Temporary, conditional |
+| Type                  | Acquisition                                           | Examples                                                |
+| --------------------- | ----------------------------------------------------- | ------------------------------------------------------- |
+| Rental apartment      | Pay rent (in-game currency, periodic)                 | Ashdown Apartments, tenement housing, mid-rise condos   |
+| Owned condo           | Purchase deed                                         | Midtown towers, waterfront lofts                        |
+| House                 | Purchase deed                                         | Gardens mansions, Old Town brownstones, suburban houses |
+| Commercial property   | Purchase deed or lease                                | Warehouses, storefronts, offices                        |
+| Hidden/squat          | Claim via gameplay (no deed)                          | Abandoned factory, sewer hideout, condemned building    |
+| Institutional housing | Assigned (police barracks, prison cell, hospital bed) | Temporary, conditional                                  |
 
 Each residence has capacities (space, power, concealment, security, access) — already modeled in schema, just needs values assigned per location type.
 
@@ -183,13 +183,13 @@ skill categories:
 
 **Progression curve:** Quadratic — early levels fast, later levels slow. Total XP needed to reach level N = N² × 10.
 
-| Level | Total XP | Approx actions | ~Play time |
-|---|---|---|---|
-| 10 (basic) | 1,000 | ~330 | ~3 hours |
-| 25 (novice) | 6,250 | ~2,100 | ~18 hours |
-| 50 (competent) | 25,000 | ~8,300 | ~70 hours |
-| 75 (expert) | 56,250 | ~18,750 | ~6 days |
-| 100 (world-class) | 100,000 | ~33,300 | ~12 days |
+| Level             | Total XP | Approx actions | ~Play time |
+| ----------------- | -------- | -------------- | ---------- |
+| 10 (basic)        | 1,000    | ~330           | ~3 hours   |
+| 25 (novice)       | 6,250    | ~2,100         | ~18 hours  |
+| 50 (competent)    | 25,000   | ~8,300         | ~70 hours  |
+| 75 (expert)       | 56,250   | ~18,750        | ~6 days    |
+| 100 (world-class) | 100,000  | ~33,300        | ~12 days   |
 
 Assumes: average action = 3 XP, average action takes ~30 seconds, 8-hour play sessions. Comparable to RuneScape's ~100-200 hours to 99 per skill. Competent (~70 hours) is achievable in a week of dedicated play. Maxing every skill would take thousands of hours — impossible to be world-class at everything.
 
@@ -235,21 +235,22 @@ World time advances in real time. Actions have durations. The world doesn't paus
 
 **Durations:** Every action gets a `started_at`, `estimated_duration_seconds`, and `resolves_at`. The action isn't complete until wall clock reaches `resolves_at`.
 
-| Action type | Duration range |
-|---|---|
-| Send a text message | 5-30s |
-| Search a room | 30-300s |
-| Drive across district | 60-600s |
-| Build a simple device | 600-3600s (10min-1hr) |
-| Build a complex device | 3600-86400s (1hr-24hr) |
-| Heal from minor injury | 3600-21600s (1-6hr) |
-| Heal from major injury | 86400-604800s (1-7 days) |
-| Prison sentence | 86400-2592000s (1-30 days) |
+| Action type                        | Duration range                |
+| ---------------------------------- | ----------------------------- |
+| Send a text message                | 5-30s                         |
+| Search a room                      | 30-300s                       |
+| Drive across district              | 60-600s                       |
+| Build a simple device              | 600-3600s (10min-1hr)         |
+| Build a complex device             | 3600-86400s (1hr-24hr)        |
+| Heal from minor injury             | 3600-21600s (1-6hr)           |
+| Heal from major injury             | 86400-604800s (1-7 days)      |
+| Prison sentence                    | 86400-2592000s (1-30 days)    |
 | Travel by transit (schedule-based) | varies by route and wait time |
 
 ### 3.2 Scheduling
 
 Players can schedule actions:
+
 - "I'll surveil the bank from my car starting at 2am for 3 hours"
 - "Deliver the package at noon tomorrow"
 
@@ -258,6 +259,7 @@ The worker process (already has `apps/worker/src/index.ts`) checks for due actio
 ### 3.3 In-Game Clock
 
 Calder City has a day/night cycle tied to real time. 1 real day = 1 game day (or configurable ratio). Time of day affects:
+
 - Store open/closed status
 - NPC availability (at work vs. at home vs. asleep)
 - Visibility (darkness modifier for actions)
@@ -272,21 +274,21 @@ Calder City has a day/night cycle tied to real time. 1 real day = 1 game day (or
 
 All items are `entity_instances` with a `definition_id`. Already modeled.
 
-| Category | Examples |
-|---|---|
-| **Weapons** | Pistol, rifle, knife, bat, taser, pepper spray, improvised |
-| **Tools** | Lockpicks, crowbar, wire cutters, drill, laptop, USB drive |
-| **Electronics** | Phone, burner phone, radio, scanner, camera, bug, jammer |
-| **Disguise** | Uniform, mask, wig, fake ID, badge |
-| **Medical** | Bandages, painkillers, antidote, stimulant, sedative |
-| **Clothing** | Casual, business, tactical, formal, gang colors |
-| **Vehicles** | Car, motorcycle, truck, van, boat (vehicle is an item with a `vehicle` trait) |
-| **Keys/Access** | Keycards, keys, access codes, passwords |
-| **Documents** | Deeds, contracts, letters, photographs, ledgers, flash drive |
-| **Contraband** | Drugs, stolen goods, counterfeit money, unregistered weapons |
-| **Materials** | Scrap metal, wire, chemicals, electronics parts, fabric |
-| **Food/Drink** | Consumable, minimal mechanical effect (RP value) |
-| **Money** | Cash (physical item), credit cards, crypto wallet |
+| Category        | Examples                                                                      |
+| --------------- | ----------------------------------------------------------------------------- |
+| **Weapons**     | Pistol, rifle, knife, bat, taser, pepper spray, improvised                    |
+| **Tools**       | Lockpicks, crowbar, wire cutters, drill, laptop, USB drive                    |
+| **Electronics** | Phone, burner phone, radio, scanner, camera, bug, jammer                      |
+| **Disguise**    | Uniform, mask, wig, fake ID, badge                                            |
+| **Medical**     | Bandages, painkillers, antidote, stimulant, sedative                          |
+| **Clothing**    | Casual, business, tactical, formal, gang colors                               |
+| **Vehicles**    | Car, motorcycle, truck, van, boat (vehicle is an item with a `vehicle` trait) |
+| **Keys/Access** | Keycards, keys, access codes, passwords                                       |
+| **Documents**   | Deeds, contracts, letters, photographs, ledgers, flash drive                  |
+| **Contraband**  | Drugs, stolen goods, counterfeit money, unregistered weapons                  |
+| **Materials**   | Scrap metal, wire, chemicals, electronics parts, fabric                       |
+| **Food/Drink**  | Consumable, minimal mechanical effect (RP value)                              |
+| **Money**       | Cash (physical item), credit cards, crypto wallet                             |
 
 ### 4.2 Item Creation (Invention Pipeline)
 
@@ -319,15 +321,15 @@ Already built: `invention-store.ts` handles `generated_content_requests` flow. E
 
 Items can be obtained through multiple paths (already in schema as `AcquisitionPathSchema`):
 
-| Path | Mechanism |
-|---|---|
-| **Purchased** | Buy from store NPC or other player |
-| **Built** | Invent + construct with materials and time |
-| **Found** | Discovered during exploration/search |
-| **Stolen** | Taken from location or NPC via stealth/force |
-| **Given** | Transferred by another player or NPC |
-| **Inherited** | Received when previous character dies (if designated) |
-| **Issued** | Given by employer/faction (police badge, gang colors, company laptop) |
+| Path          | Mechanism                                                             |
+| ------------- | --------------------------------------------------------------------- |
+| **Purchased** | Buy from store NPC or other player                                    |
+| **Built**     | Invent + construct with materials and time                            |
+| **Found**     | Discovered during exploration/search                                  |
+| **Stolen**    | Taken from location or NPC via stealth/force                          |
+| **Given**     | Transferred by another player or NPC                                  |
+| **Inherited** | Received when previous character dies (if designated)                 |
+| **Issued**    | Given by employer/faction (police badge, gang colors, company laptop) |
 
 ### 4.4 Condition and Degradation
 
@@ -340,6 +342,7 @@ Items have `condition` (0-100, already in schema). Usage degrades condition. At 
 ### 5.1 Vehicle as Entity
 
 A vehicle is an `entity_instances` with `definition_type: "vehicle"`. It has:
+
 - Location (where it's parked/docked)
 - Owner
 - Keys (separate item entity, or hotwiring bypass)
@@ -368,12 +371,12 @@ A vehicle is an `entity_instances` with `definition_type: "vehicle"`. It has:
 
 ### 5.3 Vehicle Sources
 
-| Source | Cost | Heat risk |
-|---|---|---|
-| Dealership | High | None (registered) |
-| Private sale | Medium | Low |
-| Street (steal) | Free | High (reported stolen) |
-| Chop shop | Medium-Low | Medium (VIN swapped) |
+| Source         | Cost       | Heat risk              |
+| -------------- | ---------- | ---------------------- |
+| Dealership     | High       | None (registered)      |
+| Private sale   | Medium     | Low                    |
+| Street (steal) | Free       | High (reported stolen) |
+| Chop shop      | Medium-Low | Medium (VIN swapped)   |
 
 ---
 
@@ -401,14 +404,24 @@ npc_definition:
   name: "Marco Vazquez"
   role: "dock worker"
   schedule:
-    - { location: "Foundry Row Apartments #2B", days: "weekdays", time: "22:00-06:00", activity: "sleeping" }
-    - { location: "Waterfront Docks, Pier 4", days: "weekdays", time: "07:00-16:00", activity: "working" }
+    - {
+        location: "Foundry Row Apartments #2B",
+        days: "weekdays",
+        time: "22:00-06:00",
+        activity: "sleeping",
+      }
+    - {
+        location: "Waterfront Docks, Pier 4",
+        days: "weekdays",
+        time: "07:00-16:00",
+        activity: "working",
+      }
     - { location: "Rusty Anchor Bar", days: "weekdays", time: "17:00-20:00", activity: "drinking" }
     - { location: "Foundry Row", days: "weekdays", time: "20:00-22:00", activity: "commuting" }
   relationships:
     - { target: "Elena Vazquez", type: "married_to" }
     - { target: "Dock Workers Union Local 412", type: "member_of" }
-  knowledge: []   # populated by events they witness
+  knowledge: [] # populated by events they witness
 ```
 
 **NPC AI invocation is lazy:** Only when a player interacts with an NPC does the AI "wake up" that NPC, generate dialogue from their state, and commit any resulting changes. Between interactions, they're just database rows with schedules.
@@ -433,6 +446,7 @@ npc: "Captain Elaine Cross"  (Police Precinct 12 commander)
 ```
 
 NPC AI runs on a schedule (every N minutes, or when triggered by relevant events). It checks their goals, observes new information they have access to, and can initiate actions:
+
 - Order subordinates to investigate
 - File reports
 - Meet with informants
@@ -443,90 +457,90 @@ NPC AI runs on a schedule (every N minutes, or when triggered by relevant events
 
 Every store that belongs in a city, mapped to locations:
 
-| District | Store | Type | Known Inventory |
-|---|---|---|---|
-| **Foundry Ward** | | | |
-| | "Mick's Hardware" | hardware_store | tools, materials, paint, lumber, plumbing, electrical |
-| | "Foundry Row Grocery" | grocery_store | food, drink, household |
-| | "24/7 Convenience" | convenience_store | snacks, drinks, basic supplies, prepaid phones |
-| | "Foundry Auto Repair" | auto_repair | car parts, tires, tools, mechanic service |
-| | "Ironbridge Scrap & Salvage" | scrapyard | scrap metal, used parts, junk vehicles |
-| | "The Rusty Anchor" | bar | drinks, food (basic) |
-| | "Calder Pawn & Loan" | pawn_shop | random used items, jewelry, electronics, tools |
-| | "Foundry Wash" | laundromat | laundry service |
-| | "St. Jude's Free Clinic" | clinic | basic medical supplies, treatment |
-| **Financial District** | | | |
-| | "Calder First Bank" | bank | accounts, loans, safe deposit boxes |
-| | "Harrington & Associates" | law_firm | legal services |
-| | "City Courier Services" | shipping | package delivery, mail |
-| | "TechVault Electronics" | electronics | phones, laptops, surveillance equipment, bugs |
-| | "The Vault" | upscale_restaurant | food (expensive) |
-| | "Calder Arms Hotel" | hotel | lodging, room service |
-| | "Executive Wardrobe" | clothing_boutique | business attire, formal wear |
-| **Old Town** | | | |
-| | "Old Town Books" | bookstore | books, maps, research materials |
-| | "The Conservatory" | museum | tours, events |
-| | "Antiquities & Curios" | antique_shop | rare items, old documents, collectibles |
-| | "Old Town Theater" | theater | entertainment |
-| | "Embassy Row Hotel" | hotel | lodging (luxury) |
-| **Waterfront** | | | |
-| | "Harbor Fish Market" | fish_market | seafood, ice |
-| | "Pier Supply Co." | marine_supply | rope, tarps, boat parts, fishing gear |
-| | "The Shipping Office" | shipping_office | cargo, customs, import/export |
-| | "Waterfront Bar" | bar | drinks (cheap) |
-| | "Calder Ferry Terminal" | ferry_terminal | transit tickets |
-| | "Dock Workers Union Hall" | union_office | membership, job board |
-| **Hospital Row** | | | |
-| | "Calder General Hospital" | hospital | medical treatment, pharmacy, surgery |
-| | "MedPlus Pharmacy" | pharmacy | prescription drugs, medical supplies |
-| | "Calder Morgue" | morgue | body storage, autopsy records |
-| **Midtown** | | | |
-| | "Midtown Mall" (contains multiple stores) | mall | clothing, electronics, food court, department store |
-| | "Midtown Parking Garage" | parking | vehicle storage |
-| | "Calder Convention Center" | convention_center | events |
-| | "Greyhound Station" | bus_station | transit tickets |
-| **The Gardens** | | | |
-| | "The Gardens Country Club" | club | dining, golf, social events |
-| | "Prestige Auto" | luxury_dealership | high-end vehicles |
-| | "Gardens Private Security" | security_service | guards, alarm systems |
-| **Ironbridge** | | | |
-| | "Calder Power & Electric" | power_plant | (not a store — infrastructure) |
-| | "Ironbridge Rail Yard" | railyard | cargo, freight access |
-| | "Union Ironworks" | factory | industrial equipment, bulk metal |
-| **Redlights** | | | |
-| | "Neon Pawn" | pawn_shop | used items, questionable provenance |
-| | "Redlights Tattoo" | tattoo_parlor | tattoos |
-| | "The Velvet Room" | nightclub | drinks, entertainment |
-| | "Cash 4 Gold" | pawn_shop | gold, jewelry |
-| | "Budget Inn" | cheap_motel | lodging (hourly/daily, no questions) |
-| **City Hall District** | | | |
-| | "Calder City Hall" | government | permits, records, licenses |
-| | "Police HQ — Precinct 1" | police_hq | law enforcement HQ |
-| | "Calder County Courthouse" | courthouse | legal proceedings, records |
-| | "Calder County Jail" | jail | detention |
-| | "Calder Post Office — Main" | post_office | mail, PO boxes |
-| | "Federal Building" | federal_offices | federal services, FBI field office |
-| **University Heights** | | | |
-| | "Calder University Bookstore" | bookstore | textbooks, supplies |
-| | "Campus Coffee" | coffee_shop | coffee, pastries, wifi |
-| | "University Research Lab" | research_lab | specialized equipment (restricted access) |
-| | "Campus Pharmacy" | pharmacy | medical supplies |
+| District               | Store                                     | Type               | Known Inventory                                       |
+| ---------------------- | ----------------------------------------- | ------------------ | ----------------------------------------------------- |
+| **Foundry Ward**       |                                           |                    |                                                       |
+|                        | "Mick's Hardware"                         | hardware_store     | tools, materials, paint, lumber, plumbing, electrical |
+|                        | "Foundry Row Grocery"                     | grocery_store      | food, drink, household                                |
+|                        | "24/7 Convenience"                        | convenience_store  | snacks, drinks, basic supplies, prepaid phones        |
+|                        | "Foundry Auto Repair"                     | auto_repair        | car parts, tires, tools, mechanic service             |
+|                        | "Ironbridge Scrap & Salvage"              | scrapyard          | scrap metal, used parts, junk vehicles                |
+|                        | "The Rusty Anchor"                        | bar                | drinks, food (basic)                                  |
+|                        | "Calder Pawn & Loan"                      | pawn_shop          | random used items, jewelry, electronics, tools        |
+|                        | "Foundry Wash"                            | laundromat         | laundry service                                       |
+|                        | "St. Jude's Free Clinic"                  | clinic             | basic medical supplies, treatment                     |
+| **Financial District** |                                           |                    |                                                       |
+|                        | "Calder First Bank"                       | bank               | accounts, loans, safe deposit boxes                   |
+|                        | "Harrington & Associates"                 | law_firm           | legal services                                        |
+|                        | "City Courier Services"                   | shipping           | package delivery, mail                                |
+|                        | "TechVault Electronics"                   | electronics        | phones, laptops, surveillance equipment, bugs         |
+|                        | "The Vault"                               | upscale_restaurant | food (expensive)                                      |
+|                        | "Calder Arms Hotel"                       | hotel              | lodging, room service                                 |
+|                        | "Executive Wardrobe"                      | clothing_boutique  | business attire, formal wear                          |
+| **Old Town**           |                                           |                    |                                                       |
+|                        | "Old Town Books"                          | bookstore          | books, maps, research materials                       |
+|                        | "The Conservatory"                        | museum             | tours, events                                         |
+|                        | "Antiquities & Curios"                    | antique_shop       | rare items, old documents, collectibles               |
+|                        | "Old Town Theater"                        | theater            | entertainment                                         |
+|                        | "Embassy Row Hotel"                       | hotel              | lodging (luxury)                                      |
+| **Waterfront**         |                                           |                    |                                                       |
+|                        | "Harbor Fish Market"                      | fish_market        | seafood, ice                                          |
+|                        | "Pier Supply Co."                         | marine_supply      | rope, tarps, boat parts, fishing gear                 |
+|                        | "The Shipping Office"                     | shipping_office    | cargo, customs, import/export                         |
+|                        | "Waterfront Bar"                          | bar                | drinks (cheap)                                        |
+|                        | "Calder Ferry Terminal"                   | ferry_terminal     | transit tickets                                       |
+|                        | "Dock Workers Union Hall"                 | union_office       | membership, job board                                 |
+| **Hospital Row**       |                                           |                    |                                                       |
+|                        | "Calder General Hospital"                 | hospital           | medical treatment, pharmacy, surgery                  |
+|                        | "MedPlus Pharmacy"                        | pharmacy           | prescription drugs, medical supplies                  |
+|                        | "Calder Morgue"                           | morgue             | body storage, autopsy records                         |
+| **Midtown**            |                                           |                    |                                                       |
+|                        | "Midtown Mall" (contains multiple stores) | mall               | clothing, electronics, food court, department store   |
+|                        | "Midtown Parking Garage"                  | parking            | vehicle storage                                       |
+|                        | "Calder Convention Center"                | convention_center  | events                                                |
+|                        | "Greyhound Station"                       | bus_station        | transit tickets                                       |
+| **The Gardens**        |                                           |                    |                                                       |
+|                        | "The Gardens Country Club"                | club               | dining, golf, social events                           |
+|                        | "Prestige Auto"                           | luxury_dealership  | high-end vehicles                                     |
+|                        | "Gardens Private Security"                | security_service   | guards, alarm systems                                 |
+| **Ironbridge**         |                                           |                    |                                                       |
+|                        | "Calder Power & Electric"                 | power_plant        | (not a store — infrastructure)                        |
+|                        | "Ironbridge Rail Yard"                    | railyard           | cargo, freight access                                 |
+|                        | "Union Ironworks"                         | factory            | industrial equipment, bulk metal                      |
+| **Redlights**          |                                           |                    |                                                       |
+|                        | "Neon Pawn"                               | pawn_shop          | used items, questionable provenance                   |
+|                        | "Redlights Tattoo"                        | tattoo_parlor      | tattoos                                               |
+|                        | "The Velvet Room"                         | nightclub          | drinks, entertainment                                 |
+|                        | "Cash 4 Gold"                             | pawn_shop          | gold, jewelry                                         |
+|                        | "Budget Inn"                              | cheap_motel        | lodging (hourly/daily, no questions)                  |
+| **City Hall District** |                                           |                    |                                                       |
+|                        | "Calder City Hall"                        | government         | permits, records, licenses                            |
+|                        | "Police HQ — Precinct 1"                  | police_hq          | law enforcement HQ                                    |
+|                        | "Calder County Courthouse"                | courthouse         | legal proceedings, records                            |
+|                        | "Calder County Jail"                      | jail               | detention                                             |
+|                        | "Calder Post Office — Main"               | post_office        | mail, PO boxes                                        |
+|                        | "Federal Building"                        | federal_offices    | federal services, FBI field office                    |
+| **University Heights** |                                           |                    |                                                       |
+|                        | "Calder University Bookstore"             | bookstore          | textbooks, supplies                                   |
+|                        | "Campus Coffee"                           | coffee_shop        | coffee, pastries, wifi                                |
+|                        | "University Research Lab"                 | research_lab       | specialized equipment (restricted access)             |
+|                        | "Campus Pharmacy"                         | pharmacy           | medical supplies                                      |
 
 ### 6.5 Underground / Illegal Operations
 
 These exist but aren't advertised. Players discover them through contacts, streetwise skill, or investigation:
 
-| Operation | Location | Services |
-|---|---|---|
-| Unlicensed gun dealer | Redlights back room | Unregistered weapons |
-| Chop shop | Ironbridge warehouse | Vehicle theft/dismantle, VIN swapping |
-| Forgery operation | Old Town basement | Fake IDs, documents, credentials |
-| Drug house | Foundry Ward tenement | Illegal substances |
-| Illegal gambling den | Waterfront back office | Unregulated betting |
-| Black market organ dealer | Hospital Row (corrupt orderly) | Medical supplies, transplant organs |
-| Money launderer | Midtown (front business) | Cleaning illicit cash |
-| Fixer/Info broker | Redlights nightclub | Information, contacts, introductions |
-| Safehouse operator | Various | Hiding place for fugitives |
+| Operation                 | Location                       | Services                              |
+| ------------------------- | ------------------------------ | ------------------------------------- |
+| Unlicensed gun dealer     | Redlights back room            | Unregistered weapons                  |
+| Chop shop                 | Ironbridge warehouse           | Vehicle theft/dismantle, VIN swapping |
+| Forgery operation         | Old Town basement              | Fake IDs, documents, credentials      |
+| Drug house                | Foundry Ward tenement          | Illegal substances                    |
+| Illegal gambling den      | Waterfront back office         | Unregulated betting                   |
+| Black market organ dealer | Hospital Row (corrupt orderly) | Medical supplies, transplant organs   |
+| Money launderer           | Midtown (front business)       | Cleaning illicit cash                 |
+| Fixer/Info broker         | Redlights nightclub            | Information, contacts, introductions  |
+| Safehouse operator        | Various                        | Hiding place for fugitives            |
 
 ---
 
@@ -552,14 +566,15 @@ communication:
     encrypted: boolean
     coded_language: boolean
     requires_context: (what you need to know to understand it)
-  observers: [character_id, ...]  # who could have intercepted
-  recorded_by: [system_id, ...]   # carrier metadata, surveillance
+  observers: [character_id, ...] # who could have intercepted
+  recorded_by: [system_id, ...] # carrier metadata, surveillance
   timestamp: world_time
 ```
 
 ### 7.2 Interception
 
 Not random. An observer must have:
+
 1. Access to the channel (e.g., wiretap on phone, bug in room, person at the bar overhearing)
 2. Capability (surveillance equipment, decryption tools, or just good ears)
 3. Time window (must be present during the communication)
@@ -569,6 +584,7 @@ If all three are met → observer gains an `information_asset` with the content 
 ### 7.3 Device Tracking
 
 Every device leaves a trail:
+
 - Cell towers record approximate location
 - Carrier records calls and SMS metadata
 - Police with a warrant can access these records
@@ -589,15 +605,15 @@ Every device leaves a trail:
 
 ### 8.2 Income Sources
 
-| Source | Mechanism |
-|---|---|
-| Employment | NPC employer pays salary (cop, dock worker, lawyer, journalist, etc.) |
-| Business ownership | Revenue from owned stores/properties |
-| Crime | Robbery, theft, drug dealing, extortion, heists |
-| Services | Other players pay for skills (lockpicking, hacking, medical, legal, driving) |
-| Bounties | Police or faction rewards |
-| Investments | Stock market, real estate appreciation |
-| Gambling | Casinos, underground betting, fight clubs |
+| Source             | Mechanism                                                                    |
+| ------------------ | ---------------------------------------------------------------------------- |
+| Employment         | NPC employer pays salary (cop, dock worker, lawyer, journalist, etc.)        |
+| Business ownership | Revenue from owned stores/properties                                         |
+| Crime              | Robbery, theft, drug dealing, extortion, heists                              |
+| Services           | Other players pay for skills (lockpicking, hacking, medical, legal, driving) |
+| Bounties           | Police or faction rewards                                                    |
+| Investments        | Stock market, real estate appreciation                                       |
+| Gambling           | Casinos, underground betting, fight clubs                                    |
 
 ### 8.3 Player Marketplace
 
@@ -620,16 +636,16 @@ marketplace listing:
 
 ### 8.4 Expenses
 
-| Expense | Mechanism |
-|---|---|
-| Rent/Mortgage | Periodic, location-dependent |
-| Food | Required or character gets hungry (minor debuff) |
-| Medical care | Injury treatment costs money |
-| Vehicle | Fuel, insurance, repairs, registration |
-| Equipment | Weapons, tools, devices — consumable or degrade |
-| Legal fees | Lawyers, bail bondsmen, fines |
-| Bribes | Paying off officials, informants |
-| Faction dues | Union dues, gang tribute, protection money |
+| Expense       | Mechanism                                        |
+| ------------- | ------------------------------------------------ |
+| Rent/Mortgage | Periodic, location-dependent                     |
+| Food          | Required or character gets hungry (minor debuff) |
+| Medical care  | Injury treatment costs money                     |
+| Vehicle       | Fuel, insurance, repairs, registration           |
+| Equipment     | Weapons, tools, devices — consumable or degrade  |
+| Legal fees    | Lawyers, bail bondsmen, fines                    |
+| Bribes        | Paying off officials, informants                 |
+| Faction dues  | Union dues, gang tribute, protection money       |
 
 ---
 
@@ -639,24 +655,25 @@ marketplace listing:
 
 Every action that violates law generates a potential charge. Not automatic — requires detection.
 
-| Crime | Severity | Detection |
-|---|---|---|
-| Theft | Misdemeanor/Felony (based on value) | Witness, camera, victim report |
-| Assault | Misdemeanor/Felony (based on injury) | Witness, victim report, hospital report |
-| Murder | Felony | Investigation required |
-| Breaking & Entering | Felony | Alarm, witness, evidence left behind |
-| Drug possession | Misdemeanor/Felony (based on amount) | Search, witness |
-| Drug dealing | Felony | Investigation, informant |
-| Fraud | Felony | Audit, victim report |
-| Bribery | Felony | Investigation, witness |
-| Resisting arrest | Misdemeanor | Automatic if fleeing |
-| Illegal weapon possession | Misdemeanor/Felony | Search |
-| Vandalism | Misdemeanor | Witness, camera |
-| Stolen vehicle | Felony | Registration check, report |
+| Crime                     | Severity                             | Detection                               |
+| ------------------------- | ------------------------------------ | --------------------------------------- |
+| Theft                     | Misdemeanor/Felony (based on value)  | Witness, camera, victim report          |
+| Assault                   | Misdemeanor/Felony (based on injury) | Witness, victim report, hospital report |
+| Murder                    | Felony                               | Investigation required                  |
+| Breaking & Entering       | Felony                               | Alarm, witness, evidence left behind    |
+| Drug possession           | Misdemeanor/Felony (based on amount) | Search, witness                         |
+| Drug dealing              | Felony                               | Investigation, informant                |
+| Fraud                     | Felony                               | Audit, victim report                    |
+| Bribery                   | Felony                               | Investigation, witness                  |
+| Resisting arrest          | Misdemeanor                          | Automatic if fleeing                    |
+| Illegal weapon possession | Misdemeanor/Felony                   | Search                                  |
+| Vandalism                 | Misdemeanor                          | Witness, camera                         |
+| Stolen vehicle            | Felony                               | Registration check, report              |
 
 ### 9.2 Heat System
 
 Heat is per-character, per-faction, not global. A character can be:
+
 - Unknown to police
 - Person of interest (investigation opened)
 - Wanted for questioning
@@ -685,6 +702,7 @@ Heat decays slowly over time if no new crimes committed. Heat transfers to known
 ### 9.4 Death
 
 When a character dies:
+
 - **Lose:** carried items, equipped items, cash on person. Whatever was on you at time of death.
 - **Keep:** bank accounts, owned property/deeds, vehicles (not the one you crashed), items stored in residence, faction standing, skills/XP.
 - Successor character inherits everything kept. No penalty beyond what was on your body.
@@ -696,19 +714,20 @@ When a character dies:
 
 ### 10.1 Faction Types
 
-| Type | Examples |
-|---|---|
-| Law enforcement | Calder City PD, State Police, FBI, DEA, Coast Guard |
-| Organized crime | Calder crime families, smuggling rings, drug cartels |
-| Street gangs | Foundry Ward Kings, Waterfront Reapers, Ironbridge Union |
-| Corporations | Calder Industries, Harbor Shipping Co., Midtown Development Group |
-| Institutions | City Hall, Courthouse, Hospital Administration, University |
-| Media | Calder Tribune, Channel 7 News, Pirate radio stations |
-| Underground | Hacker collective, vigilante network, occult society |
+| Type            | Examples                                                          |
+| --------------- | ----------------------------------------------------------------- |
+| Law enforcement | Calder City PD, State Police, FBI, DEA, Coast Guard               |
+| Organized crime | Calder crime families, smuggling rings, drug cartels              |
+| Street gangs    | Foundry Ward Kings, Waterfront Reapers, Ironbridge Union          |
+| Corporations    | Calder Industries, Harbor Shipping Co., Midtown Development Group |
+| Institutions    | City Hall, Courthouse, Hospital Administration, University        |
+| Media           | Calder Tribune, Channel 7 News, Pirate radio stations             |
+| Underground     | Hacker collective, vigilante network, occult society              |
 
 ### 10.2 Faction State
 
 Each faction has:
+
 - Members (characters with roles)
 - Assets (money, property, vehicles, equipment)
 - Territory (districts/neighborhoods they control)
@@ -720,6 +739,7 @@ Each faction has:
 ### 10.3 Player-Faction Relationship
 
 Players interact with factions through:
+
 - Joining (membership application, initiation)
 - Working for (jobs, missions, contracts)
 - Opposing (crimes against faction members/property)
@@ -740,6 +760,7 @@ Players interact with factions through:
 ```
 
 Players fight across all four:
+
 - Destroy evidence → changes layer 2, not layer 1
 - Plant evidence → creates false layer 2, may propagate to layers 3 and 4
 - Lie convincingly → creates false belief (layer 3) in the listener
@@ -750,6 +771,7 @@ Players fight across all four:
 ### 11.2 Information Quality
 
 Every information_asset has:
+
 - `truth_status`: observation, inference, rumor, planted, forged, mistaken
 - `confidence`: 0.0-1.0
 - `source_event_id`: which event produced this information
@@ -764,14 +786,14 @@ Every information_asset has:
 ```yaml
 action:
   actor: character_id
-  intent: freeform_description  # "I want to..."
+  intent: freeform_description # "I want to..."
   target: entity_id | location_id | character_id | null
   method: how (items used, skills applied, approach)
   timing: now | scheduled_timestamp
-  duration: estimated_seconds | null  # null = instant resolution
+  duration: estimated_seconds | null # null = instant resolution
   concealment: what the actor is hiding
   conditions: ["if X happens, abort", "only if the door is unlocked"]
-  resources_expended: [{item_id, quantity}]
+  resources_expended: [{ item_id, quantity }]
   risks_accepted: ["may be seen", "may leave evidence"]
 ```
 
@@ -839,6 +861,7 @@ target: defender_skills + armor + cover + awareness
 ```
 
 Resolution produces:
+
 - Hit/miss
 - Damage (to character condition or specific body part)
 - Injuries (persistent effects: "bleeding", "broken_arm", "concussed")
@@ -848,6 +871,7 @@ Resolution produces:
 ### 13.3 Lethality
 
 Based on weapon and targeting:
+
 - Fists: bruising, possible KO, rarely lethal
 - Knife: bleeding, lethal if untreated
 - Gun: high lethality, location-dependent (leg = disabling, chest = critical)
@@ -861,17 +885,17 @@ Death is real. Medical attention can prevent it if reached in time.
 
 The existing codebase is solid for:
 
-| System | Status | What to keep |
-|---|---|---|
-| Database schema | ✅ Built | entity_definitions/revisions/instances, event_ledger, player_characters, residence_occupancies, information_assets, generated_content_requests, action_intents, resolution_results, conversations, ai_runs |
-| Content system | ✅ Built | GeneratedDefinitionDraft, effects, modes, requirements, costs, signatures, acquisition paths |
-| Rules engine | ✅ Built | Deterministic contest resolution, probability checks, score derivation, detection operations |
-| Contracts | ✅ Built | Zod validation for all existing types |
-| Invention pipeline | ✅ Built | createRequest → normalize → validate → install |
-| Starter world | ✅ Built | Calder City → Foundry Ward → Ashdown Apartments → Alley |
-| Action service | ✅ Built | Parse → contest → commit → narrate loop |
-| API | ✅ Built | Hono routes for conversations, actions, characters, world |
-| Worker | ⚠️ Stub | apps/worker/src/index.ts exists, needs scheduling logic |
+| System             | Status   | What to keep                                                                                                                                                                                               |
+| ------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Database schema    | ✅ Built | entity_definitions/revisions/instances, event_ledger, player_characters, residence_occupancies, information_assets, generated_content_requests, action_intents, resolution_results, conversations, ai_runs |
+| Content system     | ✅ Built | GeneratedDefinitionDraft, effects, modes, requirements, costs, signatures, acquisition paths                                                                                                               |
+| Rules engine       | ✅ Built | Deterministic contest resolution, probability checks, score derivation, detection operations                                                                                                               |
+| Contracts          | ✅ Built | Zod validation for all existing types                                                                                                                                                                      |
+| Invention pipeline | ✅ Built | createRequest → normalize → validate → install                                                                                                                                                             |
+| Starter world      | ✅ Built | Calder City → Foundry Ward → Ashdown Apartments → Alley                                                                                                                                                    |
+| Action service     | ✅ Built | Parse → contest → commit → narrate loop                                                                                                                                                                    |
+| API                | ✅ Built | Hono routes for conversations, actions, characters, world                                                                                                                                                  |
+| Worker             | ⚠️ Stub  | apps/worker/src/index.ts exists, needs scheduling logic                                                                                                                                                    |
 
 ---
 
@@ -879,38 +903,38 @@ The existing codebase is solid for:
 
 ### Phase A — Core Systems (These all depend on each other conceptually)
 
-| System | What to build |
-|---|---|
-| **Character skills** | Skill table, skill check function in rules-engine, XP gain on action, skill gating for invention |
-| **Real-time scheduling** | Worker process that checks `resolves_at` timestamps, resolves due actions, triggers NPC schedules |
-| **Item creation gating** | Extend invention pipeline with skill checks, material requirements, build timers |
-| **Location expansion** | Seed all 11 districts with locations and travel edges |
-| **Movement system** | Move action type, travel time calculation, location graph traversal |
-| **NPC store system** | Seed all stores (50+) as entity definitions with business_type and inventory_categories, simple buy/sell action |
-| **Vehicle system** | Vehicle entity type, ownership, parking, driving action, travel time modifier |
-| **Combat system** | Combat action types, damage calculation, injury system, death handling |
-| **Communication system** | Call/message actions, interception checks, device tracking |
-| **Legal/heat system** | Crime detection, warrant system, arrest flow, jail, trial |
-| **Faction system** | Faction definitions, membership, relationships, NPC goal scheduling |
-| **Economy** | Currency tracking, employment income, periodic expenses, bank accounts |
+| System                   | What to build                                                                                                   |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| **Character skills**     | Skill table, skill check function in rules-engine, XP gain on action, skill gating for invention                |
+| **Real-time scheduling** | Worker process that checks `resolves_at` timestamps, resolves due actions, triggers NPC schedules               |
+| **Item creation gating** | Extend invention pipeline with skill checks, material requirements, build timers                                |
+| **Location expansion**   | Seed all 11 districts with locations and travel edges                                                           |
+| **Movement system**      | Move action type, travel time calculation, location graph traversal                                             |
+| **NPC store system**     | Seed all stores (50+) as entity definitions with business_type and inventory_categories, simple buy/sell action |
+| **Vehicle system**       | Vehicle entity type, ownership, parking, driving action, travel time modifier                                   |
+| **Combat system**        | Combat action types, damage calculation, injury system, death handling                                          |
+| **Communication system** | Call/message actions, interception checks, device tracking                                                      |
+| **Legal/heat system**    | Crime detection, warrant system, arrest flow, jail, trial                                                       |
+| **Faction system**       | Faction definitions, membership, relationships, NPC goal scheduling                                             |
+| **Economy**              | Currency tracking, employment income, periodic expenses, bank accounts                                          |
 
 ### Phase B — AI Integration
 
-| System | What to build |
-|---|---|
-| **Action parsing** | Extend AI parsing from detect-only to all action types |
-| **NPC dialogue** | NPC AI invocation with constraint packets (knowledge, goals, motives, relationship) |
-| **Item difficulty assessment** | AI assigns creationDifficulty, requiredSkills, requiredMaterials from concept |
-| **Narration** | Already built — extend for all action types |
-| **Investigation narration** | AI assembles clues into coherent picture without revealing hidden facts |
+| System                         | What to build                                                                       |
+| ------------------------------ | ----------------------------------------------------------------------------------- |
+| **Action parsing**             | Extend AI parsing from detect-only to all action types                              |
+| **NPC dialogue**               | NPC AI invocation with constraint packets (knowledge, goals, motives, relationship) |
+| **Item difficulty assessment** | AI assigns creationDifficulty, requiredSkills, requiredMaterials from concept       |
+| **Narration**                  | Already built — extend for all action types                                         |
+| **Investigation narration**    | AI assembles clues into coherent picture without revealing hidden facts             |
 
 ### Phase C — Multiplayer
 
-| System | What to build |
-|---|---|
+| System                 | What to build                                                              |
+| ---------------------- | -------------------------------------------------------------------------- |
 | **Player interaction** | Players can see each other in same location, interact (talk, trade, fight) |
-| **PvP resolution** | Same combat system, both sides are players |
-| **Information PvP** | Players can intercept, spy on, and deceive other players |
+| **PvP resolution**     | Same combat system, both sides are players                                 |
+| **Information PvP**    | Players can intercept, spy on, and deceive other players                   |
 
 ---
 

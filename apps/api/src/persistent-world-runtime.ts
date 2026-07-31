@@ -1,8 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import type {
-  MaterializationAnalysisRequest,
-  WorldActionKind,
-} from "@nocturne/contracts";
+import type { MaterializationAnalysisRequest, WorldActionKind } from "@nocturne/contracts";
 import type { AiProviderClient } from "@nocturne/ai-gm";
 import {
   createMaterializationStore,
@@ -17,6 +14,14 @@ import {
   type WorldScope,
   type createDatabase,
 } from "@nocturne/database";
+import { createGameplayTelemetryWriter } from "./gameplay-telemetry.js";
+import {
+  instrumentAiClient,
+  instrumentContextStore,
+  instrumentPlanStore,
+  instrumentReferenceStore,
+  instrumentStepStore,
+} from "./persistent-world-instrumentation.js";
 import { createPersistentWorldActionService } from "./persistent-world-action-service.js";
 import { registerPersistentWorldRoutes } from "./persistent-world-routes.js";
 import { createSearchDiscoveryService } from "./search-discovery-service.js";
@@ -29,10 +34,7 @@ export async function registerPersistentWorldRuntime(
     client: Pick<AiProviderClient, "generateStructured">;
     rollSecret: string | Buffer;
     resolveScope(request: FastifyRequest): Promise<WorldScope>;
-    listRecentPlayerSafeText(input: {
-      scope: WorldScope;
-      limit: number;
-    }): Promise<string[]>;
+    listRecentPlayerSafeText(input: { scope: WorldScope; limit: number }): Promise<string[]>;
     loadReusableDefinitions(input: {
       scope: Pick<WorldScope, "worldId">;
       requestedConcept: string;
@@ -82,14 +84,22 @@ export async function registerPersistentWorldRuntime(
   },
 ) {
   const executor = createUniversalOperationExecutor(dependencies.database);
-  const context = createRelevanceContextStore(dependencies.database);
-  const references = createReferenceResolutionStore(dependencies.database);
-  const plans = createPersistentPlanStore(dependencies.database);
+  const telemetry = createGameplayTelemetryWriter(app.log);
+  const client = instrumentAiClient(dependencies.client, telemetry);
+  const context = instrumentContextStore(
+    createRelevanceContextStore(dependencies.database),
+    telemetry,
+  );
+  const references = instrumentReferenceStore(
+    createReferenceResolutionStore(dependencies.database),
+    telemetry,
+  );
+  const plans = instrumentPlanStore(createPersistentPlanStore(dependencies.database), telemetry);
   const requests = createWorldActionRequestStore(dependencies.database);
-  const steps = createWorldActionStepStore(dependencies.database);
+  const steps = instrumentStepStore(createWorldActionStepStore(dependencies.database), telemetry);
   const materialization = createMaterializationStore(dependencies.database, executor);
   const search = createSearchDiscoveryService({
-    client: dependencies.client,
+    client,
     context,
     materialization,
     executor,
@@ -98,12 +108,13 @@ export async function registerPersistentWorldRuntime(
     loadArea: dependencies.loadArea,
   });
   const handlers = createWorldActionHandlerRegistry({
+    telemetry,
     search,
     scheduleMove: dependencies.scheduleMove,
     executeExistingAction: dependencies.executeExistingAction,
   });
   const actions = createPersistentWorldActionService({
-    client: dependencies.client,
+    client,
     requests,
     context,
     references,
@@ -121,6 +132,7 @@ export async function registerPersistentWorldRuntime(
     scene,
     inspector,
     resolveScope: dependencies.resolveScope,
+    telemetry,
     isRuntimeEnabled: async ({ worldId }) => {
       const rows = await dependencies.database.client<{ enabled: boolean }[]>`
         SELECT enabled

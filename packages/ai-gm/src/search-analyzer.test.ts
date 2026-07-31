@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type {
-  SearchDiscoveryAnalysis,
-  SearchDiscoveryAnalysisRequest,
-} from "@nocturne/contracts";
+import type { SearchDiscoveryAnalysis, SearchDiscoveryAnalysisRequest } from "@nocturne/contracts";
 import { buildSearchAnalysisPrompt, validateSearchAnalysis } from "./search-analyzer.js";
 
 const dogId = "10000000-0000-4000-8000-000000000001";

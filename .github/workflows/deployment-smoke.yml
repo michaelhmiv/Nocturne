@@ -1,0 +1,70 @@
+name: Production Deployment Smoke
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - Nocturne Certification
+    branches:
+      - main
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deployment-smoke
+  cancel-in-progress: false
+
+jobs:
+  production-smoke:
+    name: Deployment / Browser-to-Database Smoke
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NOCTURNE_API_URL: ${{ vars.NOCTURNE_API_URL }}
+      NOCTURNE_WEB_URL: ${{ vars.NOCTURNE_WEB_URL }}
+      NOCTURNE_SMOKE_AGENT_TOKEN: ${{ secrets.NOCTURNE_SMOKE_AGENT_TOKEN }}
+      NOCTURNE_SMOKE_CHARACTER_ID: ${{ vars.NOCTURNE_SMOKE_CHARACTER_ID }}
+      EXPECTED_COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Check smoke-test configuration
+        id: configuration
+        run: |
+          if [ -z "$NOCTURNE_API_URL" ] || [ -z "$NOCTURNE_WEB_URL" ] || [ -z "$NOCTURNE_SMOKE_AGENT_TOKEN" ] || [ -z "$NOCTURNE_SMOKE_CHARACTER_ID" ]; then
+            echo "::warning::Production smoke is installed but not enabled. Configure repository variables NOCTURNE_API_URL, NOCTURNE_WEB_URL, NOCTURNE_SMOKE_CHARACTER_ID and secret NOCTURNE_SMOKE_AGENT_TOKEN."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Execute production-shaped gameplay smoke
+        if: steps.configuration.outputs.enabled == 'true'
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          pnpm exec tsx scripts/ci/production-smoke.ts 2>&1 | tee artifacts/production-smoke.log
+      - name: Record disabled certification
+        if: steps.configuration.outputs.enabled != 'true'
+        run: |
+          mkdir -p artifacts
+          echo "Production smoke is awaiting repository variables and a dedicated agent token." | tee artifacts/production-smoke-disabled.log
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-smoke-${{ github.run_id }}
+          path: artifacts/
+          retention-days: 30

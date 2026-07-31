@@ -14,7 +14,9 @@ export function PersistentEntityCard({ entity }: { entity: PersistentSceneEntity
       <div className="persistent-entity-card__header">
         <div>
           <strong>{name}</strong>
-          {name !== entity.name ? <span className="persistent-entity-card__canonical">{entity.name}</span> : null}
+          {name !== entity.name ? (
+            <span className="persistent-entity-card__canonical">{entity.name}</span>
+          ) : null}
         </div>
         <span className="persistent-entity-card__presence">{presenceLabel[entity.presence]}</span>
       </div>
@@ -30,7 +32,9 @@ export function PersistentEntityCard({ entity }: { entity: PersistentSceneEntity
         {entity.relationshipLabels.length ? (
           <div>
             <dt>Relationship</dt>
-            <dd>{entity.relationshipLabels.map((label) => label.replaceAll("_", " ")).join(", ")}</dd>
+            <dd>
+              {entity.relationshipLabels.map((label) => label.replaceAll("_", " ")).join(", ")}
+            </dd>
           </div>
         ) : null}
         {entity.lastObservedAt ? (

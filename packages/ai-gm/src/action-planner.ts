@@ -10,7 +10,8 @@ export const ACTION_PLAN_POLICY_VERSION = "action-plan-v1";
 
 const actionPlanJsonSchema = {
   name: "nocturne_action_plan",
-  description: "An ordered decomposition of a player command into independently resolvable actions.",
+  description:
+    "An ordered decomposition of a player command into independently resolvable actions.",
   schema: {
     type: "object",
     additionalProperties: false,

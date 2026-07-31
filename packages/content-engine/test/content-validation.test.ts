@@ -109,7 +109,9 @@ describe("invention mechanics pipeline", () => {
 
   it("maps familiar creation verbs to canonical mechanics", () => {
     const normalized = normalizeGeneratedMechanics(
-      invention({ effects: [{ effectId: "bake", target: "food", strength: 3, parameters: {} }] }) as never,
+      invention({
+        effects: [{ effectId: "bake", target: "food", strength: 3, parameters: {} }],
+      }) as never,
     ).draft;
 
     expect(normalized.effects[0]?.effectId).toBe("heat");
@@ -120,7 +122,12 @@ describe("invention mechanics pipeline", () => {
     const normalized = normalizeGeneratedMechanics(
       invention({
         effects: [
-          { effectId: "phase_through_matter", target: "vehicle_and_rider", strength: 6, parameters: {} },
+          {
+            effectId: "phase_through_matter",
+            target: "vehicle_and_rider",
+            strength: 6,
+            parameters: {},
+          },
         ],
       }) as never,
     ).draft;

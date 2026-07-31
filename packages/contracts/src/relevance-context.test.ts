@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  RelevanceCompiledContextSchema,
-  RelevanceContextFactSchema,
-} from "./relevance-context.js";
+import { RelevanceCompiledContextSchema, RelevanceContextFactSchema } from "./relevance-context.js";
 
 const worldId = "00000000-0000-4000-8000-000000000001";
 const shardId = "00000000-0000-4000-8000-000000000002";

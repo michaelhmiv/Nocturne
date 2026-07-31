@@ -43,7 +43,8 @@ export function PersistentWorldPanel({
         if (!cancelled) setScene(next);
       })
       .catch((caught: unknown) => {
-        if (!cancelled) setError(caught instanceof Error ? caught.message : "Unable to load the world.");
+        if (!cancelled)
+          setError(caught instanceof Error ? caught.message : "Unable to load the world.");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -91,7 +92,8 @@ export function PersistentWorldPanel({
     }
   }
 
-  if (loading) return <div className="persistent-world-panel is-loading">Loading shared world…</div>;
+  if (loading)
+    return <div className="persistent-world-panel is-loading">Loading shared world…</div>;
   if (!scene) {
     return (
       <div className="persistent-world-panel is-error">
@@ -135,7 +137,9 @@ export function PersistentWorldPanel({
             ))}
           </div>
         ) : (
-          <p className="persistent-world-panel__empty">No known entities are immediately present.</p>
+          <p className="persistent-world-panel__empty">
+            No known entities are immediately present.
+          </p>
         )}
       </section>
 
@@ -157,7 +161,9 @@ export function PersistentWorldPanel({
             {scene.scheduledWork.map((work) => (
               <li key={work.scheduleId}>
                 <span>{work.description}</span>
-                <time dateTime={work.resolvesAt}>{new Date(work.resolvesAt).toLocaleTimeString()}</time>
+                <time dateTime={work.resolvesAt}>
+                  {new Date(work.resolvesAt).toLocaleTimeString()}
+                </time>
               </li>
             ))}
           </ul>

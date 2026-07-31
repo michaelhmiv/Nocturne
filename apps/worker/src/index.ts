@@ -178,8 +178,7 @@ async function tickAiJobs() {
         JSON.stringify({
           level: "error",
           service: "worker",
-          message:
-            updated.status === "failed" ? "ai_job_failed" : "ai_job_retry_scheduled",
+          message: updated.status === "failed" ? "ai_job_failed" : "ai_job_retry_scheduled",
           job_id: job.jobId,
           kind: job.kind,
           attempt: job.attempts,

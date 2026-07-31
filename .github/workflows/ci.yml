@@ -1,4 +1,4 @@
-name: CI
+name: Nocturne Certification
 
 on:
   pull_request:
@@ -11,48 +11,446 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: certification-${{ github.ref }}
   cancel-in-progress: true
 
 env:
   CI: true
+  PNPM_VERSION: 11.17.0
+  NODE_VERSION: 22
 
 jobs:
-  validate:
-    name: CI / validate
+  format:
+    name: Certification / Format
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
+    timeout-minutes: 15
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
         with:
           version: 11.17.0
           run_install: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Check formatting
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          pnpm format:check 2>&1 | tee artifacts/format.log
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: format-${{ github.run_id }}
+          path: artifacts/
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+  typecheck:
+    name: Certification / Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck workspace
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          pnpm typecheck 2>&1 | tee artifacts/typecheck.log
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: typecheck-${{ github.run_id }}
+          path: artifacts/
 
-      - name: Check formatting (advisory)
-        continue-on-error: true
-        run: pnpm format:check
+  unit:
+    name: Certification / Unit and Telemetry
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Run package tests
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          pnpm test 2>&1 | tee artifacts/unit.log
+      - name: Run capability contracts
+        run: |
+          set -o pipefail
+          pnpm test:capabilities 2>&1 | tee artifacts/capabilities.log
+      - name: Run telemetry contracts
+        run: |
+          set -o pipefail
+          pnpm test:telemetry 2>&1 | tee artifacts/telemetry.log
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-${{ github.run_id }}
+          path: artifacts/
 
-      - name: Typecheck (advisory until baseline is clean)
-        continue-on-error: true
-        run: pnpm typecheck
+  build:
+    name: Certification / Production Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build every workspace package
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          pnpm build 2>&1 | tee artifacts/build.log
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ github.run_id }}
+          path: artifacts/
 
-      - name: Run tests
-        run: pnpm test
+  database:
+    name: Certification / Database
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nocturne_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d nocturne_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/nocturne_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: mkdir -p artifacts
+      - name: Validate migration files
+        run: pnpm db:check
+      - name: Apply complete migration chain
+        run: |
+          set -o pipefail
+          pnpm db:migrate 2>&1 | tee artifacts/migrate-first.log
+      - name: Verify retry-safe migration runner
+        run: |
+          set -o pipefail
+          pnpm db:migrate 2>&1 | tee artifacts/migrate-second.log
+      - name: Check authoritative invariants
+        run: |
+          set -o pipefail
+          pnpm --filter @nocturne/database db:invariants 2>&1 | tee artifacts/invariants.log
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-${{ github.run_id }}
+          path: artifacts/
 
-      - name: Build workspace (advisory until baseline is clean)
-        continue-on-error: true
-        run: pnpm build
+  action-matrix:
+    name: Certification / Action Matrix shard ${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - 0
+          - 1
+          - 2
+          - 3
+          - 4
+          - 5
+          - 6
+          - 7
+    env:
+      ACTION_MATRIX_SHARD_INDEX: ${{ matrix.shard }}
+      ACTION_MATRIX_SHARD_TOTAL: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Run exhaustive action shard
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          pnpm test:action-matrix 2>&1 | tee artifacts/action-matrix-${{ matrix.shard }}.log
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: action-matrix-${{ matrix.shard }}-${{ github.run_id }}
+          path: artifacts/
+
+  integration:
+    name: Certification / Compiled API Integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nocturne_integration
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d nocturne_integration"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/nocturne_integration
+      BETTER_AUTH_SECRET: certification-secret-at-least-thirty-two-characters
+      BETTER_AUTH_URL: http://127.0.0.1:3000
+      BETTER_AUTH_TRUSTED_ORIGINS: http://127.0.0.1:3000,http://127.0.0.1:3101
+      NOCTURNE_GUEST_MODE: "true"
+      NOCTURNE_GUEST_USER_ID: nocturne-certification-user
+      NOCTURNE_RESOLUTION_SECRET: certification-resolution-secret
+      NOCTURNE_ROLL_SECRET: certification-roll-secret
+      AI_JOB_WORKER_SECRET: certification-worker-secret
+      AI_PROVIDER: openai_compatible
+      AI_BASE_URL: http://127.0.0.1:4010
+      AI_API_KEY: certification-fake-key
+      DEEPSEEK_API_KEY: certification-fake-key
+      AI_MODEL: nocturne-certification-model
+      AI_AUTHORITATIVE_MODEL: nocturne-certification-model
+      AI_CREATIVE_MODEL: nocturne-certification-model
+      AI_THINKING_MODE: omit
+      AI_JSON_MODE: "true"
+      AI_SEND_TEMPERATURE: "true"
+      AI_TIMEOUT_MS: "10000"
+      NOCTURNE_API_URL: http://127.0.0.1:3101
+      ACTION_INTEGRATION_RESULTS: artifacts/action-integration-results.json
+      API_LOG_PATH: artifacts/api.ndjson
+      FAKE_AI_TRANSCRIPT: artifacts/fake-ai-provider.ndjson
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build compiled API
+        run: pnpm --filter @nocturne/api build
+      - name: Apply migrations
+        run: pnpm db:migrate
+      - name: Start deterministic provider and compiled API
+        run: |
+          mkdir -p artifacts
+          pnpm exec tsx scripts/ci/fake-ai-provider.ts > artifacts/fake-provider-process.log 2>&1 &
+          echo $! > artifacts/fake-provider.pid
+          PORT=3101 node apps/api/dist/index.js > artifacts/api.ndjson 2>&1 &
+          echo $! > artifacts/api.pid
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:4010/health >/dev/null && curl --fail --silent http://127.0.0.1:3101/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat artifacts/fake-provider-process.log artifacts/api.ndjson || true
+          exit 1
+      - name: Execute all 25 actions through HTTP and PostgreSQL
+        run: |
+          set -o pipefail
+          pnpm exec tsx scripts/ci/action-integration.ts 2>&1 | tee artifacts/action-integration.log
+      - name: Validate correlated structured telemetry
+        run: |
+          set -o pipefail
+          pnpm exec tsx scripts/ci/validate-telemetry-log.ts 2>&1 | tee artifacts/telemetry-validation.log
+      - name: Check post-scenario database invariants
+        run: pnpm --filter @nocturne/database db:invariants
+      - if: always()
+        name: Stop integration services
+        run: |
+          kill $(cat artifacts/api.pid) $(cat artifacts/fake-provider.pid) 2>/dev/null || true
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-api-integration-${{ github.run_id }}
+          path: artifacts/
+          retention-days: 30
+
+  browser:
+    name: Certification / Browser Action Matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nocturne_browser
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d nocturne_browser"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/nocturne_browser
+      BETTER_AUTH_SECRET: certification-secret-at-least-thirty-two-characters
+      BETTER_AUTH_URL: http://127.0.0.1:3000
+      BETTER_AUTH_TRUSTED_ORIGINS: http://127.0.0.1:3000,http://127.0.0.1:3101
+      NOCTURNE_GUEST_MODE: "true"
+      NEXT_PUBLIC_NOCTURNE_GUEST_MODE: "true"
+      NOCTURNE_GUEST_USER_ID: nocturne-browser-user
+      NOCTURNE_RESOLUTION_SECRET: certification-resolution-secret
+      NOCTURNE_ROLL_SECRET: certification-roll-secret
+      AI_JOB_WORKER_SECRET: certification-worker-secret
+      AI_PROVIDER: openai_compatible
+      AI_BASE_URL: http://127.0.0.1:4010
+      AI_API_KEY: certification-fake-key
+      DEEPSEEK_API_KEY: certification-fake-key
+      AI_MODEL: nocturne-certification-model
+      AI_AUTHORITATIVE_MODEL: nocturne-certification-model
+      AI_CREATIVE_MODEL: nocturne-certification-model
+      AI_THINKING_MODE: omit
+      AI_TIMEOUT_MS: "10000"
+      API_URL: http://127.0.0.1:3101
+      PLAYWRIGHT_HTML_OUTPUT_DIR: artifacts/playwright-report
+      FAKE_AI_TRANSCRIPT: artifacts/fake-ai-provider.ndjson
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Playwright test runner
+        run: pnpm add -Dw --lockfile=false @playwright/test@1.55.0
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Apply migrations
+        run: pnpm db:migrate
+      - name: Build compiled API
+        run: pnpm --filter @nocturne/api build
+      - name: Build production web app
+        run: pnpm --filter @nocturne/web build
+      - name: Start production-shaped stack
+        run: |
+          mkdir -p artifacts
+          pnpm exec tsx scripts/ci/fake-ai-provider.ts > artifacts/fake-provider-process.log 2>&1 &
+          echo $! > artifacts/fake-provider.pid
+          PORT=3101 node apps/api/dist/index.js > artifacts/api.ndjson 2>&1 &
+          echo $! > artifacts/api.pid
+          PORT=3000 pnpm --filter @nocturne/web start > artifacts/web.log 2>&1 &
+          echo $! > artifacts/web.pid
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:4010/health >/dev/null && curl --fail --silent http://127.0.0.1:3101/health >/dev/null && curl --fail --silent http://127.0.0.1:3000/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat artifacts/fake-provider-process.log artifacts/api.ndjson artifacts/web.log || true
+          exit 1
+      - name: Run all actions through the real composer
+        run: >-
+          pnpm exec playwright test test/browser/gameplay.spec.mjs
+          --reporter=line,html
+          --output=artifacts/playwright-results
+      - if: always()
+        name: Stop browser services
+        run: |
+          kill $(cat artifacts/web.pid) $(cat artifacts/api.pid) $(cat artifacts/fake-provider.pid) 2>/dev/null || true
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-action-matrix-${{ github.run_id }}
+          path: artifacts/
+          retention-days: 30
+
+  required-gate:
+    name: Certification / Required Gate
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - format
+      - typecheck
+      - unit
+      - build
+      - database
+      - action-matrix
+      - integration
+      - browser
+    steps:
+      - name: Require every certification job
+        env:
+          FORMAT_RESULT: ${{ needs.format.result }}
+          TYPECHECK_RESULT: ${{ needs.typecheck.result }}
+          UNIT_RESULT: ${{ needs.unit.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          DATABASE_RESULT: ${{ needs.database.result }}
+          ACTION_MATRIX_RESULT: ${{ needs.action-matrix.result }}
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+        run: |
+          for result in \
+            "$FORMAT_RESULT" \
+            "$TYPECHECK_RESULT" \
+            "$UNIT_RESULT" \
+            "$BUILD_RESULT" \
+            "$DATABASE_RESULT" \
+            "$ACTION_MATRIX_RESULT" \
+            "$INTEGRATION_RESULT" \
+            "$BROWSER_RESULT"; do
+            if [ "$result" != "success" ]; then
+              echo "Certification dependency failed, was cancelled, or was skipped: $result"
+              exit 1
+            fi
+          done
+          echo "All required Nocturne certification jobs passed."

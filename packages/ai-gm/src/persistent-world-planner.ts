@@ -48,13 +48,7 @@ const persistentWorldPlannerJsonSchema = {
             items: {
               type: "object",
               additionalProperties: false,
-              required: [
-                "order",
-                "kind",
-                "description",
-                "intentPayload",
-                "referencedEntities",
-              ],
+              required: ["order", "kind", "description", "intentPayload", "referencedEntities"],
               properties: {
                 order: { type: "integer", minimum: 1, maximum: 64 },
                 kind: { type: "string" },

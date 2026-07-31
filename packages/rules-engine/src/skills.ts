@@ -31,14 +31,14 @@ export function xpForLevel(level: number): number {
 
 /** Current skill level derived from total accumulated XP. */
 export function levelFromXp(xp: number): number {
-  return Math.min(MAX_SKILL_LEVEL, Math.max(0, Math.floor(Math.sqrt(Math.max(0, xp) / XP_PER_LEVEL_MULTIPLIER))));
+  return Math.min(
+    MAX_SKILL_LEVEL,
+    Math.max(0, Math.floor(Math.sqrt(Math.max(0, xp) / XP_PER_LEVEL_MULTIPLIER))),
+  );
 }
 
 /** Read a character's skill level from their entity state. */
-export function getSkillLevel(
-  state: Record<string, unknown>,
-  skill: SkillName,
-): number {
+export function getSkillLevel(state: Record<string, unknown>, skill: SkillName): number {
   const skills = (state.skills as Record<string, number> | undefined) ?? {};
   return levelFromXp(skills[skill] ?? 0);
 }
@@ -46,7 +46,10 @@ export function getSkillLevel(
 /** Read all skill levels from entity state. */
 export function getAllSkillLevels(state: Record<string, unknown>): Record<SkillName, number> {
   const skills = (state.skills as Record<string, number> | undefined) ?? {};
-  return Object.fromEntries(SKILL_NAMES.map((s) => [s, levelFromXp(skills[s] ?? 0)])) as Record<SkillName, number>;
+  return Object.fromEntries(SKILL_NAMES.map((s) => [s, levelFromXp(skills[s] ?? 0)])) as Record<
+    SkillName,
+    number
+  >;
 }
 
 /** Return the XP delta and resulting level after an action.

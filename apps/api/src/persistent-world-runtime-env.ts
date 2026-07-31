@@ -1,9 +1,6 @@
 import { createHash } from "node:crypto";
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import {
-  createAiProviderClientFromEnv,
-  resolveAiProviderConfigFromEnv,
-} from "@nocturne/ai-gm";
+import { createAiProviderClientFromEnv, resolveAiProviderConfigFromEnv } from "@nocturne/ai-gm";
 import { getSessionFromNodeHeaders } from "@nocturne/auth";
 import type { MaterializationAnalysisRequest, WorldActionKind } from "@nocturne/contracts";
 import {
@@ -118,10 +115,7 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
   if (runtimeEnabled) {
     app.addHook("preHandler", async (request, reply) => {
       const path = request.url.split("?", 1)[0];
-      if (
-        request.method === "POST" &&
-        (path === "/v1/ai-jobs/actions" || path === "/v1/actions")
-      ) {
+      if (request.method === "POST" && (path === "/v1/ai-jobs/actions" || path === "/v1/actions")) {
         return reply.code(410).send({
           error: "legacy_action_route_disabled",
           message:
@@ -149,6 +143,7 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
     rollSecret,
     resolveScope,
     listRecentPlayerSafeText: async ({ scope, limit }) => {
+      const boundedLimit = Math.max(1, Math.min(limit, 20));
       const rows = await database.client<
         { command: string; player_safe_result: Record<string, unknown> | null }[]
       >`
@@ -158,11 +153,12 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
           AND shard_id = ${scope.shardId}
           AND user_id = ${scope.userId}
         ORDER BY created_at DESC
-        LIMIT ${Math.max(1, Math.min(limit, 50))}
+        LIMIT ${boundedLimit}
       `;
       return rows
         .flatMap((row) => [row.command, playerText(row.player_safe_result)])
-        .filter((value): value is string => Boolean(value));
+        .filter((value): value is string => Boolean(value))
+        .slice(0, boundedLimit);
     },
     loadReusableDefinitions: async ({ scope, requestedConcept }) => {
       const exactPattern = `%${requestedConcept.trim()}%`;
@@ -189,15 +185,13 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
           definition.updated_at DESC
         LIMIT 24
       `;
-      return rows.map(
-        (row): MaterializationAnalysisRequest["reusableDefinitions"][number] => ({
-          definitionId: row.definition_id,
-          definitionType: row.definition_type,
-          name: row.name,
-          conceptSummary: row.concept_summary,
-          currentPayload: row.current_payload || {},
-        }),
-      );
+      return rows.map((row): MaterializationAnalysisRequest["reusableDefinitions"][number] => ({
+        definitionId: row.definition_id,
+        definitionType: row.definition_type,
+        name: row.name,
+        conceptSummary: row.concept_summary,
+        currentPayload: row.current_payload || {},
+      }));
     },
     loadArea: async ({ scope, areaId }) => {
       const rows = await database.client<{ name: string; description: string }[]>`
@@ -243,7 +237,8 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
       const actor = rows[0];
       if (!actor) throw new Error("Travel actor is not available in the active world.");
       if (!actor.destination_exists) throw new Error("Travel destination is not available.");
-      if (!actor.location_id) throw new Error("Travel actor has no authoritative current location.");
+      if (!actor.location_id)
+        throw new Error("Travel actor has no authoritative current location.");
       const route = await locations.findShortestPath(actor.location_id, destinationId, 1);
       if (!route) throw new Error("No accessible route exists to the requested destination.");
       const durationSeconds = Math.max(1, Math.round(route.totalTimeSeconds));
@@ -311,9 +306,8 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
         idempotencyKey,
       );
       const unitsConsumed = result.consumption?.unitsConsumed ?? 0;
-      const outcomeGrade = kind === "consume" && unitsConsumed === 0
-        ? "no_effect"
-        : result.outcomeGrade;
+      const outcomeGrade =
+        kind === "consume" && unitsConsumed === 0 ? "no_effect" : result.outcomeGrade;
       if (kind === "consume") {
         app.log.info(
           {

@@ -15,6 +15,7 @@ export * from "./resolution.js";
 export * from "./scene.js";
 export * from "./search-discovery.js";
 export * from "./simulation.js";
+export * from "./telemetry.js";
 export * from "./world-action.js";
 export * from "./world-inspector.js";
 export * from "./world-operations.js";

@@ -4,11 +4,11 @@ First-class hook for external agents (Hermes, custom bots) to play Nocturne like
 
 ## Auth model
 
-| Method | Header | Notes |
-|---|---|---|
-| **Agent token** | `Authorization: Bearer noct_agt_…` | Preferred. Isolated `userId` per token. |
-| Session cookie | Better Auth | Human browser users |
-| Guest | `x-nocturne-guest-mode: 1` | Dev/local only when `NOCTURNE_GUEST_MODE=true` |
+| Method          | Header                             | Notes                                          |
+| --------------- | ---------------------------------- | ---------------------------------------------- |
+| **Agent token** | `Authorization: Bearer noct_agt_…` | Preferred. Isolated `userId` per token.        |
+| Session cookie  | Better Auth                        | Human browser users                            |
+| Guest           | `x-nocturne-guest-mode: 1`         | Dev/local only when `NOCTURNE_GUEST_MODE=true` |
 
 Tokens are **hashed at rest** (`sha256`). Plaintext is returned **once** at mint/bootstrap.
 
@@ -40,21 +40,21 @@ Authorization: Bearer … | session | guest
 
 All accept agent token (or session/guest). Bound character is used when `characterId` omitted.
 
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/v1/agent/me` | Token / user identity |
-| GET | `/v1/agent/status` | Cash, heat, skills, inventory, character |
-| POST | `/v1/agent/characters` | `{ name, conceptSummary, bind? }` |
-| GET | `/v1/agent/characters` | List |
-| POST | `/v1/agent/bind` | `{ characterId }` |
-| POST | `/v1/agent/rent` | Starter residence |
-| POST | `/v1/agent/act` | `{ text }` freeform action (site chat equivalent) |
-| GET | `/v1/agent/history` | Recent actions |
-| GET | `/v1/agent/market` | Listings |
-| POST | `/v1/agent/market/buy` | `{ listingId }` |
-| GET | `/v1/agent/vehicles` | Available + owned |
-| POST | `/v1/agent/vehicles/claim` | `{ vehicleId }` |
-| GET/DELETE | `/v1/agent/tokens` | Manage |
+| Method     | Path                       | Purpose                                           |
+| ---------- | -------------------------- | ------------------------------------------------- |
+| GET        | `/v1/agent/me`             | Token / user identity                             |
+| GET        | `/v1/agent/status`         | Cash, heat, skills, inventory, character          |
+| POST       | `/v1/agent/characters`     | `{ name, conceptSummary, bind? }`                 |
+| GET        | `/v1/agent/characters`     | List                                              |
+| POST       | `/v1/agent/bind`           | `{ characterId }`                                 |
+| POST       | `/v1/agent/rent`           | Starter residence                                 |
+| POST       | `/v1/agent/act`            | `{ text }` freeform action (site chat equivalent) |
+| GET        | `/v1/agent/history`        | Recent actions                                    |
+| GET        | `/v1/agent/market`         | Listings                                          |
+| POST       | `/v1/agent/market/buy`     | `{ listingId }`                                   |
+| GET        | `/v1/agent/vehicles`       | Available + owned                                 |
+| POST       | `/v1/agent/vehicles/claim` | `{ vehicleId }`                                   |
+| GET/DELETE | `/v1/agent/tokens`         | Manage                                            |
 
 Existing `/v1/*` routes also accept agent Bearer tokens via shared `requireUser`.
 

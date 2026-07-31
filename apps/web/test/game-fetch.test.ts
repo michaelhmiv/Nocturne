@@ -50,7 +50,10 @@ describe("gameFetch", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
-        Response.json({ error: "provider_failure", message: "secret provider detail" }, { status: 502 }),
+        Response.json(
+          { error: "provider_failure", message: "secret provider detail" },
+          { status: 502 },
+        ),
       ),
     );
 

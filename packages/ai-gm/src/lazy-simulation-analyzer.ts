@@ -126,7 +126,10 @@ export function validateLazySimulationProposal(
       throw new Error("Simulation proposal used a stale expected entity version.");
     }
   }
-  if (["dead", "destroyed", "retired", "merged"].includes(parsedInput.lifecycleStatus) && parsed.operations.length) {
+  if (
+    ["dead", "destroyed", "retired", "merged"].includes(parsedInput.lifecycleStatus) &&
+    parsed.operations.length
+  ) {
     throw new Error("Terminal entities cannot receive autonomous action operations.");
   }
   return parsed;

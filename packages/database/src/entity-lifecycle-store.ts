@@ -4,22 +4,10 @@ import { serializeJson as json } from "./json.js";
 import type { WorldScope } from "./world-store.js";
 
 export type EntityLifecycleStatus =
-  | "active"
-  | "dormant"
-  | "incapacitated"
-  | "dead"
-  | "destroyed"
-  | "missing"
-  | "retired"
-  | "merged";
+  "active" | "dormant" | "incapacitated" | "dead" | "destroyed" | "missing" | "retired" | "merged";
 
 export type EntityAliasType =
-  | "canonical"
-  | "public"
-  | "descriptive"
-  | "private"
-  | "mistaken"
-  | "former";
+  "canonical" | "public" | "descriptive" | "private" | "mistaken" | "former";
 
 export class EntityLifecycleError extends Error {
   constructor(
@@ -306,9 +294,7 @@ export function createEntityLifecycleStore(database: ReturnType<typeof createDat
       }
     }
     return database.client.begin(async (sql) => {
-      const rows = await sql<
-        { lifecycle_status: EntityLifecycleStatus; version: string }[]
-      >`
+      const rows = await sql<{ lifecycle_status: EntityLifecycleStatus; version: string }[]>`
         SELECT lifecycle_status, version::text
         FROM game.entity_instances
         WHERE world_id = ${input.scope.worldId}
@@ -319,7 +305,10 @@ export function createEntityLifecycleStore(database: ReturnType<typeof createDat
       const entity = rows[0];
       if (!entity) throw new EntityLifecycleError("entity_not_found", "Entity not found.");
       if (Number(entity.version) !== input.expectedVersion) {
-        throw new EntityLifecycleError("stale_entity", "Entity changed before lifecycle transition.");
+        throw new EntityLifecycleError(
+          "stale_entity",
+          "Entity changed before lifecycle transition.",
+        );
       }
       if (terminalStatuses.has(entity.lifecycle_status)) {
         throw new EntityLifecycleError(
@@ -342,7 +331,10 @@ export function createEntityLifecycleStore(database: ReturnType<typeof createDat
         RETURNING version::text
       `;
       if (!updated[0]) {
-        throw new EntityLifecycleError("stale_entity", "Entity changed before lifecycle transition.");
+        throw new EntityLifecycleError(
+          "stale_entity",
+          "Entity changed before lifecycle transition.",
+        );
       }
       if (terminal) {
         await sql`

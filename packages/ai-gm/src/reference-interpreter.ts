@@ -10,7 +10,8 @@ export const REFERENCE_INTERPRETATION_POLICY_VERSION = "reference-resolution-v1"
 
 const referenceInterpretationJsonSchema = {
   name: "nocturne_entity_reference_interpretation",
-  description: "Resolve natural-language entity mentions only against supplied persistent candidates.",
+  description:
+    "Resolve natural-language entity mentions only against supplied persistent candidates.",
   schema: {
     type: "object",
     additionalProperties: false,
@@ -108,7 +109,9 @@ export function validateReferenceInterpretation(
 ) {
   const parsedInput = EntityReferenceInterpretationRequestSchema.parse(input);
   const parsed = EntityReferenceInterpretationSchema.parse(interpretation);
-  const candidates = new Map(parsedInput.candidates.map((candidate) => [candidate.entityId, candidate]));
+  const candidates = new Map(
+    parsedInput.candidates.map((candidate) => [candidate.entityId, candidate]),
+  );
   for (const mention of parsed.mentions) {
     for (const entityId of mention.candidateEntityIds) {
       if (!candidates.has(entityId)) {
@@ -128,7 +131,9 @@ export function validateReferenceInterpretation(
       const selected = candidates.get(mention.selectedEntityId!);
       if (!selected) throw new Error("Resolved reference selected an unavailable entity.");
       if (!selected.accessible && mention.confidenceBasisPoints < 9_500) {
-        throw new Error("Inaccessible entities require explicit high-confidence identity evidence.");
+        throw new Error(
+          "Inaccessible entities require explicit high-confidence identity evidence.",
+        );
       }
     }
     if (mention.status === "ambiguous" && mention.candidateEntityIds.length < 2) {

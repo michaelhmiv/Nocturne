@@ -16,7 +16,9 @@ export function PersistentPlanCard({ plan }: { plan: PersistentActionPlan }) {
           return (
             <li
               key={step.stepId}
-              className={active ? "persistent-plan-card__step is-active" : "persistent-plan-card__step"}
+              className={
+                active ? "persistent-plan-card__step is-active" : "persistent-plan-card__step"
+              }
             >
               <div>
                 <span className="persistent-plan-card__step-number">{step.order}</span>

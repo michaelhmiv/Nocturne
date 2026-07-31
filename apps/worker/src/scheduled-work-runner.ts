@@ -42,7 +42,8 @@ async function requestResolution(input: {
       `Scheduled work API failed: ${String(record?.message || record?.error || response.status)}`,
     ) as ScheduledWorkerApiError;
     error.code = String(record?.error || `http_${response.status}`);
-    error.retryable = typeof record?.retryable === "boolean" ? record.retryable : response.status >= 500;
+    error.retryable =
+      typeof record?.retryable === "boolean" ? record.retryable : response.status >= 500;
     error.status = response.status;
     throw error;
   }
@@ -64,7 +65,11 @@ export function createScheduledWorkRunner(input: {
   error: (record: Record<string, unknown>) => void;
 }) {
   async function tick() {
-    const claims = await input.store.claimDue({ workerId: input.workerId, limit: 10, leaseSeconds: 180 });
+    const claims = await input.store.claimDue({
+      workerId: input.workerId,
+      limit: 10,
+      leaseSeconds: 180,
+    });
     for (const claim of claims) {
       try {
         const result = await requestResolution({

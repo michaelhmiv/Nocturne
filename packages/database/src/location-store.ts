@@ -8,7 +8,7 @@ export type MoveInstanceInput = {
 };
 
 export type TravelPath = {
-  path: string[];           // ordered location instance IDs
+  path: string[]; // ordered location instance IDs
   totalTimeSeconds: number; // sum of edge travel times
 };
 
