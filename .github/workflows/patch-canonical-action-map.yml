@@ -40,6 +40,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import json
 
           path = Path("scripts/ci/fake-ai-provider.ts")
           source = path.read_text()
@@ -51,70 +52,78 @@ jobs:
           if marker not in source:
               raise SystemExit("Action classifier marker was not found")
 
-          replacement = '''const normalizeCanonicalPrompt = (command: string) =>
-  command.trim().replace(/\\s+/g, " ").toLowerCase();
-
-const CANONICAL_ACTION_BY_PROMPT = new Map<string, string>(
-  [
-    ["detect", "I scan the room for hidden threats."],
-    ["detect", "Check the alley for anyone watching us."],
-    ["move", "I walk into the street."],
-    ["move", "Head toward the alley."],
-    ["search", "I search the alley for a dog."],
-    ["search", "Look through the room for useful evidence."],
-    ["talk", "I ask the man what happened."],
-    ["talk", "Talk to the bartender about the neighborhood."],
-    ["attack", "I punch the guard."],
-    ["attack", "Rush the attacker and strike him."],
-    ["steal", "I steal the wallet from the table."],
-    ["steal", "Slip the keys into my pocket without being seen."],
-    ["sneak", "I sneak past the guard."],
-    ["sneak", "Move quietly through the hallway."],
-    ["lockpick", "I pick the door lock."],
-    ["lockpick", "Use my tools to open the locked cabinet."],
-    ["hack", "I hack the security terminal."],
-    ["hack", "Try to bypass the camera network."],
-    ["heal", "I bandage her wound."],
-    ["heal", "Treat my injury with the first-aid kit."],
-    ["consume", "I eat a sandwich from the kitchen."],
-    ["consume", "Drink a glass of water."],
-    ["craft", "I craft a simple lockpick from the available materials."],
-    ["craft", "Build a basic shelf in the workshop."],
-    ["drive", "I drive to the warehouse."],
-    ["drive", "Take the car into the city."],
-    ["bribe", "I offer the guard money to look the other way."],
-    ["bribe", "Bribe the clerk for access."],
-    ["persuade", "I persuade her to help us."],
-    ["persuade", "Convince the owner to let me inside."],
-    ["threaten", "I threaten the guard to make him leave."],
-    ["threaten", "Warn the thief that I will expose him."],
-    ["disguise", "I disguise myself as a maintenance worker."],
-    ["disguise", "Change my appearance to blend into the crowd."],
-    ["forge", "I forge a visitor badge."],
-    ["forge", "Create a convincing copy of the access card."],
-    ["plant", "I plant the tracker under the car."],
-    ["plant", "Hide the evidence in his bag."],
-    ["observe", "I observe the street from the window."],
-    ["observe", "Watch the guard's routine carefully."],
-    ["arrest", "I arrest the suspect."],
-    ["arrest", "Restrain the attacker and take him into custody."],
-    ["buy", "I buy the toolbox from the listing."],
-    ["buy", "Purchase the food from the vendor."],
-    ["sell", "I sell the spare radio."],
-    ["sell", "List the toolbox for sale."],
-    ["hide", "I hide behind the crates."],
-    ["hide", "Find a concealed position in the room."],
-    ["work", "I work the warehouse shift."],
-    ["work", "Take the available delivery job."],
-  ].map(([actionType, prompt]) => [normalizeCanonicalPrompt(prompt), actionType]),
-);
-
-function classifyAction(command: string) {
-  const canonical = CANONICAL_ACTION_BY_PROMPT.get(normalizeCanonicalPrompt(command));
-  if (canonical) return canonical;
-  const text = command.toLowerCase();
-'''
-          source = source.replace(marker, replacement, 1)
+          pairs = [
+              ("detect", "I scan the room for hidden threats."),
+              ("detect", "Check the alley for anyone watching us."),
+              ("move", "I walk into the street."),
+              ("move", "Head toward the alley."),
+              ("search", "I search the alley for a dog."),
+              ("search", "Look through the room for useful evidence."),
+              ("talk", "I ask the man what happened."),
+              ("talk", "Talk to the bartender about the neighborhood."),
+              ("attack", "I punch the guard."),
+              ("attack", "Rush the attacker and strike him."),
+              ("steal", "I steal the wallet from the table."),
+              ("steal", "Slip the keys into my pocket without being seen."),
+              ("sneak", "I sneak past the guard."),
+              ("sneak", "Move quietly through the hallway."),
+              ("lockpick", "I pick the door lock."),
+              ("lockpick", "Use my tools to open the locked cabinet."),
+              ("hack", "I hack the security terminal."),
+              ("hack", "Try to bypass the camera network."),
+              ("heal", "I bandage her wound."),
+              ("heal", "Treat my injury with the first-aid kit."),
+              ("consume", "I eat a sandwich from the kitchen."),
+              ("consume", "Drink a glass of water."),
+              ("craft", "I craft a simple lockpick from the available materials."),
+              ("craft", "Build a basic shelf in the workshop."),
+              ("drive", "I drive to the warehouse."),
+              ("drive", "Take the car into the city."),
+              ("bribe", "I offer the guard money to look the other way."),
+              ("bribe", "Bribe the clerk for access."),
+              ("persuade", "I persuade her to help us."),
+              ("persuade", "Convince the owner to let me inside."),
+              ("threaten", "I threaten the guard to make him leave."),
+              ("threaten", "Warn the thief that I will expose him."),
+              ("disguise", "I disguise myself as a maintenance worker."),
+              ("disguise", "Change my appearance to blend into the crowd."),
+              ("forge", "I forge a visitor badge."),
+              ("forge", "Create a convincing copy of the access card."),
+              ("plant", "I plant the tracker under the car."),
+              ("plant", "Hide the evidence in his bag."),
+              ("observe", "I observe the street from the window."),
+              ("observe", "Watch the guard's routine carefully."),
+              ("arrest", "I arrest the suspect."),
+              ("arrest", "Restrain the attacker and take him into custody."),
+              ("buy", "I buy the toolbox from the listing."),
+              ("buy", "Purchase the food from the vendor."),
+              ("sell", "I sell the spare radio."),
+              ("sell", "List the toolbox for sale."),
+              ("hide", "I hide behind the crates."),
+              ("hide", "Find a concealed position in the room."),
+              ("work", "I work the warehouse shift."),
+              ("work", "Take the available delivery job."),
+          ]
+          lines = [
+              "const normalizeCanonicalPrompt = (command: string) =>",
+              '  command.trim().replace(/\\s+/g, " ").toLowerCase();',
+              "",
+              "const CANONICAL_ACTION_BY_PROMPT = new Map<string, string>(",
+              "  [",
+          ]
+          for action_type, prompt in pairs:
+              lines.append(f"    [{json.dumps(action_type)}, {json.dumps(prompt)}],")
+          lines.extend([
+              "  ].map(([actionType, prompt]) => [normalizeCanonicalPrompt(prompt), actionType]),",
+              ");",
+              "",
+              "function classifyAction(command: string) {",
+              "  const canonical = CANONICAL_ACTION_BY_PROMPT.get(normalizeCanonicalPrompt(command));",
+              "  if (canonical) return canonical;",
+              "  const text = command.toLowerCase();",
+              "",
+          ])
+          source = source.replace(marker, "\n".join(lines), 1)
           path.write_text(source)
           PY
           pnpm exec prettier --write scripts/ci/fake-ai-provider.ts
