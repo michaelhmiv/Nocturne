@@ -1,0 +1,159 @@
+.scene-plan-result {
+  display: grid;
+  gap: 18px;
+  border-left-color: var(--scene-accent);
+}
+
+.scene-plan-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.scene-plan-header h2 {
+  margin-bottom: 0;
+}
+
+.scene-plan-state {
+  flex: none;
+  padding: 6px 10px;
+  border: 1px solid var(--scene-line);
+  border-radius: 999px;
+  color: #c8ced8;
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.scene-plan-steps {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scene-plan-step {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--scene-line);
+  background: #0a0d12;
+}
+
+.scene-plan-step-number {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid #596578;
+  border-radius: 50%;
+  color: var(--scene-paper);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.scene-plan-step-skipped {
+  opacity: 0.7;
+}
+
+.scene-plan-step-skipped .scene-plan-step-number {
+  border-style: dashed;
+}
+
+.scene-plan-step-copy {
+  min-width: 0;
+}
+
+.scene-plan-step-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.scene-plan-step-heading strong {
+  min-width: 0;
+  color: #eef0f3;
+}
+
+.scene-plan-step-heading span {
+  flex: none;
+  color: var(--scene-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.scene-plan-step-copy > p {
+  margin: 6px 0 0;
+  color: #adb6c2;
+  line-height: 1.45;
+}
+
+.scene-plan-step-copy .scene-consequence {
+  margin-top: 10px;
+  color: #e6c8ad;
+}
+
+.scene-plan-narrative {
+  border-top: 1px solid var(--scene-line);
+  padding-top: 14px;
+}
+
+.scene-plan-narrative summary {
+  cursor: pointer;
+  color: #c6ccd5;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.scene-plan-narrative .scene-narration {
+  white-space: pre-line;
+}
+
+@media (max-width: 720px) {
+  .scene-plan-result {
+    gap: 14px;
+    padding: 18px 16px;
+  }
+
+  .scene-plan-header {
+    display: grid;
+    gap: 10px;
+  }
+
+  .scene-plan-state {
+    justify-self: start;
+  }
+
+  .scene-plan-step {
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 10px;
+    padding: 12px 10px;
+  }
+
+  .scene-plan-step-number {
+    width: 28px;
+    height: 28px;
+  }
+
+  .scene-plan-step-heading {
+    display: grid;
+    gap: 4px;
+  }
+
+  .scene-plan-step-heading span {
+    justify-self: start;
+  }
+
+  .scene-plan-turn .scene-player-line {
+    max-width: 94%;
+  }
+}
