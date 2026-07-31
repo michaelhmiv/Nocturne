@@ -7,6 +7,7 @@ export * from "./event.js";
 export * from "./materialization.js";
 export * from "./normalization.js";
 export * from "./reference-resolution.js";
+export * from "./relationships.js";
 export * from "./relevance-context.js";
 export * from "./resolution.js";
 export * from "./scene.js";
