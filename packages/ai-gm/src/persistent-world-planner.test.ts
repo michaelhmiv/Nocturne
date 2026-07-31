@@ -8,6 +8,7 @@ import {
 const actorId = "10000000-0000-4000-8000-000000000001";
 const streetId = "10000000-0000-4000-8000-000000000002";
 const targetId = "10000000-0000-4000-8000-000000000003";
+const inventedId = "10000000-0000-4000-8000-000000000099";
 
 const request: WorldActionPlannerRequest = {
   command: "I walk into the street and attack him.",
@@ -69,7 +70,55 @@ describe("persistent world planner", () => {
     expect(validated.plan?.steps[1]?.kind).toBe("combat");
   });
 
-  it("forbids invented persistent entity IDs", () => {
+  it("allows a known area ID supplied as a player-visible fact value", () => {
+    const roomId = "10000000-0000-4000-8000-000000000004";
+    const observationRequest: WorldActionPlannerRequest = {
+      command: "I look around the room.",
+      actorId,
+      playerKnownFacts: [
+        { entityId: actorId, claim: "entity.location", value: roomId },
+        { entityId: actorId, claim: "entity.version", value: 2 },
+      ],
+      resolvedEntityIds: [],
+      activePlanSummary: null,
+      enabledHandlers: ["search"],
+    };
+    const observationResult: WorldActionPlannerResult = {
+      primaryKind: "search",
+      requiresClarification: false,
+      rationale: "The player is observing the known current area.",
+      plan: {
+        originalCommand: observationRequest.command,
+        exclusivePhysical: false,
+        steps: [
+          {
+            order: 1,
+            kind: "search",
+            description: "Observe the current room.",
+            intentPayload: {
+              areaId: roomId,
+              requestedConcept: "surroundings",
+              rawText: observationRequest.command,
+            },
+            referencedEntities: [
+              { entityId: actorId, role: "actor", expectedVersion: 2 },
+              { entityId: roomId, role: "location" },
+            ],
+          },
+        ],
+        dependencies: [],
+      },
+    };
+
+    expect(validatePersistentWorldPlan(observationResult, observationRequest).plan?.steps[0]).toMatchObject(
+      {
+        kind: "search",
+        intentPayload: { areaId: roomId },
+      },
+    );
+  });
+
+  it("forbids invented persistent entity IDs in referenced entities", () => {
     expect(() =>
       validatePersistentWorldPlan(
         {
@@ -79,12 +128,7 @@ describe("persistent world planner", () => {
             steps: [
               {
                 ...result.plan!.steps[0]!,
-                referencedEntities: [
-                  {
-                    entityId: "10000000-0000-4000-8000-000000000099",
-                    role: "location",
-                  },
-                ],
+                referencedEntities: [{ entityId: inventedId, role: "location" }],
               },
             ],
             dependencies: [],
@@ -92,7 +136,31 @@ describe("persistent world planner", () => {
         },
         request,
       ),
-    ).toThrow(/unsupplied persistent entity/i);
+    ).toThrow(/absent from player-visible planner context/i);
+  });
+
+  it("forbids invented IDs hidden inside handler payloads", () => {
+    expect(() =>
+      validatePersistentWorldPlan(
+        {
+          ...result,
+          plan: {
+            ...result.plan!,
+            steps: [
+              {
+                ...result.plan!.steps[0]!,
+                intentPayload: {
+                  destinationId: inventedId,
+                  rawText: "I walk into an invented location",
+                },
+              },
+            ],
+            dependencies: [],
+          },
+        },
+        request,
+      ),
+    ).toThrow(/absent from player-visible planner context/i);
   });
 
   it("makes the authority boundary explicit in the prompt", () => {
@@ -100,5 +168,6 @@ describe("persistent world planner", () => {
     expect(prompt).toContain("Do not decide outcomes");
     expect(prompt).toContain("after_arrival");
     expect(prompt).toContain("Discovery is separate from ownership");
+    expect(prompt).toContain("PLAYER-KNOWN FACTS");
   });
 });
