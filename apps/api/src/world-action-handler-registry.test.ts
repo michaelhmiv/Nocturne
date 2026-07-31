@@ -81,6 +81,7 @@ describe("world action handler telemetry", () => {
       expect(actionEvents.map((event) => event.eventName)).toEqual([
         "handler_started",
         "handler_completed",
+        ...(kind === "consume" ? (["resolution_committed"] as const) : []),
         "event_committed",
         "mutation_receipt_committed",
       ]);
