@@ -1,0 +1,1 @@
+Migration 0013 now performs world/shard backfills with append-only user triggers temporarily disabled inside the migration transaction and restored before completion. The selected-character foreign key creation is idempotent.
