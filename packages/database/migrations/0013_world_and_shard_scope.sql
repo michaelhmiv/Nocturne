@@ -117,6 +117,39 @@ ALTER TABLE IF EXISTS system.ai_runs
   ADD COLUMN IF NOT EXISTS world_id uuid REFERENCES game.worlds(world_id),
   ADD COLUMN IF NOT EXISTS shard_id uuid REFERENCES game.world_shards(shard_id);
 
+-- Several historical tables are intentionally append-only. This migration adds
+-- authoritative scope to existing rows, so temporarily suppress user triggers
+-- while the backfill runs. Trigger state changes are transactional: any failure
+-- rolls the trigger configuration and data changes back together.
+DO $$
+DECLARE
+  relation_name text;
+BEGIN
+  FOREACH relation_name IN ARRAY ARRAY[
+    'entity_definitions',
+    'definition_revisions',
+    'entity_instances',
+    'player_characters',
+    'entity_relations',
+    'residence_occupancies',
+    'generated_content_requests',
+    'installation_evaluations',
+    'action_intents',
+    'event_ledger',
+    'resolution_results',
+    'information_assets',
+    'conversations',
+    'conversation_turns',
+    'scheduled_actions',
+    'entity_semantic_profiles',
+    'ambient_asset_pools'
+  ] LOOP
+    IF to_regclass('game.' || relation_name) IS NOT NULL THEN
+      EXECUTE format('ALTER TABLE game.%I DISABLE TRIGGER USER', relation_name);
+    END IF;
+  END LOOP;
+END $$;
+
 DO $$
 DECLARE
   relation_name text;
@@ -217,6 +250,36 @@ BEGIN
   END IF;
 END $$;
 
+-- Re-enable every user trigger before subsequent application writes resume.
+DO $$
+DECLARE
+  relation_name text;
+BEGIN
+  FOREACH relation_name IN ARRAY ARRAY[
+    'entity_definitions',
+    'definition_revisions',
+    'entity_instances',
+    'player_characters',
+    'entity_relations',
+    'residence_occupancies',
+    'generated_content_requests',
+    'installation_evaluations',
+    'action_intents',
+    'event_ledger',
+    'resolution_results',
+    'information_assets',
+    'conversations',
+    'conversation_turns',
+    'scheduled_actions',
+    'entity_semantic_profiles',
+    'ambient_asset_pools'
+  ] LOOP
+    IF to_regclass('game.' || relation_name) IS NOT NULL THEN
+      EXECUTE format('ALTER TABLE game.%I ENABLE TRIGGER USER', relation_name);
+    END IF;
+  END LOOP;
+END $$;
+
 -- Existing users become active members of the shared launch world.
 INSERT INTO game.world_memberships (world_id, user_id, role, status)
 SELECT
@@ -241,11 +304,21 @@ WHERE membership.world_id = selected.world_id
   AND selected.selected
   AND membership.selected_character_id IS NULL;
 
-ALTER TABLE game.world_memberships
-  ADD CONSTRAINT world_memberships_selected_character_fk
-  FOREIGN KEY (selected_character_id)
-  REFERENCES game.entity_instances(instance_id)
-  ON DELETE SET NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'world_memberships_selected_character_fk'
+      AND conrelid = 'game.world_memberships'::regclass
+  ) THEN
+    ALTER TABLE game.world_memberships
+      ADD CONSTRAINT world_memberships_selected_character_fk
+      FOREIGN KEY (selected_character_id)
+      REFERENCES game.entity_instances(instance_id)
+      ON DELETE SET NULL;
+  END IF;
+END $$;
 
 -- Idempotency is authoritative inside a world. The keys may safely repeat in
 -- an isolated test or future seasonal world.
