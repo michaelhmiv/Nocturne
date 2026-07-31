@@ -1,0 +1,1 @@
+Migration 0013 intentionally prioritizes a clean prototype-world cutover over preservation of legacy gameplay rows. World and shard defaults are installed before backfills, append-only user triggers are disabled only while existing rows receive scope, and no table-altering DDL is executed after those updates in the same transaction.
