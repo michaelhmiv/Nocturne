@@ -25,23 +25,22 @@ const request = () => ({
   validator: z.object({ value: z.string(), count: z.number().int().min(1) }),
 });
 
+function providerResponse(content: string, id = "deepseek-response", finishReason = "stop") {
+  return new Response(
+    JSON.stringify({
+      id,
+      model: DEEPSEEK_FLASH_MODEL,
+      choices: [{ finish_reason: finishReason, message: { content } }],
+    }),
+    { status: 200, headers: { "Content-Type": "application/json" } },
+  );
+}
+
 describe("AiProviderClient structured requests", () => {
   it("uses the direct DeepSeek Flash JSON endpoint by default and builds valid examples", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          id: "deepseek-valid",
-          model: DEEPSEEK_FLASH_MODEL,
-          choices: [
-            {
-              finish_reason: "stop",
-              message: { content: JSON.stringify({ value: "ok", count: 1 }) },
-            },
-          ],
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
-    );
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(providerResponse(JSON.stringify({ value: "ok", count: 1 }), "deepseek-valid"));
     vi.stubGlobal("fetch", fetchMock);
 
     const client = new AiProviderClient({ deepseekApiKey: "deepseek-test-key" });
@@ -62,6 +61,58 @@ describe("AiProviderClient structured requests", () => {
     expect(body).not.toHaveProperty("plugins");
     expect(body).not.toHaveProperty("provider");
     expect(body.messages[0].content).toContain('"count":1');
+  });
+
+  it("accepts a provider JSON object wrapped in a Markdown fence", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(providerResponse('```json\n{"value":"ok","count":1}\n```'));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new AiProviderClient({ deepseekApiKey: "deepseek-test-key" });
+    const result = await client.generateStructured(request());
+
+    expect(result.data).toEqual({ value: "ok", count: 1 });
+    expect(result.attempts).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("extracts one balanced JSON object from provider reasoning or commentary", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        providerResponse(
+          '<think>I should obey the schema.</think>\nHere is the object:\n{"value":"ok","count":1}\nDone.',
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new AiProviderClient({ deepseekApiKey: "deepseek-test-key" });
+    const result = await client.generateStructured(request());
+
+    expect(result.data).toEqual({ value: "ok", count: 1 });
+    expect(result.attempts).toBe(1);
+  });
+
+  it("uses a strict correction prompt after malformed structured content", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(providerResponse("I forgot to return JSON.", "malformed"))
+      .mockResolvedValueOnce(
+        providerResponse(JSON.stringify({ value: "ok", count: 1 }), "repaired"),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new AiProviderClient({ deepseekApiKey: "deepseek-test-key" });
+    const result = await client.generateStructured(request());
+
+    expect(result.data).toEqual({ value: "ok", count: 1 });
+    expect(result.attempts).toBe(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const secondBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(secondBody.messages[1].content).toContain("CORRECTION REQUIRED");
+    expect(secondBody.messages[1].content).toContain("Start with { and end with }");
+    expect(secondBody.messages[1].content).not.toContain("I forgot to return JSON");
   });
 
   it("can switch to another OpenAI-compatible provider and model without code changes", async () => {
