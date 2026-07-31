@@ -66,8 +66,7 @@ async function resolveActorId() {
   const characters = Array.isArray(payload.characters)
     ? (payload.characters as Array<Record<string, unknown>>)
     : [];
-  const selected =
-    characters.find((character) => character.selected === true) || characters[0];
+  const selected = characters.find((character) => character.selected === true) || characters[0];
   const resolved = selected?.characterId;
   if (typeof resolved !== "string" || !resolved) {
     throw new Error(
