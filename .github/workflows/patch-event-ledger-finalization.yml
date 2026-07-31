@@ -2,9 +2,11 @@
 name: Patch Immutable Event Finalization
 
 on:
-  push:
-    branches:
-      - ci/exhaustive-gameplay-certification
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
   workflow_dispatch:
 
 permissions:
@@ -17,6 +19,7 @@ concurrency:
 jobs:
   patch:
     name: Patch / Immutable Event Finalization
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'ci/exhaustive-gameplay-certification'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
