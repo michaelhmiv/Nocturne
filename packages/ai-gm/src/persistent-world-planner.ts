@@ -2,8 +2,8 @@ import {
   WorldActionPlannerRequestSchema,
   WorldActionPlannerResultSchema,
   type WorldActionPlannerResult,
-  type z,
 } from "@nocturne/contracts";
+import type { z } from "zod";
 import { AiProviderClient, type StructuredGenerationResult } from "./ai-provider.js";
 
 export const PERSISTENT_WORLD_PLANNER_POLICY_VERSION = "persistent-world-planner-v1";
@@ -132,12 +132,15 @@ Rules:
 - Use only supplied resolved entity IDs. Never invent an entity, location, item, method, target, or UUID.
 - If a material entity is referenced ambiguously or required information is missing, request clarification instead of guessing.
 - A search concept such as "a dog" is allowed in search intentPayload without an existing entity ID. It does not imply the dog exists.
+- A requested consumable may remain an open-ended semantic concept. Do not require an existing entity ID merely because the player names food, drink, medicine, or another substance.
 - Preserve the player's full intended order. Decompose compound commands into explicit steps.
 - Use dependencies for actual prerequisites. Travel followed by an action at the destination requires after_arrival, not immediate synchronous success.
 - Do not decide outcomes, probabilities, injuries, death, ownership, inventory, or world mutations.
-- `move` is a durable/scheduled step when travel time is nonzero.
+- \`move\` is a durable/scheduled step when travel time is nonzero.
 - Discovery is separate from ownership, possession, control, trust, following, custody, and residence.
 - Steps must contain enough structured semantic payload for the registered handler, while keeping arbitrary nouns open-ended.
+- Every step intentPayload must include rawText containing the self-contained player action for that step.
+- Search intentPayload must include areaId and requestedConcept. Move intentPayload must include destinationId.
 - referencedEntities must include the actor and every supplied persistent entity used by the step, with current expectedVersion when supplied in facts.
 - Existing active plans are not silently combined with conflicting physical commands. Produce a new exclusive plan; the runtime will apply explicit supersession policy.
 - Dialogue and questions may use one non-state-changing step.
@@ -176,6 +179,9 @@ export function validatePersistentWorldPlan(
   for (const step of parsed.plan.steps) {
     if (!parsedInput.enabledHandlers.includes(step.kind as never)) {
       throw new Error(`Plan step selected a disabled handler: ${step.kind}.`);
+    }
+    if (typeof step.intentPayload.rawText !== "string" || !step.intentPayload.rawText.trim()) {
+      throw new Error("Every persistent-world plan step must include intentPayload.rawText.");
     }
     for (const entity of step.referencedEntities) {
       if (!supplied.has(entity.entityId)) {
