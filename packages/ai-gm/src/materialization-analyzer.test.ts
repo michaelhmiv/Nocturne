@@ -52,7 +52,9 @@ const proposal: MaterializationProposal = {
 describe("bounded materialization analysis", () => {
   it("explicitly rejects catalogue and request-as-evidence behavior", () => {
     const prompt = buildMaterializationPrompt(request);
-    expect(prompt).toContain("No fixed animal, person, item, vehicle, business, or object catalogue");
+    expect(prompt).toContain(
+      "No fixed animal, person, item, vehicle, business, or object catalogue",
+    );
     expect(prompt).toContain("request itself is not evidence");
     expect(prompt).toContain(sourceId);
   });

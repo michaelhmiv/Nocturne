@@ -18,9 +18,7 @@ const base: ConsumableAnalysis = {
     confidence: 0.85,
   },
   consumeUnits: 1,
-  resourceDeltas: [
-    { resource: "energy", delta: 5, rationale: "The tonic is mildly stimulating." },
-  ],
+  resourceDeltas: [{ resource: "energy", delta: 5, rationale: "The tonic is mildly stimulating." }],
   conditions: [],
   risks: [
     {

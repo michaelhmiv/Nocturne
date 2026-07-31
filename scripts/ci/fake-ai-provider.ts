@@ -44,7 +44,8 @@ function classifyAction(command: string) {
   if (/\b(craft|build .*workshop|make .*materials)\b/.test(text)) return "craft";
   if (/\b(drive|take the car|vehicle)\b/.test(text)) return "drive";
   if (/\b(plant|tracker under|evidence in .*bag)\b/.test(text)) return "plant";
-  if (/\b(observe|watch .*routine|take in my surroundings|look around the room)\b/.test(text)) return "observe";
+  if (/\b(observe|watch .*routine|take in my surroundings|look around the room)\b/.test(text))
+    return "observe";
   if (/\b(buy|purchase)\b/.test(text)) return "buy";
   if (/\b(sell|list .*for sale)\b/.test(text)) return "sell";
   if (/\b(hide|concealed position|behind the crates)\b/.test(text)) return "hide";
@@ -185,7 +186,9 @@ function consumableResponse(prompt: string) {
       assumptions: [],
     };
   }
-  const displayName = String(candidate.name || (/water/i.test(rawText) ? "water" : "ordinary food"));
+  const displayName = String(
+    candidate.name || (/water/i.test(rawText) ? "water" : "ordinary food"),
+  );
   return {
     selection: {
       sourceType: candidate.sourceType,
@@ -257,7 +260,10 @@ function responseFor(schemaName: string, prompt: string) {
     case "nocturne_consumable_analysis":
       return consumableResponse(prompt);
     case "nocturne_event_narration":
-      return { narration: "You carry out the committed action, and the world reflects only what actually occurred." };
+      return {
+        narration:
+          "You carry out the committed action, and the world reflects only what actually occurred.",
+      };
     case "nocturne_search_discovery_analysis":
       return searchResponse(prompt);
     case "nocturne_provider_contract":
@@ -271,7 +277,10 @@ function responseFor(schemaName: string, prompt: string) {
 }
 
 async function record(entry: Record<string, unknown>) {
-  await appendFile(transcriptPath, `${JSON.stringify({ timestamp: new Date().toISOString(), ...entry })}\n`);
+  await appendFile(
+    transcriptPath,
+    `${JSON.stringify({ timestamp: new Date().toISOString(), ...entry })}\n`,
+  );
 }
 
 const server = createServer(async (request, response) => {
@@ -311,12 +320,24 @@ const server = createServer(async (request, response) => {
   }
   if (prompt.includes("[fake:empty]")) {
     response.writeHead(200, { "content-type": "application/json" });
-    response.end(JSON.stringify({ id: requestId, model: body.model, choices: [{ finish_reason: "stop", message: { content: "" } }] }));
+    response.end(
+      JSON.stringify({
+        id: requestId,
+        model: body.model,
+        choices: [{ finish_reason: "stop", message: { content: "" } }],
+      }),
+    );
     return;
   }
   if (prompt.includes("[fake:invalid-json]")) {
     response.writeHead(200, { "content-type": "application/json" });
-    response.end(JSON.stringify({ id: requestId, model: body.model, choices: [{ finish_reason: "stop", message: { content: "not-json" } }] }));
+    response.end(
+      JSON.stringify({
+        id: requestId,
+        model: body.model,
+        choices: [{ finish_reason: "stop", message: { content: "not-json" } }],
+      }),
+    );
     return;
   }
 
@@ -332,14 +353,24 @@ const server = createServer(async (request, response) => {
     );
     await record({ requestId, schemaName, response: content });
   } catch (error) {
-    await record({ requestId, schemaName, error: error instanceof Error ? error.message : String(error) });
+    await record({
+      requestId,
+      schemaName,
+      error: error instanceof Error ? error.message : String(error),
+    });
     response.writeHead(422, { "content-type": "application/json" });
-    response.end(JSON.stringify({ error: { message: error instanceof Error ? error.message : String(error) } }));
+    response.end(
+      JSON.stringify({
+        error: { message: error instanceof Error ? error.message : String(error) },
+      }),
+    );
   }
 });
 
 server.listen(port, "127.0.0.1", () => {
-  console.log(JSON.stringify({ status: "ready", service: "fake-ai-provider", port, transcriptPath }));
+  console.log(
+    JSON.stringify({ status: "ready", service: "fake-ai-provider", port, transcriptPath }),
+  );
 });
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {

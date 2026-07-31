@@ -8,7 +8,8 @@ import {
 
 const apiUrl = (process.env.NOCTURNE_API_URL || "http://127.0.0.1:3101").replace(/\/$/, "");
 const databaseUrl = process.env.DATABASE_URL;
-const resultPath = process.env.ACTION_INTEGRATION_RESULTS || "artifacts/action-integration-results.json";
+const resultPath =
+  process.env.ACTION_INTEGRATION_RESULTS || "artifacts/action-integration-results.json";
 if (!databaseUrl) throw new Error("DATABASE_URL is required.");
 
 const database = createDatabase(databaseUrl);
@@ -35,7 +36,9 @@ async function request(path: string, init: RequestInit = {}) {
 async function requireOk(path: string, init?: RequestInit) {
   const result = await request(path, init);
   if (!result.response.ok) {
-    throw new Error(`${init?.method || "GET"} ${path} returned ${result.response.status}: ${result.text.slice(0, 2000)}`);
+    throw new Error(
+      `${init?.method || "GET"} ${path} returned ${result.response.status}: ${result.text.slice(0, 2000)}`,
+    );
   }
   return result.payload;
 }

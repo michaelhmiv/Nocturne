@@ -61,9 +61,7 @@ export function createReferenceResolutionStore(database: ReturnType<typeof creat
     const entityIds = input.context.entities.map(({ entityId }) => entityId);
     if (entityIds.length === 0) return [];
 
-    const aliases = await database.client<
-      { entity_instance_id: string; alias_text: string }[]
-    >`
+    const aliases = await database.client<{ entity_instance_id: string; alias_text: string }[]>`
       SELECT entity_instance_id, alias_text
       FROM game.entity_aliases
       WHERE world_id = ${input.scope.worldId}
@@ -126,8 +124,9 @@ export function createReferenceResolutionStore(database: ReturnType<typeof creat
       ({ entityId }) => entityId === input.viewpointId,
     )?.locationId;
     const candidates = input.context.entities
-      .filter(({ entityId, visibility }) =>
-        entityId !== input.viewpointId && visibility === "player_known",
+      .filter(
+        ({ entityId, visibility }) =>
+          entityId !== input.viewpointId && visibility === "player_known",
       )
       .map((entity) => {
         const present = Boolean(actorLocation && entity.locationId === actorLocation);
@@ -156,8 +155,9 @@ export function createReferenceResolutionStore(database: ReturnType<typeof creat
           supportingFactIds: factsByEntity.get(entity.entityId) || [],
         });
       })
-      .sort((left, right) =>
-        right.relevanceScore - left.relevanceScore || left.entityId.localeCompare(right.entityId),
+      .sort(
+        (left, right) =>
+          right.relevanceScore - left.relevanceScore || left.entityId.localeCompare(right.entityId),
       );
     return candidates.slice(0, 96);
   }
@@ -170,7 +170,9 @@ export function createReferenceResolutionStore(database: ReturnType<typeof creat
     candidates: EntityReferenceCandidate[];
   }) {
     const interpretation = EntityReferenceInterpretationSchema.parse(input.interpretation);
-    const candidateMap = new Map(input.candidates.map((candidate) => [candidate.entityId, candidate]));
+    const candidateMap = new Map(
+      input.candidates.map((candidate) => [candidate.entityId, candidate]),
+    );
     const hash = commandHash(input.command);
     return database.client.begin(async (sql) => {
       const resolutionIds: string[] = [];
@@ -253,7 +255,9 @@ export function createReferenceResolutionStore(database: ReturnType<typeof creat
   }
 
   function clarification(interpretation: EntityReferenceInterpretation) {
-    const mentions = interpretation.mentions.filter(({ requiresClarification }) => requiresClarification);
+    const mentions = interpretation.mentions.filter(
+      ({ requiresClarification }) => requiresClarification,
+    );
     if (mentions.length === 0) return null;
     return mentions
       .map(

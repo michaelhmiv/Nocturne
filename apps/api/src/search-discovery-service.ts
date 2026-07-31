@@ -21,10 +21,7 @@ import { resolveContest } from "@nocturne/rules-engine";
 export class SearchDiscoveryServiceError extends Error {
   constructor(
     readonly code:
-      | "invalid_area"
-      | "analysis_rejected"
-      | "materialization_rejected"
-      | "unsupported_outcome",
+      "invalid_area" | "analysis_rejected" | "materialization_rejected" | "unsupported_outcome",
     message: string,
   ) {
     super(message);

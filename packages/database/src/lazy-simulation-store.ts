@@ -104,8 +104,7 @@ export function createLazySimulationStore(database: ReturnType<typeof createData
           Math.floor((now - entity.last_simulated_at.getTime()) / 1_000),
         ),
       );
-      const due =
-        entity.next_simulation_at === null || entity.next_simulation_at.getTime() <= now;
+      const due = entity.next_simulation_at === null || entity.next_simulation_at.getTime() <= now;
       if (!due && !input.forceIfRelevant) return null;
       if (elapsedSeconds < entity.minimum_interval_seconds! && !input.forceIfRelevant) return null;
       const leased = await sql`
@@ -124,16 +123,17 @@ export function createLazySimulationStore(database: ReturnType<typeof createData
         RETURNING instance_id
       `;
       if (!leased[0]) {
-        throw new LazySimulationStoreError("lease_conflict", "Entity simulation is already leased.");
+        throw new LazySimulationStoreError(
+          "lease_conflict",
+          "Entity simulation is already leased.",
+        );
       }
       const idempotencyKey = runKey(
         entity.instance_id,
         Number(entity.simulation_version),
         entity.last_simulated_at,
       );
-      const existing = await sql<
-        { run_id: string; status: string }[]
-      >`
+      const existing = await sql<{ run_id: string; status: string }[]>`
         SELECT run_id, status
         FROM game.entity_simulation_runs
         WHERE world_id = ${input.scope.worldId}
@@ -220,7 +220,8 @@ export function createLazySimulationStore(database: ReturnType<typeof createData
           AND simulation_lease_expires_at >= now()
         RETURNING instance_id
       `;
-      if (!updated[0]) throw new LazySimulationStoreError("stale_entity", "Entity changed during simulation.");
+      if (!updated[0])
+        throw new LazySimulationStoreError("stale_entity", "Entity changed during simulation.");
       await sql`
         UPDATE game.entity_simulation_runs
         SET status = 'no_change', proposal = ${json(input.proposal)}::jsonb,
@@ -261,7 +262,8 @@ export function createLazySimulationStore(database: ReturnType<typeof createData
           AND simulation_lease_expires_at >= now()
         RETURNING instance_id
       `;
-      if (!updated[0]) throw new LazySimulationStoreError("stale_entity", "Entity simulation lease became stale.");
+      if (!updated[0])
+        throw new LazySimulationStoreError("stale_entity", "Entity simulation lease became stale.");
       await sql`
         UPDATE game.entity_simulation_runs
         SET status = 'committed', proposal = ${json(input.proposal)}::jsonb,

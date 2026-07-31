@@ -81,10 +81,7 @@ type WorldActionRequestStoreLike = {
     inputSummary?: Record<string, unknown>;
     outputSummary?: Record<string, unknown>;
   }): Promise<void>;
-  get(input: {
-    scope: Pick<WorldScope, "worldId">;
-    requestId: string;
-  }): Promise<{
+  get(input: { scope: Pick<WorldScope, "worldId">; requestId: string }): Promise<{
     request_id: string;
     status: string;
     plan_id: string | null;
@@ -118,11 +115,7 @@ type WorldActionStepStoreLike = {
 export class PersistentWorldActionServiceError extends Error {
   constructor(
     readonly code:
-      | "in_progress"
-      | "unsupported_handler"
-      | "planning_failed"
-      | "step_failed"
-      | "request_failed",
+      "in_progress" | "unsupported_handler" | "planning_failed" | "step_failed" | "request_failed",
     message: string,
   ) {
     super(message);
@@ -147,10 +140,7 @@ export function createPersistentWorldActionService(dependencies: {
   plans: PersistentPlanStore;
   steps: WorldActionStepStoreLike;
   handlers: Partial<Record<WorldActionKind, WorldActionStepHandler>>;
-  listRecentPlayerSafeText(input: {
-    scope: WorldScope;
-    limit: number;
-  }): Promise<string[]>;
+  listRecentPlayerSafeText(input: { scope: WorldScope; limit: number }): Promise<string[]>;
   simulateReferencedEntity?(input: {
     scope: WorldScope;
     entityId: string;

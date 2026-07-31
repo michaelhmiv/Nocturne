@@ -15,12 +15,7 @@ const materializationJsonSchema = {
   schema: {
     type: "object",
     additionalProperties: false,
-    required: [
-      "decision",
-      "semanticFingerprintBasis",
-      "narrationFacts",
-      "assumptions",
-    ],
+    required: ["decision", "semanticFingerprintBasis", "narrationFacts", "assumptions"],
     properties: {
       decision: { enum: ["materialize", "reject"] },
       selectedSourceId: { type: "string" },

@@ -58,10 +58,7 @@ export async function registerSceneRoutesFromEnv(app: FastifyInstance) {
     const bearer = Array.isArray(authorization) ? authorization[0] : authorization;
     const agent = await agents.authenticate(bearer);
     if (agent) return { id: agent.userId };
-    if (
-      process.env.NOCTURNE_GUEST_MODE === "true" &&
-      headers["x-nocturne-guest-mode"] === "1"
-    ) {
+    if (process.env.NOCTURNE_GUEST_MODE === "true" && headers["x-nocturne-guest-mode"] === "1") {
       return { id: process.env.NOCTURNE_GUEST_USER_ID || "nocturne-test-guest" };
     }
     const session = await getSessionFromNodeHeaders(headers);

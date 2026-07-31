@@ -47,7 +47,8 @@ type AiJobRow = {
 
 export class AiJobStoreError extends Error {
   constructor(
-    readonly code: "invalid_input" | "idempotency_conflict" | "not_found" | "forbidden" | "invalid_transition",
+    readonly code:
+      "invalid_input" | "idempotency_conflict" | "not_found" | "forbidden" | "invalid_transition",
     message: string,
   ) {
     super(message);
@@ -192,7 +193,8 @@ export function createAiJobStore(database: ReturnType<typeof createDatabase>) {
       WHERE job_id = ${jobId} AND status = 'processing' AND locked_by = ${workerId}
       RETURNING *
     `;
-    if (!rows[0]) throw new AiJobStoreError("invalid_transition", "AI job is not owned by this worker.");
+    if (!rows[0])
+      throw new AiJobStoreError("invalid_transition", "AI job is not owned by this worker.");
     return job(rows[0]);
   }
 
@@ -227,7 +229,8 @@ export function createAiJobStore(database: ReturnType<typeof createDatabase>) {
       WHERE job_id = ${jobId} AND status = 'processing' AND locked_by = ${workerId}
       RETURNING *
     `;
-    if (!rows[0]) throw new AiJobStoreError("invalid_transition", "AI job is not owned by this worker.");
+    if (!rows[0])
+      throw new AiJobStoreError("invalid_transition", "AI job is not owned by this worker.");
     return job(rows[0]);
   }
 

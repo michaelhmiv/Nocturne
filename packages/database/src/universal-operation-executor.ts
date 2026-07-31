@@ -89,8 +89,7 @@ function validateExecutionInput(input: UniversalOperationExecutionInput) {
     input.idempotencyKey.length > 240 ||
     new Set(input.declaredFactIds).size !== input.declaredFactIds.length ||
     input.declaredFactIds.some(
-      (factId) =>
-        !factId || factId.trim() !== factId || factId.length > 160,
+      (factId) => !factId || factId.trim() !== factId || factId.length > 160,
     )
   ) {
     throw new UniversalOperationError("invalid_input", "Invalid universal operation input.");
@@ -243,11 +242,7 @@ function requireExpectedVersion(row: ExistingEntityRow, expectedVersion: number 
   }
 }
 
-async function requireDefinition(
-  sql: TransactionSql,
-  worldId: string,
-  definitionId: string,
-) {
+async function requireDefinition(sql: TransactionSql, worldId: string, definitionId: string) {
   const rows = await sql`
     SELECT definition_id
     FROM game.entity_definitions
@@ -409,7 +404,9 @@ export function createUniversalOperationExecutor(
     });
   }
 
-  async function execute(input: UniversalOperationExecutionInput): Promise<UniversalMutationReceipt> {
+  async function execute(
+    input: UniversalOperationExecutionInput,
+  ): Promise<UniversalMutationReceipt> {
     const branch = validateExecutionInput(input);
     const declared = new Set(input.declaredFactIds);
     const requiredFactIds = allPreconditionFactIds(branch.operations);
@@ -656,7 +653,10 @@ export function createUniversalOperationExecutor(
                 RETURNING version::text
               `;
               if (!updated[0]) {
-                throw new UniversalOperationError("stale_entity", "Entity changed before retirement.");
+                throw new UniversalOperationError(
+                  "stale_entity",
+                  "Entity changed before retirement.",
+                );
               }
               await sql`
                 INSERT INTO game.entity_tombstones (
@@ -693,11 +693,11 @@ export function createUniversalOperationExecutor(
                 operation.expectedLocationRef === undefined
                   ? undefined
                   : resolveNullableEntityRef(operation.expectedLocationRef, symbols);
-              if (
-                expectedLocationId !== undefined &&
-                row.location_id !== expectedLocationId
-              ) {
-                throw new UniversalOperationError("stale_entity", "Entity location precondition is stale.");
+              if (expectedLocationId !== undefined && row.location_id !== expectedLocationId) {
+                throw new UniversalOperationError(
+                  "stale_entity",
+                  "Entity location precondition is stale.",
+                );
               }
               await ensureNoContainmentCycle(sql, input, entityId, locationId);
               const updated = await sql<{ version: string }[]>`
@@ -706,13 +706,18 @@ export function createUniversalOperationExecutor(
                 WHERE world_id = ${input.scope.worldId}
                   AND shard_id = ${input.scope.shardId}
                   AND instance_id = ${entityId}
-                  ${operation.expectedVersion === undefined
-                    ? sql``
-                    : sql`AND version = ${operation.expectedVersion}`}
+                  ${
+                    operation.expectedVersion === undefined
+                      ? sql``
+                      : sql`AND version = ${operation.expectedVersion}`
+                  }
                 RETURNING version::text
               `;
               if (!updated[0]) {
-                throw new UniversalOperationError("stale_entity", "Entity changed before movement.");
+                throw new UniversalOperationError(
+                  "stale_entity",
+                  "Entity changed before movement.",
+                );
               }
               result = {
                 order,
@@ -743,9 +748,11 @@ export function createUniversalOperationExecutor(
                       WHERE world_id = ${input.scope.worldId}
                         AND shard_id = ${input.scope.shardId}
                         AND instance_id = ${entityId}
-                        ${operation.expectedVersion === undefined
-                          ? sql``
-                          : sql`AND version = ${operation.expectedVersion}`}
+                        ${
+                          operation.expectedVersion === undefined
+                            ? sql``
+                            : sql`AND version = ${operation.expectedVersion}`
+                        }
                       RETURNING version::text
                     `
                   : await sql<{ version: string }[]>`
@@ -754,13 +761,18 @@ export function createUniversalOperationExecutor(
                       WHERE world_id = ${input.scope.worldId}
                         AND shard_id = ${input.scope.shardId}
                         AND instance_id = ${entityId}
-                        ${operation.expectedVersion === undefined
-                          ? sql``
-                          : sql`AND version = ${operation.expectedVersion}`}
+                        ${
+                          operation.expectedVersion === undefined
+                            ? sql``
+                            : sql`AND version = ${operation.expectedVersion}`
+                        }
                       RETURNING version::text
                     `;
               if (!updated[0]) {
-                throw new UniversalOperationError("stale_entity", "Entity changed before transfer.");
+                throw new UniversalOperationError(
+                  "stale_entity",
+                  "Entity changed before transfer.",
+                );
               }
               result = {
                 order,
@@ -800,13 +812,18 @@ export function createUniversalOperationExecutor(
                 WHERE world_id = ${input.scope.worldId}
                   AND shard_id = ${input.scope.shardId}
                   AND instance_id = ${entityId}
-                  ${operation.expectedVersion === undefined
-                    ? sql``
-                    : sql`AND version = ${operation.expectedVersion}`}
+                  ${
+                    operation.expectedVersion === undefined
+                      ? sql``
+                      : sql`AND version = ${operation.expectedVersion}`
+                  }
                 RETURNING version::text
               `;
               if (!updated[0]) {
-                throw new UniversalOperationError("stale_entity", "Entity changed before possession transfer.");
+                throw new UniversalOperationError(
+                  "stale_entity",
+                  "Entity changed before possession transfer.",
+                );
               }
               result = {
                 order,
@@ -916,7 +933,9 @@ export function createUniversalOperationExecutor(
                 intensity: operation.intensity ?? 100,
                 ...(operation.durationSeconds
                   ? {
-                      resolvesAt: new Date(Date.now() + operation.durationSeconds * 1_000).toISOString(),
+                      resolvesAt: new Date(
+                        Date.now() + operation.durationSeconds * 1_000,
+                      ).toISOString(),
                     }
                   : {}),
                 metadata: operation.metadata,
@@ -931,9 +950,11 @@ export function createUniversalOperationExecutor(
                     WHERE world_id = ${input.scope.worldId}
                       AND shard_id = ${input.scope.shardId}
                       AND instance_id = ${entityId}
-                      ${operation.expectedVersion === undefined
-                        ? sql``
-                        : sql`AND version = ${operation.expectedVersion}`}
+                      ${
+                        operation.expectedVersion === undefined
+                          ? sql``
+                          : sql`AND version = ${operation.expectedVersion}`
+                      }
                     RETURNING version::text
                   `
                 : await sql<{ version: string }[]>`
@@ -944,13 +965,18 @@ export function createUniversalOperationExecutor(
                     WHERE world_id = ${input.scope.worldId}
                       AND shard_id = ${input.scope.shardId}
                       AND instance_id = ${entityId}
-                      ${operation.expectedVersion === undefined
-                        ? sql``
-                        : sql`AND version = ${operation.expectedVersion}`}
+                      ${
+                        operation.expectedVersion === undefined
+                          ? sql``
+                          : sql`AND version = ${operation.expectedVersion}`
+                      }
                     RETURNING version::text
                   `;
               if (!updated[0]) {
-                throw new UniversalOperationError("stale_entity", "Entity changed before condition update.");
+                throw new UniversalOperationError(
+                  "stale_entity",
+                  "Entity changed before condition update.",
+                );
               }
               result = {
                 order,
@@ -974,13 +1000,18 @@ export function createUniversalOperationExecutor(
                 WHERE world_id = ${input.scope.worldId}
                   AND shard_id = ${input.scope.shardId}
                   AND instance_id = ${entityId}
-                  ${operation.expectedVersion === undefined
-                    ? sql``
-                    : sql`AND version = ${operation.expectedVersion}`}
+                  ${
+                    operation.expectedVersion === undefined
+                      ? sql``
+                      : sql`AND version = ${operation.expectedVersion}`
+                  }
                 RETURNING condition, version::text
               `;
               if (!updated[0]) {
-                throw new UniversalOperationError("stale_entity", "Entity changed before condition adjustment.");
+                throw new UniversalOperationError(
+                  "stale_entity",
+                  "Entity changed before condition adjustment.",
+                );
               }
               result = {
                 order,
@@ -1014,9 +1045,11 @@ export function createUniversalOperationExecutor(
                   WHERE world_id = ${input.scope.worldId}
                     AND shard_id = ${input.scope.shardId}
                     AND instance_id = ${entityId}
-                    ${operation.expectedVersion === undefined
-                      ? sql``
-                      : sql`AND version = ${operation.expectedVersion}`}
+                    ${
+                      operation.expectedVersion === undefined
+                        ? sql``
+                        : sql`AND version = ${operation.expectedVersion}`
+                    }
                   FOR UPDATE
                 ), bounded AS (
                   SELECT LEAST(
@@ -1039,7 +1072,10 @@ export function createUniversalOperationExecutor(
                 RETURNING bounded.value::text AS value, entity.version::text
               `;
               if (!updated[0]) {
-                throw new UniversalOperationError("stale_entity", "Entity changed before resource adjustment.");
+                throw new UniversalOperationError(
+                  "stale_entity",
+                  "Entity changed before resource adjustment.",
+                );
               }
               result = {
                 order,
@@ -1067,9 +1103,11 @@ export function createUniversalOperationExecutor(
                       WHERE world_id = ${input.scope.worldId}
                         AND shard_id = ${input.scope.shardId}
                         AND instance_id = ${entityId}
-                        ${operation.expectedVersion === undefined
-                          ? sql``
-                          : sql`AND version = ${operation.expectedVersion}`}
+                        ${
+                          operation.expectedVersion === undefined
+                            ? sql``
+                            : sql`AND version = ${operation.expectedVersion}`
+                        }
                       RETURNING version::text
                     `
                   : await sql<{ version: string }[]>`
@@ -1080,13 +1118,18 @@ export function createUniversalOperationExecutor(
                       WHERE world_id = ${input.scope.worldId}
                         AND shard_id = ${input.scope.shardId}
                         AND instance_id = ${entityId}
-                        ${operation.expectedVersion === undefined
-                          ? sql``
-                          : sql`AND version = ${operation.expectedVersion}`}
+                        ${
+                          operation.expectedVersion === undefined
+                            ? sql``
+                            : sql`AND version = ${operation.expectedVersion}`
+                        }
                       RETURNING version::text
                     `;
               if (!updated[0]) {
-                throw new UniversalOperationError("stale_entity", "Entity changed before state update.");
+                throw new UniversalOperationError(
+                  "stale_entity",
+                  "Entity changed before state update.",
+                );
               }
               result = {
                 order,
@@ -1255,7 +1298,10 @@ export function createUniversalOperationExecutor(
                 RETURNING area_effect_id
               `;
               if (!updated[0]) {
-                throw new UniversalOperationError("invalid_operation", "Active area effect not found.");
+                throw new UniversalOperationError(
+                  "invalid_operation",
+                  "Active area effect not found.",
+                );
               }
               result = {
                 order,

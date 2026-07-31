@@ -112,17 +112,26 @@ export default function ActionPlanResultCard({ result }: { result: ActionPlanRes
                 <div className="scene-plan-step-copy">
                   <div className="scene-plan-step-heading">
                     <strong>{step.objective}</strong>
-                    <span>{step.status === "skipped" ? "skipped" : label(step.outcomeGrade || "resolved")}</span>
+                    <span>
+                      {step.status === "skipped"
+                        ? "skipped"
+                        : label(step.outcomeGrade || "resolved")}
+                    </span>
                   </div>
                   {detail && <p>{detail}</p>}
                   {step.consumption?.conditions.length ? (
                     <p className="scene-consequence">
-                      Conditions: {step.consumption.conditions.map((condition) => condition.name).join(", ")}
+                      Conditions:{" "}
+                      {step.consumption.conditions.map((condition) => condition.name).join(", ")}
                     </p>
                   ) : null}
                   {step.consumption?.risks.some((risk) => risk.occurred) ? (
                     <p className="scene-consequence">
-                      Consequences: {step.consumption.risks.filter((risk) => risk.occurred).map((risk) => risk.description).join(", ")}
+                      Consequences:{" "}
+                      {step.consumption.risks
+                        .filter((risk) => risk.occurred)
+                        .map((risk) => risk.description)
+                        .join(", ")}
                     </p>
                   ) : null}
                 </div>
@@ -132,7 +141,10 @@ export default function ActionPlanResultCard({ result }: { result: ActionPlanRes
         </ol>
 
         {result.finalState.pendingTravelTo && (
-          <p className="scene-consequence">Travel remains in progress. The current location will change only when the scheduled move resolves.</p>
+          <p className="scene-consequence">
+            Travel remains in progress. The current location will change only when the scheduled
+            move resolves.
+          </p>
         )}
 
         <details className="scene-plan-narrative">

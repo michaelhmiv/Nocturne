@@ -157,7 +157,12 @@ function parseProvider(value: string | undefined): AiProviderName {
   );
 }
 
-function parsePositiveInteger(value: string | undefined, fallback: number, minimum: number, maximum: number) {
+function parsePositiveInteger(
+  value: string | undefined,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(minimum, Math.min(maximum, Math.floor(parsed)));
@@ -175,11 +180,9 @@ function parseJsonObject(value: string | undefined, field: string): Record<strin
     if (!object(decoded)) throw new Error("must be a JSON object");
     return decoded;
   } catch (error) {
-    throw new AiProviderError(
-      "configuration",
-      `${field} must contain a valid JSON object.`,
-      { cause: error },
-    );
+    throw new AiProviderError("configuration", `${field} must contain a valid JSON object.`, {
+      cause: error,
+    });
   }
 }
 
@@ -209,9 +212,7 @@ export function resolveAiProviderConfigFromEnv(
   const provider = parseProvider(environment.AI_PROVIDER);
   const defaults = PROVIDER_DEFAULTS[provider];
   const model =
-    configured(environment.AI_MODEL) ||
-    configured(environment.DEEPSEEK_MODEL) ||
-    defaults.model;
+    configured(environment.AI_MODEL) || configured(environment.DEEPSEEK_MODEL) || defaults.model;
   const baseUrl = configured(environment.AI_BASE_URL) || defaults.baseUrl;
   if (!baseUrl) {
     throw new AiProviderError(
@@ -258,7 +259,8 @@ function resolveClientConfig(config: AiProviderConfig): ResolvedAiProviderConfig
     apiKey,
     baseUrl,
     model,
-    authoritativeModel: configured(config.authoritativeModel) || environmentConfig.authoritativeModel || model,
+    authoritativeModel:
+      configured(config.authoritativeModel) || environmentConfig.authoritativeModel || model,
     creativeModel: configured(config.creativeModel) || environmentConfig.creativeModel || model,
     thinkingMode: config.thinkingMode || environmentConfig.thinkingMode,
     timeoutMs: config.timeoutMs || environmentConfig.timeoutMs,
@@ -395,9 +397,7 @@ function validationRepairPrompt<T>(
 
 function chatCompletionsUrl(baseUrl: string) {
   const normalized = baseUrl.replace(/\/+$/, "");
-  return normalized.endsWith("/chat/completions")
-    ? normalized
-    : `${normalized}/chat/completions`;
+  return normalized.endsWith("/chat/completions") ? normalized : `${normalized}/chat/completions`;
 }
 
 export class AiProviderClient {
@@ -448,7 +448,12 @@ export class AiProviderClient {
     for (let attempt = 1; attempt <= retries + 1; attempt += 1) {
       const attemptStartedAt = Date.now();
       try {
-        const result = await this.callProvider(activeRequest, policy.authority, policy.model, policy.temperature);
+        const result = await this.callProvider(
+          activeRequest,
+          policy.authority,
+          policy.model,
+          policy.temperature,
+        );
         this.resolved.logger?.({
           task: request.task,
           provider: this.resolved.provider,

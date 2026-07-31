@@ -32,7 +32,9 @@ const requiredString = (payload: Record<string, unknown>, key: string) => {
 };
 
 const stableErrorCode = (error: unknown) =>
-  error instanceof Error && "code" in error && typeof (error as { code?: unknown }).code === "string"
+  error instanceof Error &&
+  "code" in error &&
+  typeof (error as { code?: unknown }).code === "string"
     ? String((error as { code: string }).code)
     : "handler_failed";
 

@@ -56,13 +56,16 @@ describe("system capability registry", () => {
     expect(new Set(SYSTEM_CAPABILITY_NAMES).size).toBe(EXPECTED_SYSTEM_CAPABILITIES.length);
   });
 
-  it.each(EXPECTED_SYSTEM_CAPABILITIES)("defines enforceable certification requirements for %s", (name) => {
-    const capability = SYSTEM_CAPABILITIES[name];
-    expect(capability.requiredScenarios.length).toBeGreaterThan(0);
-    expect(capability.requiredInvariants.length).toBeGreaterThan(0);
-    expect(capability.requiredLogEvents.length).toBeGreaterThan(0);
-    expect(new Set(capability.requiredScenarios).size).toBe(capability.requiredScenarios.length);
-  });
+  it.each(EXPECTED_SYSTEM_CAPABILITIES)(
+    "defines enforceable certification requirements for %s",
+    (name) => {
+      const capability = SYSTEM_CAPABILITIES[name];
+      expect(capability.requiredScenarios.length).toBeGreaterThan(0);
+      expect(capability.requiredInvariants.length).toBeGreaterThan(0);
+      expect(capability.requiredLogEvents.length).toBeGreaterThan(0);
+      expect(new Set(capability.requiredScenarios).size).toBe(capability.requiredScenarios.length);
+    },
+  );
 
   it("requires worker coverage for every asynchronous capability", () => {
     for (const name of [

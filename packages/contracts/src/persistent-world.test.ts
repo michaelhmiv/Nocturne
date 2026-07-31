@@ -51,7 +51,8 @@ describe("persistent world cutover contracts", () => {
     const waiting = WorldActionPlayerSafeResultSchema.parse({
       state: "waiting",
       requestId: "20000000-0000-4000-8000-000000000001",
-      narration: "Travel is in progress. The dependent action remains queued for arrival revalidation.",
+      narration:
+        "Travel is in progress. The dependent action remains queued for arrival revalidation.",
       plan: {
         planId: "20000000-0000-4000-8000-000000000002",
         actorId,

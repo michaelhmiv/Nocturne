@@ -26,17 +26,13 @@ describe("location semantic identity", () => {
   });
 
   it("keeps distinct parent geography distinct", () => {
-    expect(
-      locationSemanticFingerprint("10000000-0000-4000-8000-000000000003", semantics),
-    ).not.toBe(
+    expect(locationSemanticFingerprint("10000000-0000-4000-8000-000000000003", semantics)).not.toBe(
       locationSemanticFingerprint("10000000-0000-4000-8000-000000000004", semantics),
     );
   });
 
   it("keeps materially different footprints distinct", () => {
-    expect(
-      locationSemanticFingerprint(null, semantics),
-    ).not.toBe(
+    expect(locationSemanticFingerprint(null, semantics)).not.toBe(
       locationSemanticFingerprint(null, {
         ...semantics,
         footprint: { approximateSquareMeters: 14_000 },

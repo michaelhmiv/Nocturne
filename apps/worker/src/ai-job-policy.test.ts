@@ -10,10 +10,13 @@ describe("AI job failure policy", () => {
   });
 
   it("honors structured API retry policy and stable error codes", () => {
-    const error = Object.assign(new Error("AI job API failed: structured output remained invalid"), {
-      code: "ai_validation_failed",
-      retryable: false,
-    });
+    const error = Object.assign(
+      new Error("AI job API failed: structured output remained invalid"),
+      {
+        code: "ai_validation_failed",
+        retryable: false,
+      },
+    );
     expect(aiJobIsRetryable(error)).toBe(false);
     expect(aiJobErrorCode(error)).toBe("ai_validation_failed");
   });
@@ -34,8 +37,6 @@ describe("AI job failure policy", () => {
   it("keeps bounded exponential retry delays and stable error codes", () => {
     expect(aiJobRetryDelaySeconds(1)).toBe(5);
     expect(aiJobRetryDelaySeconds(3)).toBe(20);
-    expect(aiJobErrorCode(new Error("fetch failed: ECONNREFUSED"))).toBe(
-      "worker_api_unreachable",
-    );
+    expect(aiJobErrorCode(new Error("fetch failed: ECONNREFUSED"))).toBe("worker_api_unreachable");
   });
 });

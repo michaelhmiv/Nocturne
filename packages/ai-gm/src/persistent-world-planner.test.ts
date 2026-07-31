@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type {
-  WorldActionPlannerRequest,
-  WorldActionPlannerResult,
-} from "@nocturne/contracts";
+import type { WorldActionPlannerRequest, WorldActionPlannerResult } from "@nocturne/contracts";
 import {
   buildPersistentWorldPlannerPrompt,
   validatePersistentWorldPlan,

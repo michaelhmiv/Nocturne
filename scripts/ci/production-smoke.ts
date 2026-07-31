@@ -12,8 +12,7 @@ if (!apiUrl || !webUrl || !token || !actorId) {
   );
 }
 
-const sleep = (milliseconds: number) =>
-  new Promise((resolve) => setTimeout(resolve, milliseconds));
+const sleep = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 async function jsonRequest(url: string, init?: RequestInit) {
   const response = await fetch(url, init);
@@ -25,7 +24,9 @@ async function jsonRequest(url: string, init?: RequestInit) {
     payload = text;
   }
   if (!response.ok) {
-    throw new Error(`${init?.method || "GET"} ${url} returned ${response.status}: ${text.slice(0, 1000)}`);
+    throw new Error(
+      `${init?.method || "GET"} ${url} returned ${response.status}: ${text.slice(0, 1000)}`,
+    );
   }
   return payload as Record<string, unknown>;
 }
@@ -67,7 +68,9 @@ async function submit(command: string, label: string) {
     throw new Error(`${label} returned an infrastructure failure: ${JSON.stringify(payload)}`);
   }
   if (!["completed", "waiting"].includes(String(payload.state))) {
-    throw new Error(`${label} did not produce an executable player result: ${JSON.stringify(payload)}`);
+    throw new Error(
+      `${label} did not produce an executable player result: ${JSON.stringify(payload)}`,
+    );
   }
   if (typeof payload.requestId !== "string") {
     throw new Error(`${label} did not return requestId: ${JSON.stringify(payload)}`);

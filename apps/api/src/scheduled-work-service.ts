@@ -11,11 +11,7 @@ import type { createDatabase } from "@nocturne/database";
 export class ScheduledWorkServiceError extends Error {
   constructor(
     readonly code:
-      | "unsupported_kind"
-      | "stale_state"
-      | "superseded"
-      | "target_missing"
-      | "domain_rejection",
+      "unsupported_kind" | "stale_state" | "superseded" | "target_missing" | "domain_rejection",
     message: string,
   ) {
     super(message);
@@ -194,7 +190,7 @@ export function createScheduledWorkService(dependencies: {
       if (!requests[0]) {
         throw new ScheduledWorkServiceError("target_missing", "Craft request not found.");
       }
-      if (!['crafting', 'ready'].includes(requests[0].validation_status)) {
+      if (!["crafting", "ready"].includes(requests[0].validation_status)) {
         throw new ScheduledWorkServiceError(
           "stale_state",
           "Craft request is no longer waiting for completion.",

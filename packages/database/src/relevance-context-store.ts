@@ -58,10 +58,7 @@ function factId(input: {
   visibility: string;
   sourceId: string;
 }) {
-  const digest = createHash("sha256")
-    .update(JSON.stringify(input))
-    .digest("hex")
-    .slice(0, 40);
+  const digest = createHash("sha256").update(JSON.stringify(input)).digest("hex").slice(0, 40);
   return `context:v1:${digest}`;
 }
 
@@ -116,9 +113,7 @@ export function createRelevanceContextStore(database: ReturnType<typeof createDa
       `;
       throw new RelevanceContextError(
         anywhere[0] ? "forbidden" : "viewpoint_not_found",
-        anywhere[0]
-          ? "Viewpoint is not controlled in the active world."
-          : "Viewpoint not found.",
+        anywhere[0] ? "Viewpoint is not controlled in the active world." : "Viewpoint not found.",
       );
     }
     return row;
@@ -192,9 +187,7 @@ export function createRelevanceContextStore(database: ReturnType<typeof createDa
     }
 
     const locationChain = viewpoint.location_id
-      ? await database.client<
-          { instance_id: string; depth: number }[]
-        >`
+      ? await database.client<{ instance_id: string; depth: number }[]>`
           WITH RECURSIVE chain(instance_id, depth) AS (
             SELECT ${viewpoint.location_id}::uuid, 0
             UNION ALL
@@ -316,7 +309,13 @@ export function createRelevanceContextStore(database: ReturnType<typeof createDa
             : relation.relation_type === "contained_in"
               ? "contained"
               : "relationship";
-      addCandidate(candidates, otherId, reason === "accompanying" ? 18_000 : 8_000, reason, visible);
+      addCandidate(
+        candidates,
+        otherId,
+        reason === "accompanying" ? 18_000 : 8_000,
+        reason,
+        visible,
+      );
     }
 
     const salience = await database.client<
@@ -366,9 +365,7 @@ export function createRelevanceContextStore(database: ReturnType<typeof createDa
       }
     });
 
-    const scheduleRows = await database.client<
-      { subject_entity_ids: string[] }[]
-    >`
+    const scheduleRows = await database.client<{ subject_entity_ids: string[] }[]>`
       SELECT subject_entity_ids
       FROM game.scheduled_actions
       WHERE world_id = ${input.scope.worldId}
@@ -380,7 +377,13 @@ export function createRelevanceContextStore(database: ReturnType<typeof createDa
     `;
     for (const schedule of scheduleRows) {
       for (const entityId of schedule.subject_entity_ids || []) {
-        addCandidate(candidates, entityId, 14_000, "scheduled_work", entityId === input.viewpointId);
+        addCandidate(
+          candidates,
+          entityId,
+          14_000,
+          "scheduled_work",
+          entityId === input.viewpointId,
+        );
       }
     }
 
@@ -476,53 +479,33 @@ export function createRelevanceContextStore(database: ReturnType<typeof createDa
         relevanceScore: candidate.score,
         inclusionReasons: [...candidate.reasons],
       });
-      addFact(
-        candidate,
-        row,
-        "entity.name",
-        row.name,
-        visibility,
-        { kind: "content_definition", sourceId: row.definition_id },
-      );
-      addFact(
-        candidate,
-        row,
-        "entity.definition_type",
-        row.definition_type,
-        visibility,
-        { kind: "content_definition", sourceId: row.definition_id },
-      );
-      addFact(
-        candidate,
-        row,
-        "entity.lifecycle_status",
-        row.lifecycle_status,
-        visibility,
-        { kind: "world_state", sourceId: row.instance_id },
-      );
+      addFact(candidate, row, "entity.name", row.name, visibility, {
+        kind: "content_definition",
+        sourceId: row.definition_id,
+      });
+      addFact(candidate, row, "entity.definition_type", row.definition_type, visibility, {
+        kind: "content_definition",
+        sourceId: row.definition_id,
+      });
+      addFact(candidate, row, "entity.lifecycle_status", row.lifecycle_status, visibility, {
+        kind: "world_state",
+        sourceId: row.instance_id,
+      });
       if (row.location_id) {
-        addFact(
-          candidate,
-          row,
-          "entity.location",
-          row.location_id,
-          visibility,
-          { kind: "world_state", sourceId: row.instance_id },
-        );
+        addFact(candidate, row, "entity.location", row.location_id, visibility, {
+          kind: "world_state",
+          sourceId: row.instance_id,
+        });
       }
       if (
         row.instance_id === input.viewpointId ||
         row.owner_id === input.viewpointId ||
         row.controller_id === input.viewpointId
       ) {
-        addFact(
-          candidate,
-          row,
-          "entity.condition",
-          row.condition,
-          "player_known",
-          { kind: "character_state", sourceId: row.instance_id },
-        );
+        addFact(candidate, row, "entity.condition", row.condition, "player_known", {
+          kind: "character_state",
+          sourceId: row.instance_id,
+        });
         addFact(
           candidate,
           row,
@@ -532,22 +515,14 @@ export function createRelevanceContextStore(database: ReturnType<typeof createDa
           { kind: "character_state", sourceId: row.instance_id },
         );
       } else {
-        addFact(
-          candidate,
-          row,
-          "entity.condition",
-          row.condition,
-          "authoritative_hidden",
-          { kind: "character_state", sourceId: row.instance_id },
-        );
-        addFact(
-          candidate,
-          row,
-          "entity.state",
-          row.state || {},
-          "authoritative_hidden",
-          { kind: "character_state", sourceId: row.instance_id },
-        );
+        addFact(candidate, row, "entity.condition", row.condition, "authoritative_hidden", {
+          kind: "character_state",
+          sourceId: row.instance_id,
+        });
+        addFact(candidate, row, "entity.state", row.state || {}, "authoritative_hidden", {
+          kind: "character_state",
+          sourceId: row.instance_id,
+        });
       }
     }
 
@@ -585,9 +560,7 @@ export function createRelevanceContextStore(database: ReturnType<typeof createDa
             visibility: "player_known",
             sourceId: information.information_id,
           }),
-          ...(information.subject_instance_id
-            ? { entityId: information.subject_instance_id }
-            : {}),
+          ...(information.subject_instance_id ? { entityId: information.subject_instance_id } : {}),
           claim: "held_information",
           value: {
             content: information.content,
@@ -680,18 +653,22 @@ export function createRelevanceContextStore(database: ReturnType<typeof createDa
         ${compilationId}, ${input.scope.worldId}, ${input.scope.shardId},
         ${input.scope.userId}, ${input.viewpointId}, ${commandHash(command)},
         ${command}, ${json(explicitEntityIds)}::jsonb,
-        ${json(rankedCandidates.map((candidate) => ({
-          entityId: candidate.entityId,
-          score: candidate.score,
-          reasons: [...candidate.reasons],
-          known: candidate.known,
-        })))}::jsonb,
+        ${json(
+          rankedCandidates.map((candidate) => ({
+            entityId: candidate.entityId,
+            score: candidate.score,
+            reasons: [...candidate.reasons],
+            known: candidate.known,
+          })),
+        )}::jsonb,
         ${json(selectedFactIds)}::jsonb,
-        ${json(omitted.map((candidate) => ({
-          entityId: candidate.entityId,
-          score: candidate.score,
-          reasons: [...candidate.reasons],
-        })))}::jsonb,
+        ${json(
+          omitted.map((candidate) => ({
+            entityId: candidate.entityId,
+            score: candidate.score,
+            reasons: [...candidate.reasons],
+          })),
+        )}::jsonb,
         ${selectedFactIds.length}, ${estimatedTokens}, ${RELEVANCE_CONTEXT_POLICY_VERSION}
       )
     `;

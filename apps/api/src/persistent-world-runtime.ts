@@ -1,8 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import type {
-  MaterializationAnalysisRequest,
-  WorldActionKind,
-} from "@nocturne/contracts";
+import type { MaterializationAnalysisRequest, WorldActionKind } from "@nocturne/contracts";
 import type { AiProviderClient } from "@nocturne/ai-gm";
 import {
   createMaterializationStore,
@@ -37,10 +34,7 @@ export async function registerPersistentWorldRuntime(
     client: Pick<AiProviderClient, "generateStructured">;
     rollSecret: string | Buffer;
     resolveScope(request: FastifyRequest): Promise<WorldScope>;
-    listRecentPlayerSafeText(input: {
-      scope: WorldScope;
-      limit: number;
-    }): Promise<string[]>;
+    listRecentPlayerSafeText(input: { scope: WorldScope; limit: number }): Promise<string[]>;
     loadReusableDefinitions(input: {
       scope: Pick<WorldScope, "worldId">;
       requestedConcept: string;
@@ -100,15 +94,9 @@ export async function registerPersistentWorldRuntime(
     createReferenceResolutionStore(dependencies.database),
     telemetry,
   );
-  const plans = instrumentPlanStore(
-    createPersistentPlanStore(dependencies.database),
-    telemetry,
-  );
+  const plans = instrumentPlanStore(createPersistentPlanStore(dependencies.database), telemetry);
   const requests = createWorldActionRequestStore(dependencies.database);
-  const steps = instrumentStepStore(
-    createWorldActionStepStore(dependencies.database),
-    telemetry,
-  );
+  const steps = instrumentStepStore(createWorldActionStepStore(dependencies.database), telemetry);
   const materialization = createMaterializationStore(dependencies.database, executor);
   const search = createSearchDiscoveryService({
     client,

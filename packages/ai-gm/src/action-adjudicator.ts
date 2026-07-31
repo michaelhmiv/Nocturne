@@ -179,10 +179,12 @@ function committedConsequenceEvidence(input: NarrationInput): string {
   const consumption = input.consumption;
   return [
     ...input.factsToPreserve,
-    ...(consumption?.conditions ?? []).flatMap((effect) => [effect.name, effect.key, effect.rationale]),
-    ...(consumption?.risks ?? [])
-      .filter((risk) => risk.occurred)
-      .map((risk) => risk.description),
+    ...(consumption?.conditions ?? []).flatMap((effect) => [
+      effect.name,
+      effect.key,
+      effect.rationale,
+    ]),
+    ...(consumption?.risks ?? []).filter((risk) => risk.occurred).map((risk) => risk.description),
   ]
     .join(" ")
     .toLowerCase();

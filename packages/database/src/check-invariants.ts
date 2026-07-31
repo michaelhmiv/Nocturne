@@ -8,7 +8,9 @@ const database = createDatabase(databaseUrl);
 async function requireZero(label: string, query: Promise<unknown[]>) {
   const rows = await query;
   if (rows.length > 0) {
-    throw new Error(`${label} failed with ${rows.length} violating row(s): ${JSON.stringify(rows.slice(0, 10))}`);
+    throw new Error(
+      `${label} failed with ${rows.length} violating row(s): ${JSON.stringify(rows.slice(0, 10))}`,
+    );
   }
   console.log(`PASS ${label}`);
 }

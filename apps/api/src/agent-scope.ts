@@ -20,7 +20,9 @@ const authorizationContext = new AsyncLocalStorage<AgentAuthorizationContext | n
 const CHARACTER_BOUND_MUTATION_SCOPES = new Set<AgentScope>(["market:trade", "vehicle:claim"]);
 
 export function hasAgentScope(agent: AgentIdentity, required: AgentScope): boolean {
-  return agent.scopes.includes("*") || agent.scopes.includes("play") || agent.scopes.includes(required);
+  return (
+    agent.scopes.includes("*") || agent.scopes.includes("play") || agent.scopes.includes(required)
+  );
 }
 
 export function requireAgentScope(
@@ -50,9 +52,6 @@ export function requireBoundCharacter(
 ): void {
   if (!agent?.boundCharacterId || !requestedCharacterId) return;
   if (agent.boundCharacterId !== requestedCharacterId) {
-    throw new AgentStoreError(
-      "forbidden",
-      "Agent token is bound to a different character.",
-    );
+    throw new AgentStoreError("forbidden", "Agent token is bound to a different character.");
   }
 }

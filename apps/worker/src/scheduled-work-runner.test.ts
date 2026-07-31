@@ -32,12 +32,14 @@ describe("authoritative scheduled work runner", () => {
     };
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({ eventId: "20000000-0000-4000-8000-000000000001" }),
-          { status: 200, headers: { "content-type": "application/json" } },
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ eventId: "20000000-0000-4000-8000-000000000001" }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
         ),
-      ),
     );
     const runner = createScheduledWorkRunner({
       store: store as never,

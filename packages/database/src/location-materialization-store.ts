@@ -239,7 +239,9 @@ export function createLocationMaterializationStore(
       ON CONFLICT DO NOTHING
       RETURNING location_instance_id
     `;
-    return rows[0] ? { registered: true as const, fingerprint } : { registered: false as const, fingerprint };
+    return rows[0]
+      ? { registered: true as const, fingerprint }
+      : { registered: false as const, fingerprint };
   }
 
   async function materialize(input: {
@@ -289,7 +291,11 @@ export function createLocationMaterializationStore(
       );
     }
     if (request.status === "reused" && request.reused_location_id) {
-      return { kind: "reused" as const, locationId: request.reused_location_id, requestId: request.request_id };
+      return {
+        kind: "reused" as const,
+        locationId: request.reused_location_id,
+        requestId: request.request_id,
+      };
     }
     if (request.status === "materialized" && request.materialized_location_id) {
       return {
@@ -311,7 +317,11 @@ export function createLocationMaterializationStore(
             completed_at = now()
         WHERE request_id = ${request.request_id} AND status = 'pending'
       `;
-      return { kind: "reused" as const, locationId: compatible.locationId, requestId: request.request_id };
+      return {
+        kind: "reused" as const,
+        locationId: compatible.locationId,
+        requestId: request.request_id,
+      };
     }
 
     const capacityKey = input.capacityKey || "minor_location";
@@ -468,7 +478,11 @@ export function createLocationMaterializationStore(
           areaId: input.capacityAreaId,
           capacityKey,
         });
-        return { kind: "reused" as const, locationId: winner.locationId, requestId: request.request_id };
+        return {
+          kind: "reused" as const,
+          locationId: winner.locationId,
+          requestId: request.request_id,
+        };
       }
 
       await database.client`

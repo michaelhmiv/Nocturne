@@ -7,7 +7,8 @@ import {
 import { ACTION_CAPABILITIES } from "../../test/capabilities/action-capabilities.js";
 
 const logPath = process.env.API_LOG_PATH || "artifacts/api.ndjson";
-const resultsPath = process.env.ACTION_INTEGRATION_RESULTS || "artifacts/action-integration-results.json";
+const resultsPath =
+  process.env.ACTION_INTEGRATION_RESULTS || "artifacts/action-integration-results.json";
 const reportPath = process.env.TELEMETRY_REPORT || "artifacts/telemetry-report.json";
 
 const logText = await readFile(logPath, "utf8");
@@ -84,15 +85,11 @@ for (const action of result.results) {
   });
 }
 
-const failureEvents = telemetry.filter(
-  (event) => event.traceId === result.providerFailure.traceId,
-);
+const failureEvents = telemetry.filter((event) => event.traceId === result.providerFailure.traceId);
 const failureNames = failureEvents.map((event) => event.eventName);
 for (const required of ["provider_call_failed", "request_failed"] as const) {
   if (!failureNames.includes(required)) {
-    throw new Error(
-      `Provider failure is missing ${required}: ${JSON.stringify(failureNames)}`,
-    );
+    throw new Error(`Provider failure is missing ${required}: ${JSON.stringify(failureNames)}`);
   }
 }
 if (failureEvents.some((event) => event.committed)) {

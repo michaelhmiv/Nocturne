@@ -1,4 +1,14 @@
-import { index, jsonb, numeric, pgSchema, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import {
+  index,
+  jsonb,
+  numeric,
+  pgSchema,
+  primaryKey,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { worlds } from "./world-schema.js";
 
 const game = pgSchema("game");

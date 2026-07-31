@@ -261,7 +261,10 @@ export default function SceneGameClient() {
                 ? {
                     ...turn,
                     status: "retrying",
-                    error: caught instanceof Error ? caught.message : "Could not check the queued action.",
+                    error:
+                      caught instanceof Error
+                        ? caught.message
+                        : "Could not check the queued action.",
                   }
                 : turn,
             ),
@@ -275,7 +278,8 @@ export default function SceneGameClient() {
             ? {
                 ...turn,
                 status: "retrying",
-                error: "This action is still saved in the background. Use Check again to refresh its status.",
+                error:
+                  "This action is still saved in the background. Use Check again to refresh its status.",
               }
             : turn,
         ),
@@ -324,7 +328,12 @@ export default function SceneGameClient() {
         >
           <label>
             Email
-            <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+            <input
+              required
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
           </label>
           <label>
             Password
@@ -338,7 +347,11 @@ export default function SceneGameClient() {
           </label>
           {error && <p className="scene-error">{error}</p>}
           <button type="submit">Enter the city</button>
-          <button type="button" className="scene-quiet-button" onClick={() => void authenticate(true)}>
+          <button
+            type="button"
+            className="scene-quiet-button"
+            onClick={() => void authenticate(true)}
+          >
             Create account
           </button>
         </form>
@@ -482,7 +495,11 @@ export default function SceneGameClient() {
         </button>
       </header>
 
-      {error && <div className="scene-alert" role="alert">{error}</div>}
+      {error && (
+        <div className="scene-alert" role="alert">
+          {error}
+        </div>
+      )}
 
       <div className="scene-layout">
         <section className="scene-main">
@@ -503,11 +520,21 @@ export default function SceneGameClient() {
                 <form onSubmit={createCharacter}>
                   <label>
                     Name
-                    <input required maxLength={80} value={characterName} onChange={(event) => setCharacterName(event.target.value)} />
+                    <input
+                      required
+                      maxLength={80}
+                      value={characterName}
+                      onChange={(event) => setCharacterName(event.target.value)}
+                    />
                   </label>
                   <label>
                     Character concept
-                    <textarea required maxLength={1000} value={characterConcept} onChange={(event) => setCharacterConcept(event.target.value)} />
+                    <textarea
+                      required
+                      maxLength={1000}
+                      value={characterConcept}
+                      onChange={(event) => setCharacterConcept(event.target.value)}
+                    />
                   </label>
                   <button disabled={creatingCharacter} type="submit">
                     {creatingCharacter ? "Creating…" : "Begin"}
@@ -527,13 +554,19 @@ export default function SceneGameClient() {
               </article>
             )}
 
-            {selected?.residenceId && timeline.length === 0 && pendingTurns.length === 0 && resolvedPlans.length === 0 && (
-              <article className="scene-event scene-event-world">
-                <p className="scene-kicker">THE CITY IS WAITING</p>
-                <h2>What do you do?</h2>
-                <p>Speak, investigate, travel, work, fight, bargain, or describe something you want to build.</p>
-              </article>
-            )}
+            {selected?.residenceId &&
+              timeline.length === 0 &&
+              pendingTurns.length === 0 &&
+              resolvedPlans.length === 0 && (
+                <article className="scene-event scene-event-world">
+                  <p className="scene-kicker">THE CITY IS WAITING</p>
+                  <h2>What do you do?</h2>
+                  <p>
+                    Speak, investigate, travel, work, fight, bargain, or describe something you want
+                    to build.
+                  </p>
+                </article>
+              )}
 
             {timeline.map((entry) => {
               if (entry.kind === "invention") {
@@ -542,23 +575,38 @@ export default function SceneGameClient() {
                   <article className="scene-turn" key={`invention-${invention.requestId}`}>
                     <div className="scene-player-line">{invention.rawConcept}</div>
                     <div className="scene-event scene-event-invention">
-                      <p className="scene-kicker">WORKSHOP · {invention.status.replaceAll("_", " ")}</p>
+                      <p className="scene-kicker">
+                        WORKSHOP · {invention.status.replaceAll("_", " ")}
+                      </p>
                       <h2>{invention.draft?.name || "Unresolved design"}</h2>
-                      <p>{invention.draft?.conceptSummary || "The design could not be completed."}</p>
-                      {invention.definitionId && invention.installation?.fits && !invention.installedInstanceId && (
-                        <button
-                          disabled={installingId === invention.requestId}
-                          onClick={() => void installInvention(invention)}
-                        >
-                          {installingId === invention.requestId ? "Installing…" : "Install in Unit 3B"}
-                        </button>
+                      <p>
+                        {invention.draft?.conceptSummary || "The design could not be completed."}
+                      </p>
+                      {invention.definitionId &&
+                        invention.installation?.fits &&
+                        !invention.installedInstanceId && (
+                          <button
+                            disabled={installingId === invention.requestId}
+                            onClick={() => void installInvention(invention)}
+                          >
+                            {installingId === invention.requestId
+                              ? "Installing…"
+                              : "Install in Unit 3B"}
+                          </button>
+                        )}
+                      {invention.installedInstanceId && (
+                        <p className="scene-success">Installed and available.</p>
                       )}
-                      {invention.installedInstanceId && <p className="scene-success">Installed and available.</p>}
-                      {(invention.validation?.issues?.length || invention.installation?.issues.length) && (
+                      {(invention.validation?.issues?.length ||
+                        invention.installation?.issues.length) && (
                         <details>
                           <summary>Design weaknesses</summary>
-                          {invention.validation?.issues?.map((issue, index) => <p key={`v-${index}`}>{issue.message}</p>)}
-                          {invention.installation?.issues.map((issue, index) => <p key={`i-${index}`}>{issue.message}</p>)}
+                          {invention.validation?.issues?.map((issue, index) => (
+                            <p key={`v-${index}`}>{issue.message}</p>
+                          ))}
+                          {invention.installation?.issues.map((issue, index) => (
+                            <p key={`i-${index}`}>{issue.message}</p>
+                          ))}
                         </details>
                       )}
                     </div>
@@ -574,11 +622,26 @@ export default function SceneGameClient() {
                     <p className="scene-kicker">{result.outcomeGrade.replaceAll("_", " ")}</p>
                     <p className="scene-narration">{result.narration}</p>
                     {result.informationGained.map((information) => (
-                      <p className="scene-discovery" key={information.informationId}>{information.content}</p>
+                      <p className="scene-discovery" key={information.informationId}>
+                        {information.content}
+                      </p>
                     ))}
-                    {result.travel && <p className="scene-consequence">Travel: {result.travel.travelSeconds}s{result.travel.scheduled ? " · en route" : " · arrived"}</p>}
-                    {result.legal && <p className="scene-consequence">Heat {result.legal.heat}{result.legal.warrant ? " · warrant issued" : ""}{result.legal.jailed ? " · jailed" : ""}</p>}
-                    {result.payday && <p className="scene-success">Paid {money(result.payday.paidCents)}</p>}
+                    {result.travel && (
+                      <p className="scene-consequence">
+                        Travel: {result.travel.travelSeconds}s
+                        {result.travel.scheduled ? " · en route" : " · arrived"}
+                      </p>
+                    )}
+                    {result.legal && (
+                      <p className="scene-consequence">
+                        Heat {result.legal.heat}
+                        {result.legal.warrant ? " · warrant issued" : ""}
+                        {result.legal.jailed ? " · jailed" : ""}
+                      </p>
+                    )}
+                    {result.payday && (
+                      <p className="scene-success">Paid {money(result.payday.paidCents)}</p>
+                    )}
                   </div>
                 </article>
               );
@@ -601,7 +664,10 @@ export default function SceneGameClient() {
                     {(turn.jobId || turn.status === "failed") && (
                       <div className="scene-pending-actions">
                         {turn.jobId && turn.status !== "failed" && (
-                          <button type="button" onClick={() => void monitorJob(turn.localId, turn.jobId!)}>
+                          <button
+                            type="button"
+                            onClick={() => void monitorJob(turn.localId, turn.jobId!)}
+                          >
                             Check again
                           </button>
                         )}
@@ -630,31 +696,55 @@ export default function SceneGameClient() {
             <h2>{selected.name}</h2>
             <p>{selected.conceptSummary}</p>
             <dl>
-              <div><dt>Cash</dt><dd>{money(selected.cashOnPerson ?? 0)}</dd></div>
-              <div><dt>Heat</dt><dd>{selected.heat ?? 0}</dd></div>
-              <div><dt>Status</dt><dd>{selected.status || "active"}</dd></div>
-              <div><dt>Location</dt><dd>{selected.residenceId ? world?.residence.name || "Unit 3B" : "Foundry Row"}</dd></div>
+              <div>
+                <dt>Cash</dt>
+                <dd>{money(selected.cashOnPerson ?? 0)}</dd>
+              </div>
+              <div>
+                <dt>Heat</dt>
+                <dd>{selected.heat ?? 0}</dd>
+              </div>
+              <div>
+                <dt>Status</dt>
+                <dd>{selected.status || "active"}</dd>
+              </div>
+              <div>
+                <dt>Location</dt>
+                <dd>{selected.residenceId ? world?.residence.name || "Unit 3B" : "Foundry Row"}</dd>
+              </div>
             </dl>
             {selected.inventory?.length ? (
               <section>
                 <p className="scene-kicker">INVENTORY</p>
-                {selected.inventory.map((item, index) => <p key={item.instanceId || index}>{item.title || "Unknown item"}</p>)}
+                {selected.inventory.map((item, index) => (
+                  <p key={item.instanceId || index}>{item.title || "Unknown item"}</p>
+                ))}
               </section>
             ) : null}
             {selected.skills && Object.keys(selected.skills).length ? (
               <section>
                 <p className="scene-kicker">SKILLS</p>
-                {Object.entries(selected.skills).map(([skill, value]) => <p key={skill}>{skill} · {value}</p>)}
+                {Object.entries(selected.skills).map(([skill, value]) => (
+                  <p key={skill}>
+                    {skill} · {value}
+                  </p>
+                ))}
               </section>
             ) : null}
-            {session && <button className="scene-quiet-button" onClick={() => void authClient.signOut()}>Sign out</button>}
+            {session && (
+              <button className="scene-quiet-button" onClick={() => void authClient.signOut()}>
+                Sign out
+              </button>
+            )}
           </aside>
         )}
       </div>
 
       {selected?.residenceId && (
         <form className="scene-composer" onSubmit={submitMessage}>
-          <label className="sr-only" htmlFor="scene-message">Your action</label>
+          <label className="sr-only" htmlFor="scene-message">
+            Your action
+          </label>
           <textarea
             id="scene-message"
             required
@@ -665,7 +755,13 @@ export default function SceneGameClient() {
             placeholder="What do you do?"
           />
           <div className="scene-composer-footer">
-            <span>{message.trim() ? (inferJobKind(message) === "invention_normalization" ? "Workshop intent" : "Action") : "Describe any action or invention"}</span>
+            <span>
+              {message.trim()
+                ? inferJobKind(message) === "invention_normalization"
+                  ? "Workshop intent"
+                  : "Action"
+                : "Describe any action or invention"}
+            </span>
             <button disabled={submitting || !message.trim()} type="submit">
               {submitting ? "Saving…" : "Do it"}
             </button>

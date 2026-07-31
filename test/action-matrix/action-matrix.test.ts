@@ -13,8 +13,16 @@ import {
 
 const shardIndex = Number(process.env.ACTION_MATRIX_SHARD_INDEX || 0);
 const shardTotal = Number(process.env.ACTION_MATRIX_SHARD_TOTAL || 1);
-if (!Number.isInteger(shardIndex) || !Number.isInteger(shardTotal) || shardIndex < 0 || shardTotal < 1 || shardIndex >= shardTotal) {
-  throw new Error("ACTION_MATRIX_SHARD_INDEX and ACTION_MATRIX_SHARD_TOTAL define an invalid shard.");
+if (
+  !Number.isInteger(shardIndex) ||
+  !Number.isInteger(shardTotal) ||
+  shardIndex < 0 ||
+  shardTotal < 1 ||
+  shardIndex >= shardTotal
+) {
+  throw new Error(
+    "ACTION_MATRIX_SHARD_INDEX and ACTION_MATRIX_SHARD_TOTAL define an invalid shard.",
+  );
 }
 
 const selectedActions = ACTION_TYPES.filter((_, index) => index % shardTotal === shardIndex);
@@ -71,7 +79,9 @@ function eventFor(name: GameplayTelemetryEventName, actionType: string) {
     actorId: randomUUID(),
     actionKind: ACTION_CAPABILITIES[actionType as keyof typeof ACTION_CAPABILITIES].worldKind,
     actionType,
-    handler: name.startsWith("handler_") ? ACTION_CAPABILITIES[actionType as keyof typeof ACTION_CAPABILITIES].worldKind : undefined,
+    handler: name.startsWith("handler_")
+      ? ACTION_CAPABILITIES[actionType as keyof typeof ACTION_CAPABILITIES].worldKind
+      : undefined,
     errorCode: failed ? "certified_failure" : undefined,
     committed,
   });
@@ -104,10 +114,14 @@ describe(`exhaustive action matrix shard ${shardIndex + 1}/${shardTotal}`, () =>
 
   it("collectively covers all six contest outcome grades", () => {
     const grades = new Set(
-      selectedActions.flatMap((actionType) => ACTION_CAPABILITIES[actionType].requiredOutcomeGrades),
+      selectedActions.flatMap(
+        (actionType) => ACTION_CAPABILITIES[actionType].requiredOutcomeGrades,
+      ),
     );
     for (const grade of ALL_OUTCOME_GRADES) {
-      if (selectedActions.some((actionType) => ACTION_CAPABILITIES[actionType].resolver === "contest")) {
+      if (
+        selectedActions.some((actionType) => ACTION_CAPABILITIES[actionType].resolver === "contest")
+      ) {
         expect(grades.has(grade)).toBe(true);
       }
     }

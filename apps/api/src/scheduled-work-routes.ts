@@ -116,7 +116,8 @@ export async function registerScheduledWorkRoutesFromEnv(app: FastifyInstance) {
       ].includes(code);
       return reply.code(retryable ? 500 : 422).send({
         error: code,
-        message: error instanceof Error ? error.message.slice(0, 2_000) : "Scheduled resolution failed.",
+        message:
+          error instanceof Error ? error.message.slice(0, 2_000) : "Scheduled resolution failed.",
         retryable,
       });
     }

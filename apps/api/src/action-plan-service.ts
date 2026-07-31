@@ -181,10 +181,7 @@ export function createActionPlanService(
     const locationId = await actionStore.getActorLocation(input.actorId);
     const actorState = await actionStore.readActorState(input.actorId);
     const pendingTravelTo =
-      [...steps]
-        .reverse()
-        .find((step) => step.travel?.scheduled)
-        ?.travel?.to ?? null;
+      [...steps].reverse().find((step) => step.travel?.scheduled)?.travel?.to ?? null;
     const narration = steps
       .map((step) =>
         step.status === "completed"

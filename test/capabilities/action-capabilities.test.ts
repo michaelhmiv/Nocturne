@@ -28,25 +28,29 @@ describe("action capability registry", () => {
     expect(new Set(ACTION_CAPABILITY_NAMES).size).toBe(ACTION_TYPES.length);
   });
 
-  it.each(ACTION_TYPES)("certifies %s with prompts, invariants, failures, logs, and browser coverage", (actionType) => {
-    const capability = ACTION_CAPABILITIES[actionType];
-    expect(WorldActionKindSchema.safeParse(capability.worldKind).success).toBe(true);
-    expect(capability.canonicalPrompts.length).toBeGreaterThanOrEqual(2);
-    expect(new Set(capability.canonicalPrompts).size).toBe(capability.canonicalPrompts.length);
-    expect(capability.canonicalPrompts.every((prompt) => prompt.trim().length >= 8)).toBe(true);
-    expect(capability.requiredDatabaseAssertions.length).toBeGreaterThan(0);
-    expect(capability.negativeCases).toContain("provider_failure_before_commit");
-    expect(capability.negativeCases).toContain("idempotent_replay");
-    expect(capability.requiredLogEvents).toContain("request_received");
-    expect(capability.requiredLogEvents).toContain("request_completed");
-    expect(capability.requiredLogEvents).toContain("handler_started");
-    expect(capability.requiredLogEvents).toContain("handler_completed");
-    expect(capability.browserRequired).toBe(true);
-  });
+  it.each(ACTION_TYPES)(
+    "certifies %s with prompts, invariants, failures, logs, and browser coverage",
+    (actionType) => {
+      const capability = ACTION_CAPABILITIES[actionType];
+      expect(WorldActionKindSchema.safeParse(capability.worldKind).success).toBe(true);
+      expect(capability.canonicalPrompts.length).toBeGreaterThanOrEqual(2);
+      expect(new Set(capability.canonicalPrompts).size).toBe(capability.canonicalPrompts.length);
+      expect(capability.canonicalPrompts.every((prompt) => prompt.trim().length >= 8)).toBe(true);
+      expect(capability.requiredDatabaseAssertions.length).toBeGreaterThan(0);
+      expect(capability.negativeCases).toContain("provider_failure_before_commit");
+      expect(capability.negativeCases).toContain("idempotent_replay");
+      expect(capability.requiredLogEvents).toContain("request_received");
+      expect(capability.requiredLogEvents).toContain("request_completed");
+      expect(capability.requiredLogEvents).toContain("handler_started");
+      expect(capability.requiredLogEvents).toContain("handler_completed");
+      expect(capability.browserRequired).toBe(true);
+    },
+  );
 
   it.each(
     ACTION_TYPES.filter(
-      (actionType): actionType is ActionType => ACTION_CAPABILITIES[actionType].resolver === "contest",
+      (actionType): actionType is ActionType =>
+        ACTION_CAPABILITIES[actionType].resolver === "contest",
     ),
   )("forces every contest outcome grade for %s deterministically", (actionType) => {
     expect(ACTION_CAPABILITIES[actionType].requiredOutcomeGrades).toEqual(ALL_OUTCOME_GRADES);

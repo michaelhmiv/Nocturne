@@ -48,7 +48,14 @@ async function replyWithPersistentError<T>(
     const code = errorCode(error);
     if (!code) throw error;
     const message = error instanceof Error ? error.message : "Persistent-world request failed.";
-    if (["forbidden", "cross_world_reference", "membership_not_found", "membership_inactive"].includes(code)) {
+    if (
+      [
+        "forbidden",
+        "cross_world_reference",
+        "membership_not_found",
+        "membership_inactive",
+      ].includes(code)
+    ) {
       return reply.code(403).send({ error: code, message });
     }
     if (["actor_required", "in_progress", "stale_entity", "unmet_precondition"].includes(code)) {
@@ -57,16 +64,29 @@ async function replyWithPersistentError<T>(
     if (code === "runtime_disabled") {
       return reply.code(503).send({ error: code, message });
     }
-    if (["configuration", "timeout", "rate_limited", "provider_failure", "provider_rejected", "malformed_response", "validation"].includes(code)) {
+    if (
+      [
+        "configuration",
+        "timeout",
+        "rate_limited",
+        "provider_failure",
+        "provider_rejected",
+        "malformed_response",
+        "validation",
+      ].includes(code)
+    ) {
       return reply.code(code === "configuration" ? 503 : 502).send({
         error: `ai_${code}`,
         message: "The AI provider could not resolve this turn. No in-world failure was committed.",
       });
     }
-    if (["unsupported_handler", "planning_failed", "step_failed", "request_failed"].includes(code)) {
+    if (
+      ["unsupported_handler", "planning_failed", "step_failed", "request_failed"].includes(code)
+    ) {
       return reply.code(422).send({
         error: code,
-        message: "The action could not be resolved by the active world runtime. No in-world failure was committed.",
+        message:
+          "The action could not be resolved by the active world runtime. No in-world failure was committed.",
       });
     }
     return reply.code(422).send({ error: code, message });
@@ -172,9 +192,7 @@ export async function registerPersistentWorldRoutes(
             idempotencyKey,
           });
           const actionKind =
-            result.state === "waiting_for_clarification"
-              ? undefined
-              : result.plan.steps[0]?.kind;
+            result.state === "waiting_for_clarification" ? undefined : result.plan.steps[0]?.kind;
           await writeGameplayTelemetry(dependencies.telemetry, {
             ...common,
             requestId: result.requestId,

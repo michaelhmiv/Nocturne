@@ -7,7 +7,9 @@ const actions = JSON.parse(
 
 test.describe.configure({ mode: "serial" });
 
-test("onboards a character and resolves every supported action through the production UI path", async ({ page }) => {
+test("onboards a character and resolves every supported action through the production UI path", async ({
+  page,
+}) => {
   test.setTimeout(15 * 60_000);
   const consoleErrors = [];
   const legacyRequests = [];
@@ -54,7 +56,10 @@ test("onboards a character and resolves every supported action through the produ
     );
   }
 
-  expect(legacyRequests, "The browser must not submit gameplay to the legacy action endpoint").toEqual([]);
+  expect(
+    legacyRequests,
+    "The browser must not submit gameplay to the legacy action endpoint",
+  ).toEqual([]);
   expect(persistentResponses).toHaveLength(actions.length);
   expect(
     persistentResponses.filter((response) => response.status >= 500),

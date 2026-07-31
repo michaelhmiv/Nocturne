@@ -61,7 +61,9 @@ export function createAgentStore(database: ReturnType<typeof createDatabase>) {
     return createToken({ userId, label: input.label || "agent" });
   }
 
-  async function authenticate(authorizationHeader: string | undefined): Promise<AgentIdentity | null> {
+  async function authenticate(
+    authorizationHeader: string | undefined,
+  ): Promise<AgentIdentity | null> {
     if (!authorizationHeader) return null;
     const match = /^Bearer\s+(\S+)/i.exec(authorizationHeader.trim());
     if (!match) return null;
@@ -101,7 +103,8 @@ export function createAgentStore(database: ReturnType<typeof createDatabase>) {
       prefix: String(row.token_prefix),
       boundCharacterId: row.bound_character_id ? String(row.bound_character_id) : null,
       scopes: Array.isArray(row.scopes) ? row.scopes.map(String) : ["play"],
-      createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+      createdAt:
+        row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
       lastUsedAt: row.last_used_at
         ? row.last_used_at instanceof Date
           ? row.last_used_at.toISOString()

@@ -54,7 +54,10 @@ export const GameplayTelemetryEventSchema = z
     scheduleId: OptionalUuidSchema,
     eventId: OptionalUuidSchema,
     mutationReceiptId: OptionalUuidSchema,
-    idempotencyKeyHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    idempotencyKeyHash: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
     worldId: CorrelationIdSchema.optional(),
     shardId: CorrelationIdSchema.optional(),
     userId: CorrelationIdSchema.optional(),
@@ -88,9 +91,14 @@ export const GameplayTelemetryEventSchema = z
       });
     }
     if (
-      ["step_claimed", "handler_started", "handler_completed", "handler_failed", "step_completed", "step_waiting"].includes(
-        event.eventName,
-      ) &&
+      [
+        "step_claimed",
+        "handler_started",
+        "handler_completed",
+        "handler_failed",
+        "step_completed",
+        "step_waiting",
+      ].includes(event.eventName) &&
       !event.stepId
     ) {
       context.addIssue({

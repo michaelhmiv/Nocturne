@@ -265,9 +265,7 @@ export function createPersistentPlanStore(database: ReturnType<typeof createData
             plan_id, step_id, depends_on_step_id, dependency_type, parameters
           ) VALUES (
             ${planId}, ${stepIds[dependency.stepOrder - 1]},
-            ${dependency.dependsOnStepOrder
-              ? stepIds[dependency.dependsOnStepOrder - 1]
-              : null},
+            ${dependency.dependsOnStepOrder ? stepIds[dependency.dependsOnStepOrder - 1] : null},
             ${dependency.dependencyType}, ${json(dependency.parameters)}::jsonb
           )
         `;
@@ -355,9 +353,7 @@ export function createPersistentPlanStore(database: ReturnType<typeof createData
     planId: string;
   }) {
     return database.client.begin(async (sql) => {
-      const steps = await sql<
-        { step_id: string; step_order: number; idempotency_key: string }[]
-      >`
+      const steps = await sql<{ step_id: string; step_order: number; idempotency_key: string }[]>`
         SELECT step.step_id, step.step_order, step.idempotency_key
         FROM game.action_plan_steps step
         WHERE step.plan_id = ${input.planId}
@@ -413,7 +409,10 @@ export function createPersistentPlanStore(database: ReturnType<typeof createData
       `;
       if (!steps[0]) throw new PersistentPlanStoreError("step_not_found", "Plan step not found.");
       if (steps[0].status !== "running") {
-        throw new PersistentPlanStoreError("invalid_transition", "Only running steps can complete.");
+        throw new PersistentPlanStoreError(
+          "invalid_transition",
+          "Only running steps can complete.",
+        );
       }
       await sql`
         UPDATE game.action_plan_steps
@@ -509,7 +508,9 @@ export function createPersistentPlanStore(database: ReturnType<typeof createData
         AND satisfied_at IS NULL
       ORDER BY created_at
     `;
-    const dependencyIds = rows.filter(({ parameters }) => input.matches(parameters)).map(({ dependency_id }) => dependency_id);
+    const dependencyIds = rows
+      .filter(({ parameters }) => input.matches(parameters))
+      .map(({ dependency_id }) => dependency_id);
     if (dependencyIds.length === 0) return { satisfied: 0 };
     await database.client.begin(async (sql) => {
       await sql`

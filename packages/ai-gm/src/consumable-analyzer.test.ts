@@ -113,7 +113,9 @@ describe("AI-derived consumable semantics", () => {
     const prompt = buildConsumableAnalysisPrompt(request);
     expect(prompt).toContain("There is no food catalogue");
     expect(prompt).toContain("No specialty, luxury, celebratory, or prepared foods");
-    expect(prompt).toContain("Do not select an ambient pool merely to explain why it cannot satisfy");
+    expect(prompt).toContain(
+      "Do not select an ambient pool merely to explain why it cannot satisfy",
+    );
     expect(prompt).toContain("Set consumeUnits to 0");
     expect(prompt).toContain(poolId);
   });

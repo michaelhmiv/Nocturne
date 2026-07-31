@@ -75,9 +75,17 @@ export function createWorldInspectorStore(
     if (!entity) {
       throw new WorldInspectorStoreError("entity_not_found", "Entity not found in active world.");
     }
-    const [provenance, aliases, relations, recentEvents, activePlans, scheduledWork, simulationRuns, contextReasons] =
-      await Promise.all([
-        database.client`
+    const [
+      provenance,
+      aliases,
+      relations,
+      recentEvents,
+      activePlans,
+      scheduledWork,
+      simulationRuns,
+      contextReasons,
+    ] = await Promise.all([
+      database.client`
           SELECT provenance_id, source_type, source_id, policy_version, input_hash,
                  created_event_id, payload, created_at
           FROM game.entity_provenance
@@ -86,7 +94,7 @@ export function createWorldInspectorStore(
           ORDER BY created_at
           LIMIT 64
         `,
-        database.client`
+      database.client`
           SELECT alias_id, viewpoint_instance_id, alias_text, alias_type,
                  confidence, source_event_id, valid_from, valid_until
           FROM game.entity_aliases
@@ -95,7 +103,7 @@ export function createWorldInspectorStore(
           ORDER BY valid_from DESC
           LIMIT 64
         `,
-        database.client`
+      database.client`
           SELECT relation_id, source_instance_id, target_instance_id,
                  relation_type, parameters, created_at, updated_at, valid_until
           FROM game.entity_relations
@@ -107,7 +115,7 @@ export function createWorldInspectorStore(
           ORDER BY updated_at DESC, created_at DESC
           LIMIT 256
         `,
-        database.client`
+      database.client`
           SELECT event_id, world_time, event_type, involved_entity_ids, payload,
                  source_intent_id, supersedes_event_id, created_at
           FROM game.event_ledger
@@ -117,7 +125,7 @@ export function createWorldInspectorStore(
           ORDER BY world_time DESC, created_at DESC
           LIMIT 256
         `,
-        database.client`
+      database.client`
           SELECT plan_id, status, original_command, active_step_id,
                  plan_version, created_at, updated_at
           FROM game.action_plans
@@ -131,7 +139,7 @@ export function createWorldInspectorStore(
           ORDER BY created_at DESC
           LIMIT 64
         `,
-        database.client`
+      database.client`
           SELECT schedule_id, kind, status, resolves_at, plan_id, step_id,
                  subject_entity_ids, expected_versions, resolution_policy,
                  result_event_id, last_error_code
@@ -142,7 +150,7 @@ export function createWorldInspectorStore(
           ORDER BY created_at DESC
           LIMIT 64
         `,
-        database.client`
+      database.client`
           SELECT run_id, policy_id, idempotency_key, elapsed_seconds,
                  starting_entity_version, starting_simulation_version,
                  status, error_code, result_event_id, created_at, completed_at
@@ -153,7 +161,7 @@ export function createWorldInspectorStore(
           ORDER BY created_at DESC
           LIMIT 64
         `,
-        database.client`
+      database.client`
           SELECT compilation_id, viewpoint_instance_id, command_excerpt,
                  candidate_scores, selected_fact_ids, omitted_candidates,
                  policy_version, created_at
@@ -163,7 +171,7 @@ export function createWorldInspectorStore(
           ORDER BY created_at DESC
           LIMIT 64
         `,
-      ]);
+    ]);
     return WorldInspectorEntitySchema.parse({
       entityId: entity.instance_id,
       definitionId: entity.definition_id,

@@ -24,10 +24,7 @@ import { NocturneAgent } from "@nocturne/agent-sdk";
 type Config = { baseUrl: string; token?: string; label?: string };
 
 function configPath() {
-  return (
-    process.env.NOCTURNE_AGENT_CONFIG ||
-    join(homedir(), ".config", "nocturne", "agent.json")
-  );
+  return process.env.NOCTURNE_AGENT_CONFIG || join(homedir(), ".config", "nocturne", "agent.json");
 }
 
 function loadConfig(): Config {

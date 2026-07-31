@@ -21,12 +21,7 @@ export type ScheduledWorkClaim = {
 
 export class ScheduledWorkStoreError extends Error {
   constructor(
-    readonly code:
-      | "not_found"
-      | "not_claimed"
-      | "lease_expired"
-      | "stale_result"
-      | "invalid_state",
+    readonly code: "not_found" | "not_claimed" | "lease_expired" | "stale_result" | "invalid_state",
     message: string,
   ) {
     super(message);
@@ -151,7 +146,10 @@ export function createScheduledWorkStore(database: ReturnType<typeof createDatab
       if (!rows[0]) throw new ScheduledWorkStoreError("not_found", "Scheduled work not found.");
       if (rows[0].result_event_id) {
         if (rows[0].result_event_id !== input.resultEventId) {
-          throw new ScheduledWorkStoreError("stale_result", "Scheduled work already has another result.");
+          throw new ScheduledWorkStoreError(
+            "stale_result",
+            "Scheduled work already has another result.",
+          );
         }
         return { idempotentReplay: true };
       }
@@ -208,7 +206,10 @@ export function createScheduledWorkStore(database: ReturnType<typeof createDatab
       `;
       const action = rows[0];
       if (!action) {
-        throw new ScheduledWorkStoreError("not_claimed", "Scheduled work is not claimed by this worker.");
+        throw new ScheduledWorkStoreError(
+          "not_claimed",
+          "Scheduled work is not claimed by this worker.",
+        );
       }
       const shouldRetry = input.retryable && action.attempt_count < action.max_attempts;
       await sql`

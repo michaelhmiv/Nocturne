@@ -1,10 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import {
-  AiProviderClient,
-  DEEPSEEK_FLASH_MODEL,
-  resolveAiProviderConfigFromEnv,
-} from "./index.js";
+import { AiProviderClient, DEEPSEEK_FLASH_MODEL, resolveAiProviderConfigFromEnv } from "./index.js";
 
 afterEach(() => {
   vi.unstubAllGlobals();

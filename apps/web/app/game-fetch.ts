@@ -21,7 +21,11 @@ function playerFacingError(payload: unknown, fallback: string): string {
     : [];
 
   if (issues.length) return issues.slice(0, 3).join(" · ");
-  if (["timeout", "rate_limited", "provider_failure", "malformed_response", "validation"].includes(code)) {
+  if (
+    ["timeout", "rate_limited", "provider_failure", "malformed_response", "validation"].includes(
+      code,
+    )
+  ) {
     return "Nocturne could not resolve this turn yet. No in-world failure was committed.";
   }
   if (code.startsWith("ai_")) return message || "The AI provider could not resolve this turn.";
@@ -29,7 +33,8 @@ function playerFacingError(payload: unknown, fallback: string): string {
     return "The game client is stale. Refresh the page and retry through the persistent-world runtime.";
   }
   if (code === "forbidden") return message || "You do not have access to that part of the world.";
-  if (code === "idempotency_conflict") return "That action key was already used for a different request.";
+  if (code === "idempotency_conflict")
+    return "That action key was already used for a different request.";
   if (code === "not_found") return message || "That part of the world could not be found.";
   return message || code || fallback || "Game request failed.";
 }
@@ -107,7 +112,8 @@ function persistentResultAsLegacyJob(
           dependsOnPreviousSuccess: false,
           status: "completed",
           outcomeGrade: "clarification_required",
-          narration: typeof result.prompt === "string" ? result.prompt : "Clarification is required.",
+          narration:
+            typeof result.prompt === "string" ? result.prompt : "Clarification is required.",
         },
       ];
   const grades = steps.map((step) => String(step.outcomeGrade));

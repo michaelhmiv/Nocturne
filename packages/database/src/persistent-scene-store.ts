@@ -60,7 +60,11 @@ export function createPersistentSceneStore(database: ReturnType<typeof createDat
     return actor;
   }
 
-  async function buildEntityRows(scope: WorldScope, actorId: string, actorLocationId: string | null) {
+  async function buildEntityRows(
+    scope: WorldScope,
+    actorId: string,
+    actorLocationId: string | null,
+  ) {
     return database.client<EntityRow[]>`
       WITH visible_relation_entities AS (
         SELECT relation.target_instance_id AS entity_id,

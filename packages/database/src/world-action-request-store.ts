@@ -46,12 +46,7 @@ const terminal = new Set<WorldActionRequestStatus>([
 const legalTransitions: Record<WorldActionRequestStatus, Set<WorldActionRequestStatus>> = {
   reserved: new Set(["compiling_context", "cancelled", "failed"]),
   compiling_context: new Set(["resolving_references", "failed", "cancelled"]),
-  resolving_references: new Set([
-    "planning",
-    "waiting_for_clarification",
-    "failed",
-    "cancelled",
-  ]),
+  resolving_references: new Set(["planning", "waiting_for_clarification", "failed", "cancelled"]),
   planning: new Set(["executing", "waiting_for_clarification", "failed", "cancelled"]),
   waiting_for_clarification: new Set(["planning", "cancelled", "superseded", "failed"]),
   executing: new Set(["waiting", "completed", "failed", "cancelled", "superseded"]),
@@ -193,10 +188,7 @@ export function createWorldActionRequestStore(database: ReturnType<typeof create
     `;
   }
 
-  async function get(input: {
-    scope: Pick<WorldScope, "worldId">;
-    requestId: string;
-  }) {
+  async function get(input: { scope: Pick<WorldScope, "worldId">; requestId: string }) {
     const rows = await database.client<
       {
         request_id: string;

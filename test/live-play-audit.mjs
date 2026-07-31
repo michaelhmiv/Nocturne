@@ -191,7 +191,10 @@ async function main() {
   });
   ok(talk.ok, `talk HTTP ${talk.status}`);
   note(`  narr: ${String(talk.body.narration || "").slice(0, 140)}`);
-  ok(!!talk.body.dialogue || /contact|alley|interested|Unknown/i.test(talk.body.narration || ""), "got dialogue-ish response");
+  ok(
+    !!talk.body.dialogue || /contact|alley|interested|Unknown/i.test(talk.body.narration || ""),
+    "got dialogue-ish response",
+  );
 
   // --- 6. Move ---
   step("6. Move to Rear Alley");
@@ -203,7 +206,10 @@ async function main() {
   ok(move.ok, `move HTTP ${move.status}`);
   note(`  travel: ${JSON.stringify(move.body.travel || null)}`);
   note(`  narr: ${String(move.body.narration || "").slice(0, 120)}`);
-  ok(!!move.body.travel || move.body.calculationTrace?.some((t) => String(t).includes("travel")), "travel payload present");
+  ok(
+    !!move.body.travel || move.body.calculationTrace?.some((t) => String(t).includes("travel")),
+    "travel payload present",
+  );
 
   // if scheduled, wait for worker (poll every 2s up to ETA+12s)
   if (move.body.travel?.scheduled) {
@@ -303,28 +309,41 @@ async function main() {
   me = await dbChar(id);
   ok(buyerDb.cash === 50000 - 2500, `buyer paid 25 → cash ${buyerDb.cash}`);
   // seller should receive cash
-  ok(me.cash === cashAfterWork + 2500, `seller received 25 → cash ${me.cash} (pre ${cashAfterWork})`);
+  ok(
+    me.cash === cashAfterWork + 2500,
+    `seller received 25 → cash ${me.cash} (pre ${cashAfterWork})`,
+  );
 
   const listingRows = await listingsFor(id);
-  ok(listingRows.some((l) => String(l.listing_id) === listingId && l.status === "sold"), "listing marked sold");
+  ok(
+    listingRows.some((l) => String(l.listing_id) === listingId && l.status === "sold"),
+    "listing marked sold",
+  );
 
   const buyerItems = await itemsOwned(buyerId);
-  note(`  buyer owned entities after buy: ${buyerItems.length} ${buyerItems.map((i) => i.name).join(",")}`);
+  note(
+    `  buyer owned entities after buy: ${buyerItems.length} ${buyerItems.map((i) => i.name).join(",")}`,
+  );
   buyerDb = await dbChar(buyerId);
   note(`  buyer inventory state: ${JSON.stringify(buyerDb.inventory)}`);
   ok(
-    buyerItems.length > 0 ||
-      (Array.isArray(buyerDb.inventory) && buyerDb.inventory.length > 0),
+    buyerItems.length > 0 || (Array.isArray(buyerDb.inventory) && buyerDb.inventory.length > 0),
     `buyer has inventory after market buy (entities=${buyerItems.length}, stateInv=${Array.isArray(buyerDb.inventory) ? buyerDb.inventory.length : 0})`,
   );
 
   // --- 10. Claim vehicle ---
   step("10. Claim a vehicle");
   const vehicles = await api("GET", "/v1/vehicles");
-  ok(vehicles.ok && (vehicles.body.vehicles || []).length > 0, `vehicles available ${vehicles.body.vehicles?.length}`);
+  ok(
+    vehicles.ok && (vehicles.body.vehicles || []).length > 0,
+    `vehicles available ${vehicles.body.vehicles?.length}`,
+  );
   const free = (vehicles.body.vehicles || []).find((v) => !v.ownerId);
   if (free) {
-    const claim = await api("POST", "/v1/vehicles/claim", { ownerId: id, vehicleId: free.vehicleId });
+    const claim = await api("POST", "/v1/vehicles/claim", {
+      ownerId: id,
+      vehicleId: free.vehicleId,
+    });
     ok(claim.ok, `claim HTTP ${claim.status}`);
     const owned = await ownedVehicles(id);
     ok(owned.length >= 1, `DB owner_id set on vehicle (${owned.length})`);
@@ -346,7 +365,10 @@ async function main() {
   note(`  narr: ${String(steal.body.narration || "").slice(0, 120)}`);
   me = await dbChar(id);
   ok(me.heat > heatBefore, `heat rose ${heatBefore} → ${me.heat}`);
-  ok(Object.keys(me.factions).length > 0 || steal.body.factionStanding, `faction standing touched ${JSON.stringify(me.factions)}`);
+  ok(
+    Object.keys(me.factions).length > 0 || steal.body.factionStanding,
+    `faction standing touched ${JSON.stringify(me.factions)}`,
+  );
 
   // --- 12. Drive/move with vehicle speed ---
   step("12. Drive somewhere with claimed vehicle");
@@ -356,7 +378,9 @@ async function main() {
   });
   ok(drive.ok, `drive HTTP ${drive.status}`);
   note(`  travel: ${JSON.stringify(drive.body.travel || null)}`);
-  note(`  trace: ${(drive.body.calculationTrace || []).filter((t) => /travel|speed|action=/.test(String(t))).join(" | ")}`);
+  note(
+    `  trace: ${(drive.body.calculationTrace || []).filter((t) => /travel|speed|action=/.test(String(t))).join(" | ")}`,
+  );
   ok(
     drive.body.calculationTrace?.some((t) => String(t).includes("speed_factor")) ||
       drive.body.travel,

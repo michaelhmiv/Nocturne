@@ -6,13 +6,12 @@ import type {
   RelevanceContextStore,
   WorldActionStepStore,
 } from "@nocturne/database";
-import {
-  currentGameplayTraceId,
-  writeGameplayTelemetry,
-} from "./gameplay-telemetry.js";
+import { currentGameplayTraceId, writeGameplayTelemetry } from "./gameplay-telemetry.js";
 
 function stableErrorCode(error: unknown, fallback: string) {
-  return error instanceof Error && "code" in error && typeof (error as { code?: unknown }).code === "string"
+  return error instanceof Error &&
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string"
     ? String((error as { code: string }).code)
     : fallback;
 }
@@ -39,7 +38,9 @@ export function instrumentAiClient(
           committed: false,
         });
         try {
-          const result = await (target.generateStructured as (...values: any[]) => Promise<any>)(...args);
+          const result = await (target.generateStructured as (...values: any[]) => Promise<any>)(
+            ...args,
+          );
           await writeGameplayTelemetry(telemetry, {
             timestamp: new Date().toISOString(),
             level: "info",
@@ -161,7 +162,9 @@ export function instrumentReferenceStore(
             viewpointId: string;
             interpretation: { mentions?: unknown[] };
           };
-          const result = await (target.recordInterpretation as (...values: any[]) => Promise<any>)(...args);
+          const result = await (target.recordInterpretation as (...values: any[]) => Promise<any>)(
+            ...args,
+          );
           await writeGameplayTelemetry(telemetry, {
             timestamp: new Date().toISOString(),
             level: "info",
@@ -215,7 +218,9 @@ export function instrumentPlanStore(
       if (property === "startReadyStep") {
         return async (...args: any[]) => {
           const input = args[0] as { scope: { worldId: string; shardId: string }; planId: string };
-          const result = await (target.startReadyStep as (...values: any[]) => Promise<any>)(...args);
+          const result = await (target.startReadyStep as (...values: any[]) => Promise<any>)(
+            ...args,
+          );
           if (result?.stepId) {
             await writeGameplayTelemetry(telemetry, {
               timestamp: new Date().toISOString(),

@@ -185,9 +185,7 @@ export function createRelationshipStore(
     preconditionFactIds: string[];
     idempotencyKey: string;
   }) {
-    const semanticRows = await database.client<
-      { exclusive_for_source: boolean; family: string }[]
-    >`
+    const semanticRows = await database.client<{ exclusive_for_source: boolean; family: string }[]>`
       SELECT exclusive_for_source, family
       FROM game.relation_semantic_families
       WHERE relation_type = ${input.relationType}
@@ -202,9 +200,7 @@ export function createRelationshipStore(
     }
     const operations: Array<Record<string, unknown>> = [];
     if (semantic.exclusive_for_source) {
-      const existing = await database.client<
-        { target_instance_id: string }[]
-      >`
+      const existing = await database.client<{ target_instance_id: string }[]>`
         SELECT target_instance_id
         FROM game.entity_relations
         WHERE world_id = ${input.scope.worldId}
@@ -289,9 +285,7 @@ export function createRelationshipStore(
         )
       ORDER BY member.instance_id
     `;
-    const leaderRows = await database.client<
-      { version: string; location_id: string | null }[]
-    >`
+    const leaderRows = await database.client<{ version: string; location_id: string | null }[]>`
       SELECT version::text, location_id
       FROM game.entity_instances
       WHERE world_id = ${input.scope.worldId}

@@ -7,8 +7,7 @@ export async function registerBuildInfoRoute(app: FastifyInstance) {
       process.env.GITHUB_SHA ||
       process.env.SOURCE_COMMIT ||
       null,
-    environment:
-      process.env.RAILWAY_ENVIRONMENT_NAME || process.env.NODE_ENV || "unknown",
+    environment: process.env.RAILWAY_ENVIRONMENT_NAME || process.env.NODE_ENV || "unknown",
     service: process.env.RAILWAY_SERVICE_NAME || "api",
     deployedAt: process.env.RAILWAY_DEPLOYMENT_START_TIME || null,
   }));

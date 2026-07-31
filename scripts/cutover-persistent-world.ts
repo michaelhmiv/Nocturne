@@ -23,7 +23,10 @@ if (!new Set(["prepare", "activate", "rollback"]).has(mode)) {
 }
 
 const sql = postgres(databaseUrl, { prepare: false, max: 1 });
-const archiveSchema = `archive_${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}`;
+const archiveSchema = `archive_${new Date()
+  .toISOString()
+  .replace(/[-:.TZ]/g, "")
+  .slice(0, 14)}`;
 
 async function prepare() {
   await sql.begin(async (tx) => {
@@ -129,7 +132,9 @@ async function activate() {
         AND feature_key = 'persistent_world_runtime'
     `;
   });
-  console.log(JSON.stringify({ status: "activated", worldId, runtimeVersion: "persistent-world-v1" }));
+  console.log(
+    JSON.stringify({ status: "activated", worldId, runtimeVersion: "persistent-world-v1" }),
+  );
 }
 
 async function rollback() {

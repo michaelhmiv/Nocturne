@@ -98,7 +98,11 @@ describePostgres("authoritative location store (PostgreSQL)", () => {
         ) AS has_location_fk,
         to_regclass('game.entity_instances_location_idx') IS NOT NULL AS has_location_index
     `;
-    expect(result).toEqual({ migration_count: 10, has_location_fk: true, has_location_index: true });
+    expect(result).toEqual({
+      migration_count: 10,
+      has_location_fk: true,
+      has_location_index: true,
+    });
   });
 
   it("finds a player character directly in an area", async () => {

@@ -4,7 +4,12 @@ export function aiJobRetryDelaySeconds(attempt: number): number {
 }
 
 function normalizeErrorCode(value: string): string {
-  return value.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 128);
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 128);
 }
 
 type PolicyError = Error & { retryable?: unknown; code?: unknown };
@@ -38,8 +43,13 @@ export function aiJobErrorCode(error: unknown): string {
   if (message.includes("forbidden") || message.includes("403")) return "worker_secret_rejected";
   if (message.includes("configuration is missing")) return "worker_configuration_missing";
   if (message.includes("invalid result")) return "invalid_worker_response";
-  if (message.includes("timed out") || error.name === "TimeoutError") return "worker_request_timeout";
-  if (message.includes("fetch failed") || message.includes("enotfound") || message.includes("econnrefused")) {
+  if (message.includes("timed out") || error.name === "TimeoutError")
+    return "worker_request_timeout";
+  if (
+    message.includes("fetch failed") ||
+    message.includes("enotfound") ||
+    message.includes("econnrefused")
+  ) {
     return "worker_api_unreachable";
   }
 

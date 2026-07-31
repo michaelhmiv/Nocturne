@@ -66,7 +66,7 @@ describe("creationTimeMultiplier", () => {
     expect(creationTimeMultiplier(40, 50)).toBe(3);
     expect(creationTimeMultiplier(30, 50)).toBe(3);
     expect(creationTimeMultiplier(10, 50)).toBe(10);
-    expect(creationTimeMultiplier(10, 60)).toBe(50);  // gap=50 → 50×
+    expect(creationTimeMultiplier(10, 60)).toBe(50); // gap=50 → 50×
   });
   it("explodes for huge gaps (nuke scenario)", () => {
     const mult = creationTimeMultiplier(0, 95);

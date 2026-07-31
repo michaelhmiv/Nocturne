@@ -1,7 +1,4 @@
-import {
-  GeneratedDefinitionDraftSchema,
-  type GeneratedDefinitionDraft,
-} from "@nocturne/contracts";
+import { GeneratedDefinitionDraftSchema, type GeneratedDefinitionDraft } from "@nocturne/contracts";
 
 export const INVENTION_MECHANICS_VERSION = "invention-mechanics-v1";
 
@@ -23,8 +20,14 @@ export const INVENTION_EFFECT_CATALOGUE = [
   { effectId: "heat", description: "Increase temperature through a stated energy source." },
   { effectId: "cool", description: "Reduce temperature through a stated mechanism." },
   { effectId: "disrupt", description: "Interfere with another effect, system, or process." },
-  { effectId: "amplify", description: "Increase the reach or magnitude of another supported effect." },
-  { effectId: "support", description: "Provide a bounded general advantage not covered by another verb." },
+  {
+    effectId: "amplify",
+    description: "Increase the reach or magnitude of another supported effect.",
+  },
+  {
+    effectId: "support",
+    description: "Provide a bounded general advantage not covered by another verb.",
+  },
 ] as const;
 
 export const INVENTION_CAPACITY_RULES = [
@@ -93,7 +96,10 @@ type Effect = GeneratedDefinitionDraft["effects"][number];
 type Requirement = GeneratedDefinitionDraft["requirements"][number];
 
 function token(value: string): string {
-  return value.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "_");
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "_");
 }
 
 export function isKnownEffectId(effectId: string): boolean {

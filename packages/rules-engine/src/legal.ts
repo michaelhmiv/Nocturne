@@ -1,13 +1,6 @@
 import type { OutcomeGrade } from "@nocturne/contracts";
 
-export const CRIMINAL_ACTIONS = new Set([
-  "steal",
-  "attack",
-  "hack",
-  "lockpick",
-  "plant",
-  "forge",
-]);
+export const CRIMINAL_ACTIONS = new Set(["steal", "attack", "hack", "lockpick", "plant", "forge"]);
 
 /** Heat gain 0-20 from crime outcome. */
 export function heatFromCrime(actionType: string, outcome: OutcomeGrade): number {
@@ -37,7 +30,10 @@ export const WARRANT_HEAT = 40;
 /** Auto-jail if heat exceeds this and warrant active. */
 export const ARREST_HEAT = 70;
 
-export function legalStatusAfterHeat(heat: number, hadWarrant: boolean): {
+export function legalStatusAfterHeat(
+  heat: number,
+  hadWarrant: boolean,
+): {
   heat: number;
   warrant: boolean;
   jailed: boolean;
