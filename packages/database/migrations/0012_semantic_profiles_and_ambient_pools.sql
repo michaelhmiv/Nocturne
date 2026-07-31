@@ -35,9 +35,10 @@ CREATE INDEX IF NOT EXISTS ambient_asset_pools_container_idx
   ON game.ambient_asset_pools (container_instance_id, visibility)
   WHERE units_remaining > 0;
 
--- Unit 3B begins with an abstract, sparse provision pool. The AI may turn a
--- unit into a plausible ordinary substance, but the pool does not predefine a
--- food list and explicitly cannot satisfy specialty requests such as cake.
+-- Unit 3B is created lazily by the starter-world runtime rather than by the
+-- migration chain. Existing databases may already contain the residence, while
+-- clean CI databases do not. Seed the original pool only when the FK target is
+-- present; migration 0028 installs the durable runtime provisioning hook.
 INSERT INTO game.ambient_asset_pools (
   pool_id,
   container_instance_id,
@@ -46,9 +47,10 @@ INSERT INTO game.ambient_asset_pools (
   units_remaining,
   constraints,
   state
-) VALUES (
+)
+SELECT
   '70000000-0000-4000-8000-000000000001',
-  '10000000-0000-4000-8000-000000000005',
+  residence.instance_id,
   'Sparse kitchen provisions',
   'A few ordinary, inexpensive, shelf-stable kitchen provisions appropriate to a recently rented low-cost apartment.',
   3,
@@ -58,4 +60,6 @@ INSERT INTO game.ambient_asset_pools (
     "The pool cannot produce an item merely because the player names it."
   ]'::jsonb,
   '{"replenishes":false,"quality":"ordinary","abundance":"sparse"}'::jsonb
-) ON CONFLICT (pool_id) DO NOTHING;
+FROM game.entity_instances residence
+WHERE residence.instance_id = '10000000-0000-4000-8000-000000000005'
+ON CONFLICT (pool_id) DO NOTHING;
