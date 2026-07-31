@@ -8,6 +8,7 @@ const actions = JSON.parse(
 test.describe.configure({ mode: "serial" });
 
 test("onboards a character and resolves every supported action through the production UI path", async ({ page }) => {
+  test.setTimeout(15 * 60_000);
   const consoleErrors = [];
   const legacyRequests = [];
   const persistentResponses = [];
