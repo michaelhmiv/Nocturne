@@ -95,7 +95,7 @@ export const ConsumableAnalysisSchema = z
       confidence: z.number().min(0).max(1),
     }),
     requestedUnits: z.number().int().min(1).max(100).optional(),
-    consumeUnits: z.number().int().min(1).max(5),
+    consumeUnits: z.number().int().nonnegative().max(5),
     quantityResolution: ConsumptionQuantityResolutionSchema.optional(),
     materialization: ConsumptionMaterializationSchema.optional(),
     resourceDeltas: z.array(ConsumptionResourceDeltaSchema).max(8).default([]),
@@ -117,13 +117,6 @@ export const ConsumableAnalysisSchema = z
         code: z.ZodIssueCode.custom,
         path: ["materialization"],
         message: "Only ambient resources may be materialized.",
-      });
-    }
-    if (!analysis.classification.consumable && (analysis.resourceDeltas.length || analysis.conditions.length)) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["classification", "consumable"],
-        message: "A non-consumable selection cannot grant direct consumption effects.",
       });
     }
   });

@@ -109,7 +109,7 @@ describe("AI-derived consumable semantics", () => {
     const prompt = buildConsumableAnalysisPrompt(request);
     expect(prompt).toContain("There is no food catalogue");
     expect(prompt).toContain("No specialty, luxury, celebratory, or prepared foods");
-    expect(prompt).toContain("requestedUnits");
+    expect(prompt).toContain("Set consumeUnits to 0");
     expect(prompt).toContain(poolId);
   });
 
@@ -137,6 +137,73 @@ describe("AI-derived consumable semantics", () => {
     });
     expect(result.resourceDeltas[0]?.delta).toBe(2);
     expect(result.narrationFacts.join(" ")).toContain("Requested 5 units; 1 unit can be consumed");
+  });
+
+  it("repairs a zero-unit model answer when a consumable source is available", () => {
+    const result = validateConsumableAnalysisAgainstContext(
+      { ...analysis, consumeUnits: 0 },
+      request,
+    );
+    expect(result.consumeUnits).toBe(1);
+    expect(result.quantityResolution?.appliedUnits).toBe(1);
+  });
+
+  it("normalizes no matching source to a committed zero-unit failure", () => {
+    const result = validateConsumableAnalysisAgainstContext(
+      {
+        ...analysis,
+        selection: {
+          sourceType: "none",
+          displayName: "No matching food",
+          rationale: "No authoritative candidate matches.",
+          confidence: 0.95,
+        },
+        classification: {
+          ...analysis.classification,
+          consumable: false,
+          substanceKind: "unavailable",
+        },
+        requestedUnits: 2,
+        consumeUnits: 0,
+        resourceDeltas: [{ resource: "satiety", delta: 10, rationale: "Unsupported effect." }],
+        conditions: [],
+        risks: [],
+      },
+      { ...request, candidates: [] },
+    );
+
+    expect(result.consumeUnits).toBe(0);
+    expect(result.resourceDeltas).toEqual([]);
+    expect(result.conditions).toEqual([]);
+    expect(result.risks).toEqual([]);
+    expect(result.quantityResolution).toEqual({
+      requestedUnits: 2,
+      availableUnits: 0,
+      appliedUnits: 0,
+      limitedByAvailability: true,
+      limitedByEngine: false,
+    });
+  });
+
+  it("does not consume or apply effects for a selected non-consumable source", () => {
+    const result = validateConsumableAnalysisAgainstContext(
+      {
+        ...analysis,
+        classification: {
+          ...analysis.classification,
+          consumable: false,
+          substanceKind: "industrial material",
+        },
+        consumeUnits: 0,
+        resourceDeltas: [{ resource: "satiety", delta: 12, rationale: "Unsupported effect." }],
+      },
+      request,
+    );
+
+    expect(result.consumeUnits).toBe(0);
+    expect(result.resourceDeltas).toEqual([]);
+    expect(result.quantityResolution?.availableUnits).toBe(2);
+    expect(result.quantityResolution?.appliedUnits).toBe(0);
   });
 
   it("caps ambient materialization to the authoritative pool instead of throwing", () => {
