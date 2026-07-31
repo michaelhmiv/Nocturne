@@ -1,5 +1,8 @@
-import type { GameplayTelemetryEventName, WorldActionKind } from "@nocturne/contracts";
-import type { ActionType, SkillName } from "@nocturne/rules-engine";
+import type {
+  GameplayTelemetryEventName,
+  WorldActionKind,
+} from "../../packages/contracts/src/index.js";
+import type { ActionType, SkillName } from "../../packages/rules-engine/src/index.js";
 
 export const ALL_OUTCOME_GRADES = [
   "complete_success",
