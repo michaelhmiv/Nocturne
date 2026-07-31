@@ -110,12 +110,12 @@ describe("persistent world planner", () => {
       },
     };
 
-    expect(validatePersistentWorldPlan(observationResult, observationRequest).plan?.steps[0]).toMatchObject(
-      {
-        kind: "search",
-        intentPayload: { areaId: roomId },
-      },
-    );
+    expect(
+      validatePersistentWorldPlan(observationResult, observationRequest).plan?.steps[0],
+    ).toMatchObject({
+      kind: "search",
+      intentPayload: { areaId: roomId },
+    });
   });
 
   it("forbids invented persistent entity IDs in referenced entities", () => {
