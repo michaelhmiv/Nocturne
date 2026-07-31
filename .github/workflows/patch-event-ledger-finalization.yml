@@ -1,3 +1,4 @@
+# One-shot branch repair; remove after the executor commit lands.
 name: Patch Immutable Event Finalization
 
 on:
