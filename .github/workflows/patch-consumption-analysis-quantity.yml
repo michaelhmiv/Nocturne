@@ -1,3 +1,4 @@
+# One-shot branch repair; remove after the store correction lands.
 name: Patch Consumption Analysis Quantity
 
 on:
