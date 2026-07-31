@@ -5,7 +5,10 @@ if (!databaseUrl) throw new Error("DATABASE_URL is required for invariant checks
 
 const database = createDatabase(databaseUrl);
 
-async function requireZero(label: string, query: Promise<unknown[]>) {
+async function requireZero(
+  label: string,
+  query: PromiseLike<readonly unknown[]>,
+) {
   const rows = await query;
   if (rows.length > 0) {
     throw new Error(
