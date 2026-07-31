@@ -1,0 +1,56 @@
+name: Source Baseline Fix
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: source-baseline-fix
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    name: Source / Strict Index Assertions
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'ci/exhaustive-gameplay-certification'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ci/exhaustive-gameplay-certification
+          fetch-depth: 0
+      - name: Repair statically validated plan indexes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('packages/database/src/persistent-plan-store.ts')
+          text = path.read_text()
+          replacements = {
+              '${stepIds[dependency.stepOrder - 1]},': '${stepIds[dependency.stepOrder - 1]!},',
+              '${dependency.dependsOnStepOrder ? stepIds[dependency.dependsOnStepOrder - 1] : null},': '${dependency.dependsOnStepOrder ? stepIds[dependency.dependsOnStepOrder - 1]! : null},',
+              'SET active_step_id = ${stepIds[0]}, updated_at = now()': 'SET active_step_id = ${stepIds[0]!}, updated_at = now()',
+          }
+          for before, after in replacements.items():
+              if before in text:
+                  text = text.replace(before, after)
+              elif after not in text:
+                  raise SystemExit(f'Missing expected source fragment: {before}')
+          path.write_text(text)
+          PY
+      - name: Commit source repair
+        run: |
+          if git diff --quiet; then
+            echo "Source baseline repair is already applied."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/database/src/persistent-plan-store.ts
+          git commit -m "fix: assert validated persistent plan step indexes"
+          git push origin HEAD:ci/exhaustive-gameplay-certification
