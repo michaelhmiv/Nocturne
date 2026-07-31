@@ -6,7 +6,7 @@ import {
 import type { z } from "zod";
 import { AiProviderClient, type StructuredGenerationResult } from "./ai-provider.js";
 
-export const PERSISTENT_WORLD_PLANNER_POLICY_VERSION = "persistent-world-planner-v1";
+export const PERSISTENT_WORLD_PLANNER_POLICY_VERSION = "persistent-world-planner-v2";
 
 type PlannerRequest = z.infer<typeof WorldActionPlannerRequestSchema>;
 
@@ -191,12 +191,15 @@ export async function planPersistentWorldAction(
   input: PlannerRequest,
 ): Promise<StructuredGenerationResult<WorldActionPlannerResult>> {
   const parsedInput = WorldActionPlannerRequestSchema.parse(input);
-  const result = await client.generateStructured({
-    task: "plan_persistent_world_action",
-    system: `You are Nocturne's durable persistent-world planner. Policy ${PERSISTENT_WORLD_PLANNER_POLICY_VERSION}. You interpret intent and dependencies but do not resolve outcomes or mutate state. Output only the required structured object.`,
-    prompt: buildPersistentWorldPlannerPrompt(parsedInput),
-    jsonSchema: persistentWorldPlannerJsonSchema,
-    validator: WorldActionPlannerResultSchema,
-  });
+  const result = await client.generateStructured(
+    {
+      task: "plan_persistent_world_action",
+      system: `You are Nocturne's durable persistent-world planner. Policy ${PERSISTENT_WORLD_PLANNER_POLICY_VERSION}. You interpret intent and dependencies but do not resolve outcomes or mutate state. Output only the required structured object.`,
+      prompt: buildPersistentWorldPlannerPrompt(parsedInput),
+      jsonSchema: persistentWorldPlannerJsonSchema,
+      validator: WorldActionPlannerResultSchema,
+    },
+    2,
+  );
   return { ...result, data: validatePersistentWorldPlan(result.data, parsedInput) };
 }

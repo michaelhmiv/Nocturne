@@ -385,14 +385,77 @@ function exampleFromSchema(schema: unknown, root: JsonObject, depth = 0): unknow
   return "<string>";
 }
 
-function validationRepairPrompt<T>(
+function structuredRepairPrompt<T>(
   request: StructuredGenerationRequest<T>,
   error: AiProviderError,
 ): string | null {
-  if (error.code !== "validation" || !object(error.cause)) return null;
-  const decoded = JSON.stringify(error.cause.decoded ?? null).slice(0, 8_000);
-  const issues = JSON.stringify(error.cause.issues ?? []).slice(0, 4_000);
-  return `${request.prompt}\n\nCORRECTION REQUIRED:\nThe previous JSON object failed validation. Return a corrected complete object, not a patch.\nValidation issues: ${issues}\nPrevious JSON: ${decoded}`;
+  if (error.code === "validation" && object(error.cause)) {
+    const decoded = JSON.stringify(error.cause.decoded ?? null).slice(0, 8_000);
+    const issues = JSON.stringify(error.cause.issues ?? []).slice(0, 4_000);
+    return `${request.prompt}\n\nCORRECTION REQUIRED:\nThe previous JSON object failed validation. Return a corrected complete object, not a patch.\nValidation issues: ${issues}\nPrevious JSON: ${decoded}`;
+  }
+  if (error.code === "malformed_response") {
+    return `${request.prompt}\n\nCORRECTION REQUIRED:\nThe previous response was not parseable as one complete JSON object. Return the complete object again. Start with { and end with }. Do not use Markdown fences, commentary, XML tags, or any text before or after the JSON object.`;
+  }
+  return null;
+}
+
+function balancedJsonObjects(content: string) {
+  const candidates: string[] = [];
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < content.length; index += 1) {
+    const character = content[index]!;
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === '"') inString = false;
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+      continue;
+    }
+    if (character === "{") {
+      if (depth === 0) start = index;
+      depth += 1;
+      continue;
+    }
+    if (character === "}" && depth > 0) {
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        candidates.push(content.slice(start, index + 1));
+        start = -1;
+        if (candidates.length >= 8) break;
+      }
+    }
+  }
+  return candidates;
+}
+
+function decodeStructuredContent(content: string): unknown {
+  const normalized = content.replace(/^\uFEFF/, "").trim();
+  const candidates = [normalized];
+  const fencePattern = /```(?:json)?\s*([\s\S]*?)```/gi;
+  let fenceMatch: RegExpExecArray | null;
+  while ((fenceMatch = fencePattern.exec(normalized)) && candidates.length < 8) {
+    const fenced = fenceMatch[1]?.trim();
+    if (fenced) candidates.push(fenced);
+  }
+  candidates.push(...balancedJsonObjects(normalized));
+
+  let lastError: unknown;
+  for (const candidate of [...new Set(candidates.filter(Boolean))]) {
+    try {
+      return JSON.parse(candidate);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError ?? new SyntaxError("No JSON object was found in structured provider content.");
 }
 
 function chatCompletionsUrl(baseUrl: string) {
@@ -482,7 +545,7 @@ export class AiProviderClient {
         });
         if (!isTransientAiProviderError(error) || attempt > retries) throw error;
         if (error instanceof AiProviderError) {
-          const repairedPrompt = validationRepairPrompt(request, error);
+          const repairedPrompt = structuredRepairPrompt(request, error);
           if (repairedPrompt) activeRequest = { ...request, prompt: repairedPrompt };
         }
       }
@@ -573,7 +636,7 @@ export class AiProviderClient {
     } catch (error) {
       throw new AiProviderError(
         "malformed_response",
-        `AI provider returned malformed JSON: ${responseText.slice(0, 500)}`,
+        `AI provider returned malformed response-envelope JSON (content_length=${responseText.length}).`,
         { cause: error },
       );
     }
@@ -585,7 +648,8 @@ export class AiProviderClient {
           : response.status >= 500
             ? "provider_failure"
             : "provider_rejected";
-      const providerMessage = payload.error?.message || responseText.slice(0, 500);
+      const providerMessage =
+        payload.error?.message || `response body length ${responseText.length}`;
       throw new AiProviderError(
         code,
         `${this.resolved.provider} rejected model ${model} (${response.status}): ${providerMessage}`,
@@ -604,13 +668,20 @@ export class AiProviderClient {
 
     let decoded: unknown;
     try {
-      decoded = JSON.parse(content);
+      decoded = decodeStructuredContent(content);
       decoded = omitUnexpectedNulls(decoded, request.jsonSchema.schema, request.jsonSchema.schema);
     } catch (error) {
       throw new AiProviderError(
         "malformed_response",
-        "AI provider returned invalid structured JSON.",
-        { cause: error },
+        `AI provider returned invalid structured JSON (finish_reason=${choice?.finish_reason ?? "unknown"}, content_length=${content.length}, fenced=${/^\s*```/.test(content)}).`,
+        {
+          cause: {
+            parseError: error instanceof Error ? error.message : String(error),
+            finishReason: choice?.finish_reason ?? null,
+            contentLength: content.length,
+            fenced: /^\s*```/.test(content),
+          },
+        },
       );
     }
 

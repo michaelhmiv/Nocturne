@@ -1,18 +1,25 @@
 import { randomUUID } from "node:crypto";
 
-const apiUrl = process.env.NOCTURNE_API_URL?.replace(/\/$/, "");
-const webUrl = process.env.NOCTURNE_WEB_URL?.replace(/\/$/, "");
-const token = process.env.NOCTURNE_SMOKE_AGENT_TOKEN;
-const actorId = process.env.NOCTURNE_SMOKE_CHARACTER_ID;
+const apiUrl = (
+  process.env.NOCTURNE_API_URL || "https://nocturneapi-production.up.railway.app"
+).replace(/\/$/, "");
+const webUrl = (
+  process.env.NOCTURNE_WEB_URL || "https://nocturneweb-production.up.railway.app"
+).replace(/\/$/, "");
+const token = process.env.NOCTURNE_SMOKE_AGENT_TOKEN?.trim();
+let actorId = process.env.NOCTURNE_SMOKE_CHARACTER_ID?.trim();
 const expectedCommit = process.env.EXPECTED_COMMIT_SHA;
-
-if (!apiUrl || !webUrl || !token || !actorId) {
-  throw new Error(
-    "NOCTURNE_API_URL, NOCTURNE_WEB_URL, NOCTURNE_SMOKE_AGENT_TOKEN, and NOCTURNE_SMOKE_CHARACTER_ID are required.",
-  );
-}
+const guestMode = !token && process.env.NOCTURNE_SMOKE_GUEST_MODE !== "false";
 
 const sleep = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+function requestHeaders(extra?: Record<string, string>) {
+  return {
+    ...(token ? { authorization: `Bearer ${token}` } : {}),
+    ...(guestMode ? { "x-nocturne-guest-mode": "1" } : {}),
+    ...extra,
+  };
+}
 
 async function jsonRequest(url: string, init?: RequestInit) {
   const response = await fetch(url, init);
@@ -51,18 +58,37 @@ async function waitForDeployment() {
   throw new Error(`Timed out waiting for deployed commit: ${JSON.stringify(last)}`);
 }
 
+async function resolveActorId() {
+  if (actorId) return actorId;
+  const payload = await jsonRequest(`${webUrl}/api/game/characters`, {
+    headers: requestHeaders(),
+  });
+  const characters = Array.isArray(payload.characters)
+    ? (payload.characters as Array<Record<string, unknown>>)
+    : [];
+  const selected = characters.find((character) => character.selected === true) || characters[0];
+  const resolved = selected?.characterId;
+  if (typeof resolved !== "string" || !resolved) {
+    throw new Error(
+      "Production smoke could not resolve a selected character. Configure NOCTURNE_SMOKE_CHARACTER_ID or create a playable character.",
+    );
+  }
+  actorId = resolved;
+  return resolved;
+}
+
 async function submit(command: string, label: string) {
+  const selectedActorId = await resolveActorId();
   const idempotencyKey = `production-smoke:${label}:${randomUUID()}`;
   const traceId = `production-smoke-${label}-${randomUUID()}`;
   const payload = await jsonRequest(`${webUrl}/api/game/persistent-world/actions`, {
     method: "POST",
-    headers: {
-      authorization: `Bearer ${token}`,
+    headers: requestHeaders({
       "content-type": "application/json",
       "idempotency-key": idempotencyKey,
       "x-nocturne-trace-id": traceId,
-    },
-    body: JSON.stringify({ actorId, command }),
+    }),
+    body: JSON.stringify({ actorId: selectedActorId, command }),
   });
   if (payload.error === "internal_error" || payload.error === "request_failed") {
     throw new Error(`${label} returned an infrastructure failure: ${JSON.stringify(payload)}`);
@@ -91,6 +117,7 @@ if (provider.configured !== true) {
   throw new Error(`Production provider is not configured: ${JSON.stringify(provider)}`);
 }
 
+const selectedActorId = await resolveActorId();
 const results = [
   await submit("I look around the room and take in my surroundings.", "observe"),
   await submit("I drink a glass of water from the ordinary kitchen provisions.", "consume"),
@@ -102,6 +129,8 @@ console.log(
       status: "passed",
       deployment,
       provider,
+      authentication: token ? "agent_token" : "guest_mode",
+      actorId: selectedActorId,
       results,
     },
     null,
