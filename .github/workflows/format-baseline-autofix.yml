@@ -35,12 +35,16 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Normalize all tracked source formatting
-        run: pnpm format
-      - name: Commit normalized baseline
+      - name: Normalize tracked source formatting
+        run: |
+          pnpm format
+          # GitHub's workflow token may not modify workflow definitions. Those
+          # files are formatted manually and validated by actionlint.
+          git restore .github/workflows
+      - name: Commit normalized source baseline
         run: |
           if git diff --quiet; then
-            echo "Formatting baseline is already normalized."
+            echo "Source formatting baseline is already normalized."
             exit 0
           fi
           git config user.name "github-actions[bot]"
