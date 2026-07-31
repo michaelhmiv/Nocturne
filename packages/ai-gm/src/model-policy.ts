@@ -17,7 +17,7 @@ export type AiTask =
 export type AiAuthority = "authoritative" | "creative";
 export const DEFAULT_AI_MODEL = "deepseek-v4-flash";
 /** Compatibility alias retained for existing callers and stored telemetry. */
-export const DEEPSEEK_FLASH_MODEL = DEFAULT_AI_MODEL;
+export const DEEPSEEK_FLASH_MODEL = process.env.AI_MODEL?.trim() || DEFAULT_AI_MODEL;
 
 export interface ModelPolicy {
   task: AiTask;
@@ -61,7 +61,7 @@ export function createModelPolicy(input: {
   return {
     task: input.task,
     authority,
-    model: configured(input.requestedModel) || configuredModel || DEFAULT_AI_MODEL,
+    model: configured(input.requestedModel) || configuredModel || DEEPSEEK_FLASH_MODEL,
     allowUserOverride: false,
     requireStructuredOutput: authority === "authoritative" || input.task === "brainstorm_content",
     temperature: authority === "authoritative" ? 0.1 : 0.8,
