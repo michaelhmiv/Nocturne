@@ -52,9 +52,9 @@ function classifyAction(command: string) {
   if (/\b(work|shift|delivery job|available job)\b/.test(text)) return "work";
   if (/\b(attack|punch|strike|hit|fight)\b/.test(text)) return "attack";
   if (/\b(talk|ask|conversation|bartender)\b/.test(text)) return "talk";
+  if (/\b(detect|scan|check .*watching|hidden threats)\b/.test(text)) return "detect";
   if (/\b(search|look through|look for|scan .*for)\b/.test(text)) return "search";
   if (/\b(walk|move|head toward|go to|travel)\b/.test(text)) return "move";
-  if (/\b(detect|scan|check .*watching|hidden threats)\b/.test(text)) return "detect";
   return "detect";
 }
 
