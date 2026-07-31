@@ -7,8 +7,12 @@ function normalizeErrorCode(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 128);
 }
 
+type PolicyError = Error & { retryable?: unknown; code?: unknown };
+
 export function aiJobIsRetryable(error: unknown): boolean {
   if (!(error instanceof Error)) return true;
+  const policyError = error as PolicyError;
+  if (typeof policyError.retryable === "boolean") return policyError.retryable;
   const message = error.message.toLowerCase();
   return ![
     "outside the authoritative context",
@@ -25,6 +29,10 @@ export function aiJobIsRetryable(error: unknown): boolean {
 
 export function aiJobErrorCode(error: unknown): string {
   if (!(error instanceof Error)) return "ai_job_failed";
+  const policyError = error as PolicyError;
+  if (typeof policyError.code === "string" && policyError.code.trim()) {
+    return normalizeErrorCode(policyError.code) || "ai_job_failed";
+  }
 
   const message = error.message.toLowerCase();
   if (message.includes("forbidden") || message.includes("403")) return "worker_secret_rejected";
