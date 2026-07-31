@@ -1,0 +1,16 @@
+name: Workflow Syntax Probe
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Workflow / Syntax Probe
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm workflow activation
+        run: echo "GitHub Actions workflow activation is working."
