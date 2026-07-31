@@ -40,7 +40,9 @@ describe("AiProviderClient structured requests", () => {
   it("uses the direct DeepSeek Flash JSON endpoint by default and builds valid examples", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(providerResponse(JSON.stringify({ value: "ok", count: 1 }), "deepseek-valid"));
+      .mockResolvedValue(
+        providerResponse(JSON.stringify({ value: "ok", count: 1 }), "deepseek-valid"),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const client = new AiProviderClient({ deepseekApiKey: "deepseek-test-key" });

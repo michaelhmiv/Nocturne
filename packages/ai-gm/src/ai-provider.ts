@@ -648,7 +648,8 @@ export class AiProviderClient {
           : response.status >= 500
             ? "provider_failure"
             : "provider_rejected";
-      const providerMessage = payload.error?.message || `response body length ${responseText.length}`;
+      const providerMessage =
+        payload.error?.message || `response body length ${responseText.length}`;
       throw new AiProviderError(
         code,
         `${this.resolved.provider} rejected model ${model} (${response.status}): ${providerMessage}`,
