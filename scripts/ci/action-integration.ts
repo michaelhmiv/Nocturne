@@ -157,7 +157,7 @@ async function counts(requestId: string) {
       (SELECT count(*)::int FROM game.scheduled_actions a
        JOIN game.world_action_requests r ON r.plan_id = a.plan_id
        WHERE r.request_id = ${requestId}) AS schedules,
-      (SELECT count(*)::int FROM game.world_action_request_stages
+      (SELECT count(*)::int FROM game.world_action_execution_stages
        WHERE request_id = ${requestId}) AS stages
   `;
   return rows[0]!;
