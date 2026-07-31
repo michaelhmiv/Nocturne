@@ -6,7 +6,7 @@ import {
 } from "@nocturne/contracts";
 import { AiProviderClient, type StructuredGenerationResult } from "./ai-provider.js";
 
-export const CONSUMABLE_ANALYSIS_POLICY_VERSION = "consumable-analysis-v3";
+export const CONSUMABLE_ANALYSIS_POLICY_VERSION = "consumable-analysis-v4";
 
 const resourceDelta = {
   type: "object",
@@ -91,7 +91,7 @@ const consumableAnalysisJsonSchema = {
           name: { type: "string" },
           conceptSummary: { type: "string" },
           descriptiveTraits: { type: "array", items: { type: "string" }, maxItems: 12 },
-          unitsCreated: { type: "integer", minimum: 1, maximum: 5 },
+          unitsCreated: { type: "integer", minimum: 0, maximum: 5 },
         },
       },
       resourceDeltas: { type: "array", maxItems: 8, items: resourceDelta },
@@ -126,11 +126,12 @@ There is no food catalogue. Infer semantics from each candidate's name, descript
 Rules:
 - Never invent an owned or visible entity.
 - Select sourceType "entity" only for an exact supplied entity candidate.
-- Select sourceType "ambient_pool" only for an exact supplied ambient pool. You may then materialize one concrete, mundane substance that is plausible under that pool's description and every constraint.
-- Ambient materialization is not permission to satisfy a specific luxury, specialty, rare, prepared, or celebratory request unless the pool explicitly supports it.
-- Select "none" when no candidate plausibly satisfies the request.
+- Select sourceType "ambient_pool" only when the pool can actually materialize a concrete substance matching the request and every constraint.
+- Ambient materialization is not permission to satisfy a specific luxury, specialty, rare, prepared, celebratory, or implausibly abundant request unless the pool explicitly supports it.
+- Select "none" when no candidate plausibly satisfies the request. Do not select an ambient pool merely to explain why it cannot satisfy the request.
 - requestedUnits is the amount the player asked for and must be at least 1. Preserve that request even when inventory is insufficient.
-- Set consumeUnits to 0 when sourceType is "none" or when the selected substance is not consumable as requested. In those cases return no resource deltas, conditions, or risks.
+- Set consumeUnits to 0 when sourceType is "none" or when a selected entity is not consumable as requested. In those cases return no resource deltas, conditions, or risks.
+- Omit materialization unless sourceType is "ambient_pool". For a failed ambient consideration, prefer sourceType "none"; if a zero-unit ambient analysis is still emitted, materialization.unitsCreated must be 0 and the backend will normalize it to no source.
 - For a selected consumable source, consumeUnits must be at least 1 and must never exceed the selected candidate's authoritative quantity, five units, or materialized units.
 - When requestedUnits exceeds consumeUnits but at least one unit can be consumed, state the exact shortfall in assumptions and narrationFacts. Do not turn a quantity shortfall into a total failure.
 - Ordinary eating and drinking are not medical treatment and do not automatically repair injury.
@@ -245,6 +246,38 @@ export function validateConsumableAnalysisAgainstContext(
   const availableUnits = Math.max(0, Math.floor(candidate.quantity ?? 1));
   if (availableUnits < 1) {
     throw new Error("Consumable analysis selected a depleted authoritative source.");
+  }
+
+  if (parsed.selection.sourceType === "ambient_pool" && !parsed.classification.consumable) {
+    const fact = `Requested ${requestedUnits} unit${requestedUnits === 1 ? "" : "s"}; the ambient provisions cannot produce a matching consumable, so 0 units were consumed.`;
+    return ConsumableAnalysisSchema.parse({
+      ...parsed,
+      selection: {
+        sourceType: "none",
+        displayName: parsed.selection.displayName,
+        rationale: parsed.selection.rationale,
+        confidence: parsed.selection.confidence,
+      },
+      classification: { ...parsed.classification, consumable: false },
+      requestedUnits,
+      consumeUnits: 0,
+      quantityResolution: {
+        requestedUnits,
+        availableUnits: 0,
+        appliedUnits: 0,
+        limitedByAvailability: true,
+        limitedByEngine: false,
+      },
+      materialization: undefined,
+      resourceDeltas: [],
+      conditions: [],
+      risks: [],
+      narrationFacts: [...parsed.narrationFacts, fact].slice(-12),
+      assumptions: [
+        ...parsed.assumptions,
+        "The ambient pool was considered but could not materialize the requested substance.",
+      ].slice(-8),
+    });
   }
 
   if (!parsed.classification.consumable) {

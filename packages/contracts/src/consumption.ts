@@ -73,7 +73,7 @@ export const ConsumptionMaterializationSchema = z.object({
   name: z.string().trim().min(1).max(180),
   conceptSummary: z.string().trim().min(1).max(1_000),
   descriptiveTraits: z.array(z.string().trim().min(1).max(100)).max(12).default([]),
-  unitsCreated: z.number().int().min(1).max(5),
+  unitsCreated: z.number().int().min(0).max(5),
 });
 
 export const ConsumptionQuantityResolutionSchema = z.object({
@@ -105,11 +105,23 @@ export const ConsumableAnalysisSchema = z
     assumptions: z.array(z.string().min(1).max(500)).max(8).default([]),
   })
   .superRefine((analysis, context) => {
-    if (analysis.selection.sourceType === "ambient_pool" && !analysis.materialization) {
+    const requiresMaterialization =
+      analysis.selection.sourceType === "ambient_pool" &&
+      analysis.classification.consumable &&
+      analysis.consumeUnits > 0;
+
+    if (requiresMaterialization && !analysis.materialization) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["materialization"],
-        message: "Ambient resources must be materialized into a concrete substance.",
+        message: "Consumed ambient resources must be materialized into a concrete substance.",
+      });
+    }
+    if (requiresMaterialization && analysis.materialization?.unitsCreated === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["materialization", "unitsCreated"],
+        message: "Consumed ambient resources require a positive materialization quantity.",
       });
     }
     if (analysis.selection.sourceType !== "ambient_pool" && analysis.materialization) {

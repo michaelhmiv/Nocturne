@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { ConsumableAnalysis, ConsumptionAnalysisRequest } from "@nocturne/contracts";
+import {
+  ConsumableAnalysisSchema,
+  type ConsumableAnalysis,
+  type ConsumptionAnalysisRequest,
+} from "@nocturne/contracts";
 import {
   buildConsumableAnalysisPrompt,
   validateConsumableAnalysisAgainstContext,
@@ -109,6 +113,7 @@ describe("AI-derived consumable semantics", () => {
     const prompt = buildConsumableAnalysisPrompt(request);
     expect(prompt).toContain("There is no food catalogue");
     expect(prompt).toContain("No specialty, luxury, celebratory, or prepared foods");
+    expect(prompt).toContain("Do not select an ambient pool merely to explain why it cannot satisfy");
     expect(prompt).toContain("Set consumeUnits to 0");
     expect(prompt).toContain(poolId);
   });
@@ -183,6 +188,79 @@ describe("AI-derived consumable semantics", () => {
       limitedByAvailability: true,
       limitedByEngine: false,
     });
+  });
+
+  it("normalizes an unavailable 12-pie ambient answer instead of failing validation", () => {
+    const modelResult = ConsumableAnalysisSchema.parse({
+      selection: {
+        sourceType: "ambient_pool",
+        sourceId: poolId,
+        displayName: "Sparse kitchen provisions",
+        rationale: "The sparse provisions cannot plausibly provide twelve pies.",
+        confidence: 0.2,
+      },
+      classification: {
+        consumable: false,
+        substanceKind: "unavailable",
+        portionDescription: "No pies available",
+        freshnessAssessment: "Not applicable",
+        confidence: 0.1,
+      },
+      requestedUnits: 12,
+      consumeUnits: 0,
+      materialization: {
+        name: "Sparse kitchen provisions",
+        conceptSummary: "A few ordinary inexpensive pantry staples.",
+        descriptiveTraits: ["mundane", "sparse"],
+        unitsCreated: 0,
+      },
+      resourceDeltas: [],
+      conditions: [],
+      risks: [],
+      narrationFacts: ["No pies are available."],
+      assumptions: ["The pool cannot produce twelve pies."],
+    });
+
+    const result = validateConsumableAnalysisAgainstContext(modelResult, {
+      ...request,
+      rawText: "I eat 12 pies",
+      candidates: [request.candidates[1]!],
+    });
+
+    expect(result.selection.sourceType).toBe("none");
+    expect(result.selection).not.toHaveProperty("sourceId");
+    expect(result.materialization).toBeUndefined();
+    expect(result.consumeUnits).toBe(0);
+    expect(result.resourceDeltas).toEqual([]);
+    expect(result.quantityResolution).toEqual({
+      requestedUnits: 12,
+      availableUnits: 0,
+      appliedUnits: 0,
+      limitedByAvailability: true,
+      limitedByEngine: false,
+    });
+  });
+
+  it("still requires positive materialization for actual ambient consumption", () => {
+    expect(() =>
+      ConsumableAnalysisSchema.parse({
+        ...analysis,
+        selection: {
+          sourceType: "ambient_pool",
+          sourceId: poolId,
+          displayName: "Plain crackers",
+          rationale: "The pantry can produce crackers.",
+          confidence: 0.8,
+        },
+        consumeUnits: 1,
+        materialization: {
+          name: "Plain crackers",
+          conceptSummary: "A small sleeve of plain crackers.",
+          descriptiveTraits: ["ordinary"],
+          unitsCreated: 0,
+        },
+      }),
+    ).toThrow(/positive materialization quantity/);
   });
 
   it("does not consume or apply effects for a selected non-consumable source", () => {
