@@ -32,6 +32,7 @@ export * from "./location-store.js";
 export * from "./market-store.js";
 export * from "./materialization-store.js";
 export * from "./reference-resolution-store.js";
+export * from "./relationship-store.js";
 export * from "./relevance-context-store.js";
 export * from "./state-operation-executor.js";
 export * from "./universal-operation-executor.js";
