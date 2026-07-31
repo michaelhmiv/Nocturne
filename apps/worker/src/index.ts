@@ -4,6 +4,7 @@ import { readAiJobWorkerConfig } from "./ai-job-config.js";
 import { aiJobErrorCode, aiJobIsRetryable, aiJobRetryDelaySeconds } from "./ai-job-policy.js";
 
 const json = (value: unknown) => JSON.stringify(value);
+type WorkerApiError = Error & { code?: string; retryable?: boolean; status?: number };
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -165,11 +166,16 @@ async function runAiJob(job: AiJob): Promise<Record<string, unknown>> {
     payload = text ? JSON.parse(text) : {};
   } catch {}
   if (!response.ok) {
-    const detail =
-      payload && typeof payload === "object"
-        ? String((payload as Record<string, unknown>).error || response.status)
-        : String(response.status);
-    throw new Error(`AI job API failed: ${detail}`);
+    const record =
+      payload && typeof payload === "object" && !Array.isArray(payload)
+        ? (payload as Record<string, unknown>)
+        : null;
+    const detail = String(record?.message || record?.error || response.status);
+    const failure = new Error(`AI job API failed: ${detail}`) as WorkerApiError;
+    failure.code = String(record?.error || `http_${response.status}`);
+    if (typeof record?.retryable === "boolean") failure.retryable = record.retryable;
+    failure.status = response.status;
+    throw failure;
   }
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new Error("AI job API returned an invalid result.");
