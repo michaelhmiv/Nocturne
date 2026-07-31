@@ -44,94 +44,63 @@ jobs:
           path = Path("packages/database/src/universal-operation-executor.ts")
           source = path.read_text()
 
-          old_insert = '''        const operationResults: Record<string, unknown>[] = [];
-          const involvedEntityIds = new Set<string>([
-            ...(input.actorId ? [input.actorId] : []),
-            ...collectExistingEntityIds(branch.operations),
-          ]);
+          if "immutableEventPayload" in source and "UPDATE game.event_ledger" not in source:
+              print("Immutable event finalization is already patched.")
+              raise SystemExit(0)
 
-          await sql`
-            INSERT INTO game.event_ledger (
-              event_id, world_id, shard_id, idempotency_key, world_time,
-              event_type, involved_entity_ids, payload, source_intent_id
-            ) VALUES (
-              ${eventId}, ${input.scope.worldId}, ${input.scope.shardId},
-              ${input.idempotencyKey}, now(), 'world_mutation', '[]'::jsonb,
-              ${json({ status: "applying", requestHash })}::jsonb,
-              ${input.sourceIntentId || null}
-            )
-          `;
-          '''
+          involved_start = source.index(
+              "        const involvedEntityIds = new Set<string>(["
+          )
+          event_insert_start = source.index("        await sql`", involved_start)
+          immutable_declarations = (
+              "        const playerVisibleFacts = (input.playerVisibleFacts || []).slice(0, 64);\n"
+              "        const hiddenFacts = (input.hiddenFacts || []).slice(0, 64);\n"
+              "        const immutableEventPayload = {\n"
+              "          status: \"committed\",\n"
+              "          receiptId,\n"
+              "          requestHash,\n"
+              "          authority: input.authority,\n"
+              "          sourcePlanId: input.sourcePlanId || null,\n"
+              "          sourceStepId: input.sourceStepId || null,\n"
+              "          operationTypes: branch.operations.map(({ type }) => type),\n"
+              "          playerVisibleFacts,\n"
+              "          hiddenFacts,\n"
+              "        };\n\n"
+          )
+          source = (
+              source[:event_insert_start]
+              + immutable_declarations
+              + source[event_insert_start:]
+          )
 
-          new_insert = '''        const operationResults: Record<string, unknown>[] = [];
-          const involvedEntityIds = new Set<string>([
-            ...(input.actorId ? [input.actorId] : []),
-            ...collectExistingEntityIds(branch.operations),
-          ]);
-          const playerVisibleFacts = (input.playerVisibleFacts || []).slice(0, 64);
-          const hiddenFacts = (input.hiddenFacts || []).slice(0, 64);
-          const immutableEventPayload = {
-            status: "committed",
-            receiptId,
-            requestHash,
-            authority: input.authority,
-            sourcePlanId: input.sourcePlanId || null,
-            sourceStepId: input.sourceStepId || null,
-            operationTypes: branch.operations.map(({ type }) => type),
-            playerVisibleFacts,
-            hiddenFacts,
-          };
+          old_insert_values = (
+              "              ${input.idempotencyKey}, now(), 'world_mutation', '[]'::jsonb,\n"
+              "              ${json({ status: \"applying\", requestHash })}::jsonb,\n"
+          )
+          new_insert_values = (
+              "              ${input.idempotencyKey}, now(), 'world_mutation',\n"
+              "              ${json([...involvedEntityIds])}::jsonb,\n"
+              "              ${json(immutableEventPayload)}::jsonb,\n"
+          )
+          if old_insert_values not in source:
+              raise SystemExit("Expected event insertion values were not found")
+          source = source.replace(old_insert_values, new_insert_values, 1)
 
-          await sql`
-            INSERT INTO game.event_ledger (
-              event_id, world_id, shard_id, idempotency_key, world_time,
-              event_type, involved_entity_ids, payload, source_intent_id
-            ) VALUES (
-              ${eventId}, ${input.scope.worldId}, ${input.scope.shardId},
-              ${input.idempotencyKey}, now(), 'world_mutation',
-              ${json([...involvedEntityIds])}::jsonb,
-              ${json(immutableEventPayload)}::jsonb,
-              ${input.sourceIntentId || null}
-            )
-          `;
-          '''
+          finalize_start = source.index(
+              "        const symbolMap = publicSymbolMap(symbols);"
+          )
+          receipt_insert_start = source.index(
+              "        await sql`\n          INSERT INTO game.mutation_receipts",
+              finalize_start,
+          )
+          source = (
+              source[:finalize_start]
+              + "        const symbolMap = publicSymbolMap(symbols);\n"
+              + source[receipt_insert_start:]
+          )
 
-          old_finalize = '''        const symbolMap = publicSymbolMap(symbols);
-          const playerVisibleFacts = (input.playerVisibleFacts || []).slice(0, 64);
-          const hiddenFacts = (input.hiddenFacts || []).slice(0, 64);
-          const eventPayload = {
-            status: "committed",
-            receiptId,
-            requestHash,
-            authority: input.authority,
-            sourcePlanId: input.sourcePlanId || null,
-            sourceStepId: input.sourceStepId || null,
-            symbolMap,
-            operationResults,
-            playerVisibleFacts,
-            hiddenFacts,
-          };
-          await sql`
-            UPDATE game.event_ledger
-            SET involved_entity_ids = ${json([...involvedEntityIds])}::jsonb,
-                payload = ${json(eventPayload)}::jsonb
-            WHERE event_id = ${eventId}
-          `;
-          '''
-
-          new_finalize = '''        const symbolMap = publicSymbolMap(symbols);
-          '''
-
-          if old_insert not in source:
-              if "immutableEventPayload" in source and "UPDATE game.event_ledger" not in source:
-                  print("Immutable event finalization is already patched.")
-                  raise SystemExit(0)
-              raise SystemExit("Expected event insertion block was not found")
-          if old_finalize not in source:
-              raise SystemExit("Expected event finalization block was not found")
-
-          source = source.replace(old_insert, new_insert, 1)
-          source = source.replace(old_finalize, new_finalize, 1)
+          if "UPDATE game.event_ledger" in source:
+              raise SystemExit("Event-ledger update remains after patch")
           path.write_text(source)
           PY
           pnpm exec prettier --write packages/database/src/universal-operation-executor.ts
