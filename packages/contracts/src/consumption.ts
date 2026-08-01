@@ -2,9 +2,15 @@ import { z } from "zod";
 import type { OutcomeGrade } from "./resolution.js";
 
 const SemanticKeySchema = z.string().regex(/^[a-z][a-z0-9_]{0,47}$/);
+export const ConsumptionSourceTypeSchema = z.enum([
+  "entity",
+  "ambient_pool",
+  "ephemeral_environment",
+]);
+export type ConsumptionSourceType = z.infer<typeof ConsumptionSourceTypeSchema>;
 
 export const ConsumptionCandidateSchema = z.object({
-  sourceType: z.enum(["entity", "ambient_pool"]),
+  sourceType: ConsumptionSourceTypeSchema,
   sourceId: z.string().uuid(),
   name: z.string().min(1).max(180),
   description: z.string().min(1).max(2_000),
@@ -46,7 +52,7 @@ export const ConsumptionRiskSchema = z.object({
 
 export const ConsumptionSelectionSchema = z
   .object({
-    sourceType: z.enum(["entity", "ambient_pool", "none"]),
+    sourceType: z.enum(["entity", "ambient_pool", "ephemeral_environment", "none"]),
     sourceId: z.string().uuid().optional(),
     displayName: z.string().min(1).max(180),
     rationale: z.string().min(1).max(1_000),
@@ -64,7 +70,7 @@ export const ConsumptionSelectionSchema = z
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["sourceId"],
-        message: "A selected source requires an identifier.",
+        message: "A selected source requires an evidence identifier.",
       });
     }
   });
@@ -139,7 +145,7 @@ export const ConsumptionAppliedRiskSchema = z.object({
 });
 
 export const ConsumptionResultSchema = z.object({
-  sourceType: z.enum(["entity", "ambient_pool"]),
+  sourceType: ConsumptionSourceTypeSchema,
   sourceId: z.string().uuid(),
   displayName: z.string(),
   unitsConsumed: z.number().int().nonnegative(),
