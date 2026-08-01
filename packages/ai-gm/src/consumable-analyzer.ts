@@ -6,7 +6,7 @@ import {
 } from "@nocturne/contracts";
 import { AiProviderClient, type StructuredGenerationResult } from "./ai-provider.js";
 
-export const CONSUMABLE_ANALYSIS_POLICY_VERSION = "consumable-analysis-v4";
+export const CONSUMABLE_ANALYSIS_POLICY_VERSION = "consumable-analysis-v5";
 
 const resourceDelta = {
   type: "object",
@@ -35,7 +35,7 @@ const condition = {
 const consumableAnalysisJsonSchema = {
   name: "nocturne_consumable_analysis",
   description:
-    "Semantic analysis of an arbitrary substance selected from authoritative scene candidates.",
+    "Semantic analysis of an arbitrary substance selected from authoritative or provisionally authorized scene candidates.",
   schema: {
     type: "object",
     additionalProperties: false,
@@ -56,7 +56,9 @@ const consumableAnalysisJsonSchema = {
         additionalProperties: false,
         required: ["sourceType", "displayName", "rationale", "confidence"],
         properties: {
-          sourceType: { enum: ["entity", "ambient_pool", "none"] },
+          sourceType: {
+            enum: ["entity", "ambient_pool", "ephemeral_environment", "none"],
+          },
           sourceId: { type: "string" },
           displayName: { type: "string" },
           rationale: { type: "string" },
@@ -119,20 +121,23 @@ const consumableAnalysisJsonSchema = {
 
 export function buildConsumableAnalysisPrompt(input: ConsumptionAnalysisRequest): string {
   const parsed = ConsumptionAnalysisRequestSchema.parse(input);
-  return `Resolve the player's consumption request using only the supplied authoritative candidates and context.
+  return `Resolve the player's consumption request using only the supplied candidates and context.
 
-There is no food catalogue. Infer semantics from each candidate's name, description, state, quantity, access, and constraints. The substance may be ordinary food, a drink, medicine, a drug, poison, a fictional material, or something non-consumable.
+There is no food catalogue. Infer semantics from each candidate's name, description, state, quantity, access, and constraints. The substance may be ordinary food, a drink, medicine, a drug, poison, a fictional material, or something physically consumed despite providing no nutritional benefit.
 
 Rules:
 - Never invent an owned or visible entity.
 - Select sourceType "entity" only for an exact supplied entity candidate.
 - Select sourceType "ambient_pool" only when the pool can actually materialize a concrete substance matching the request and every constraint.
+- Select sourceType "ephemeral_environment" only for the exact supplied request-scoped environmental affordance. Its sourceId is an evidence handle, not a durable entity ID. Do not materialize it, place it in inventory, or imply it persists after this action.
+- An ephemeral substance may be physically chewed, licked, tasted, swallowed, or otherwise consumed while providing zero nutrition, hydration, energy, or medical benefit. Consumable means the requested physical act can occur, not that the substance is beneficial or food.
+- Ephemeral environmental details must not grant meaningful resources or advantages. Model dirtiness, disgust, contamination, minor illness, or other bounded consequences when plausible.
 - Ambient materialization is not permission to satisfy a specific luxury, specialty, rare, prepared, celebratory, or implausibly abundant request unless the pool explicitly supports it.
 - Select "none" when no candidate plausibly satisfies the request. Do not select an ambient pool merely to explain why it cannot satisfy the request.
-- requestedUnits is the amount the player asked for and must be at least 1. Preserve that request even when inventory is insufficient.
-- Set consumeUnits to 0 when sourceType is "none" or when a selected entity is not consumable as requested. In those cases return no resource deltas, conditions, or risks.
-- Omit materialization unless sourceType is "ambient_pool". For a failed ambient consideration, prefer sourceType "none"; if a zero-unit ambient analysis is still emitted, materialization.unitsCreated must be 0 and the backend will normalize it to no source.
-- For a selected consumable source, consumeUnits must be at least 1 and must never exceed the selected candidate's authoritative quantity, five units, or materialized units.
+- requestedUnits is the amount the player asked for and must be at least 1. Preserve that request even when availability is insufficient.
+- Set consumeUnits to 0 when sourceType is "none" or when a selected source cannot physically be consumed as requested. In those cases return no resource deltas, conditions, or risks.
+- Omit materialization unless sourceType is "ambient_pool".
+- For a selected consumable source, consumeUnits must be at least 1 and must never exceed the selected candidate's authoritative or provisionally authorized quantity, five units, or materialized units.
 - When requestedUnits exceeds consumeUnits but at least one unit can be consumed, state the exact shortfall in assumptions and narrationFacts. Do not turn a quantity shortfall into a total failure.
 - Ordinary eating and drinking are not medical treatment and do not automatically repair injury.
 - Derive bounded resource deltas, temporary conditions, and risks causally from the amount actually consumed. Resource and condition keys are semantic slugs, not catalogue IDs.
@@ -149,7 +154,7 @@ ${parsed.locationDescription}
 ACTOR STATE:
 ${JSON.stringify(parsed.actorState)}
 
-AUTHORITATIVE CANDIDATES:
+AVAILABLE CANDIDATES:
 ${JSON.stringify(parsed.candidates)}`;
 }
 
@@ -229,7 +234,7 @@ export function validateConsumableAnalysisAgainstContext(
       narrationFacts: [...parsed.narrationFacts, fact].slice(-12),
       assumptions: [
         ...parsed.assumptions,
-        "No authoritative candidate matched the requested substance.",
+        "No supplied candidate matched the requested substance.",
       ].slice(-8),
     });
   }
@@ -240,12 +245,12 @@ export function validateConsumableAnalysisAgainstContext(
       value.sourceType === parsed.selection.sourceType,
   );
   if (!candidate) {
-    throw new Error("Consumable analysis selected a source outside the authoritative context.");
+    throw new Error("Consumable analysis selected a source outside the supplied context.");
   }
 
   const availableUnits = Math.max(0, Math.floor(candidate.quantity ?? 1));
   if (availableUnits < 1) {
-    throw new Error("Consumable analysis selected a depleted authoritative source.");
+    throw new Error("Consumable analysis selected a depleted source.");
   }
 
   if (parsed.selection.sourceType === "ambient_pool" && !parsed.classification.consumable) {
@@ -281,7 +286,7 @@ export function validateConsumableAnalysisAgainstContext(
   }
 
   if (!parsed.classification.consumable) {
-    const fact = `Requested ${requestedUnits} unit${requestedUnits === 1 ? "" : "s"}; 0 units were consumed because the selected source is not consumable as intended.`;
+    const fact = `Requested ${requestedUnits} unit${requestedUnits === 1 ? "" : "s"}; 0 units were consumed because the selected source cannot be consumed as intended.`;
     return ConsumableAnalysisSchema.parse({
       ...parsed,
       requestedUnits,
@@ -309,6 +314,16 @@ export function validateConsumableAnalysisAgainstContext(
   const limitedByEngine = requestedUnits > 5;
   const effects = reconcileEffects(parsed, appliedUnits);
 
+  if (parsed.selection.sourceType === "ephemeral_environment") {
+    const positiveMagnitude = effects.resourceDeltas.reduce(
+      (sum, effect) => sum + Math.max(0, effect.delta),
+      0,
+    );
+    if (positiveMagnitude > 2) {
+      throw new Error("Ephemeral environmental consumption cannot grant meaningful resources.");
+    }
+  }
+
   let materialization = parsed.materialization;
   if (materialization) {
     const unitsCreated = Math.max(
@@ -320,7 +335,7 @@ export function validateConsumableAnalysisAgainstContext(
 
   const quantityFact = `Requested ${requestedUnits} unit${requestedUnits === 1 ? "" : "s"}; ${appliedUnits} unit${appliedUnits === 1 ? "" : "s"} can be consumed.`;
   const quantityAssumption = limitedByAvailability
-    ? `Authoritative availability limits consumption to ${appliedUnits} of ${requestedUnits} requested units.`
+    ? `Availability limits consumption to ${appliedUnits} of ${requestedUnits} requested units.`
     : limitedByEngine
       ? `The action engine limits one consumption step to ${appliedUnits} of ${requestedUnits} requested units.`
       : `The requested ${requestedUnits} unit${requestedUnits === 1 ? " is" : "s are"} available.`;
@@ -340,6 +355,79 @@ export function validateConsumableAnalysisAgainstContext(
     ...effects,
     narrationFacts: [...parsed.narrationFacts, quantityFact].slice(-12),
     assumptions: [...parsed.assumptions, quantityAssumption].slice(-8),
+  });
+}
+
+export function deriveEphemeralConsumableFallback(
+  input: ConsumptionAnalysisRequest,
+): ConsumableAnalysis {
+  const parsedInput = ConsumptionAnalysisRequestSchema.parse(input);
+  const candidate = parsedInput.candidates.find(
+    ({ sourceType }) => sourceType === "ephemeral_environment",
+  );
+  if (!candidate) throw new Error("Ephemeral consumption fallback requires an ephemeral candidate.");
+  const dirty = /\b(?:old|discarded|street|pole|wall|floor|dirty|stale|used|trash|garbage)\b/i.test(
+    `${parsedInput.rawText} ${candidate.name} ${candidate.description}`,
+  );
+  const gum = /\bgum\b/i.test(`${parsedInput.rawText} ${candidate.name}`);
+  const canPhysicallyConsume = /\b(?:eat|drink|chew|swallow|lick|taste|consume)\b/i.test(
+    parsedInput.rawText,
+  );
+  return ConsumableAnalysisSchema.parse({
+    selection: {
+      sourceType: "ephemeral_environment",
+      sourceId: candidate.sourceId,
+      displayName: candidate.name,
+      rationale: "The planner provisionally authorized this low-value environmental detail.",
+      confidence: 0.75,
+    },
+    classification: {
+      consumable: canPhysicallyConsume,
+      substanceKind: gum ? "discarded chewing gum" : "mundane environmental substance",
+      portionDescription: gum ? "one small weathered piece" : "one small incidental amount",
+      freshnessAssessment: dirty
+        ? "Exposed to the environment and potentially contaminated."
+        : "No durable provenance exists; quality is uncertain.",
+      confidence: 0.7,
+    },
+    requestedUnits: 1,
+    consumeUnits: canPhysicallyConsume ? 1 : 0,
+    quantityResolution: {
+      requestedUnits: 1,
+      availableUnits: 1,
+      appliedUnits: canPhysicallyConsume ? 1 : 0,
+      limitedByAvailability: false,
+      limitedByEngine: false,
+    },
+    resourceDeltas: [],
+    conditions: [],
+    risks:
+      dirty && canPhysicallyConsume
+        ? [
+            {
+              description: "Minor contamination or nausea from the exposed substance.",
+              chanceBasisPoints: 1000,
+              resourceDeltas: [],
+              conditions: [
+                {
+                  name: "Brief nausea",
+                  key: "nausea",
+                  intensity: -1,
+                  durationSeconds: 300,
+                  rationale: "The substance was exposed to a dirty public surface.",
+                },
+              ],
+            },
+          ]
+        : [],
+    narrationFacts: [
+      `${candidate.name} was an ephemeral environmental detail and was not added to inventory.`,
+      "The substance provided no meaningful nutrition, hydration, energy, or medical benefit.",
+    ],
+    assumptions: [
+      "The detail existed only to support this immediate low-impact action.",
+      "No durable item or scenery entity was created.",
+    ],
   });
 }
 
