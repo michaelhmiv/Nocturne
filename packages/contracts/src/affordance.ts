@@ -96,6 +96,9 @@ export const EphemeralConsumptionAnalysisRequestSchema = z
     recentTurns: z.array(z.string().trim().min(1).max(4_000)).max(10).default([]),
   })
   .strict();
+export type EphemeralConsumptionAnalysisRequest = z.infer<
+  typeof EphemeralConsumptionAnalysisRequestSchema
+>;
 
 const EphemeralDeltaSchema = z
   .object({
