@@ -8,6 +8,7 @@ import { NOCTURNE_GAME_CONSTITUTION } from "./game-constitution.js";
 import {
   buildAffordanceAssessmentPrompt,
   deriveConservativeAffordanceAssessment,
+  inferConservativeTerminalIntent,
   validateAffordanceAssessment,
 } from "./affordance-adjudicator.js";
 
@@ -192,6 +193,35 @@ describe("affordance and persistence adjudicator", () => {
       status: "persistent_required",
       advantageCategories: expect.arrayContaining(["key", "named_person"]),
     });
+  });
+
+  it.each([
+    ["I scan the room for hidden threats.", "search"],
+    ["I observe the street from the window.", "search"],
+    ["I walk into the street.", "move"],
+    ["I drive to the warehouse.", "move"],
+    ["I eat a sandwich from the kitchen.", "consume"],
+    ["I offer the guard money to look the other way.", "relationship"],
+    ["I persuade her to help us.", "relationship"],
+    ["I punch the guard.", "combat"],
+    ["I arrest the suspect.", "combat"],
+    ["I steal the wallet from the table.", "transfer"],
+    ["I buy the toolbox from the listing.", "transfer"],
+    ["I sell the spare radio.", "transfer"],
+    ["I ask the man what happened.", "dialogue"],
+    ["I sneak past the guard.", "interact"],
+    ["I pick the door lock.", "interact"],
+    ["I hack the security terminal.", "interact"],
+    ["I bandage her wound.", "interact"],
+    ["I craft a simple lockpick from the available materials.", "interact"],
+    ["I disguise myself as a maintenance worker.", "interact"],
+    ["I forge a visitor badge.", "interact"],
+    ["I plant the tracker under the car.", "interact"],
+    ["I hide behind the crates.", "interact"],
+    ["I work the warehouse shift.", "interact"],
+    ["What happened here?", "question"],
+  ] as const)("maps %s to the %s handler family", (command, expected) => {
+    expect(inferConservativeTerminalIntent(command, allHandlers)).toBe(expected);
   });
 
   it("makes the terminal-intent and persistence rules explicit in the prompt", () => {
