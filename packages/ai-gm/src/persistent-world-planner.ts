@@ -5,12 +5,14 @@ import {
 } from "@nocturne/contracts";
 import type { z } from "zod";
 import { AiProviderClient, type StructuredGenerationResult } from "./ai-provider.js";
+import { buildGameConstitutionPrompt } from "./game-constitution.js";
 
-export const PERSISTENT_WORLD_PLANNER_POLICY_VERSION = "persistent-world-planner-v3";
+export const PERSISTENT_WORLD_PLANNER_POLICY_VERSION = "persistent-world-planner-v4";
 
 type PlannerRequest = z.infer<typeof WorldActionPlannerRequestSchema>;
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const persistentWorldPlannerJsonSchema = {
   name: "nocturne_persistent_world_action_plan",
@@ -137,6 +139,7 @@ function collectVisibleUuids(value: unknown, collected = new Set<string>()) {
 function allowedPlannerEntityIds(input: PlannerRequest) {
   const allowed = collectVisibleUuids(input.playerKnownFacts);
   collectVisibleUuids(input.activePlanSummary, allowed);
+  collectVisibleUuids(input.gameMasterContext, allowed);
   allowed.add(input.actorId.toLowerCase());
   for (const entityId of input.resolvedEntityIds) allowed.add(entityId.toLowerCase());
   return allowed;
@@ -144,12 +147,15 @@ function allowedPlannerEntityIds(input: PlannerRequest) {
 
 export function buildPersistentWorldPlannerPrompt(input: PlannerRequest) {
   const parsed = WorldActionPlannerRequestSchema.parse(input);
-  return `Route the player's command into one durable persistent-world action plan.
+  return `${buildGameConstitutionPrompt(parsed.gameMasterContext.constitution)}
+
+Route the player's command into one durable persistent-world action plan.
 
 Rules:
 - Use only enabled handler kinds.
-- Use only persistent entity IDs already present in ACTOR ID, RESOLVED ENTITY IDS, PLAYER-KNOWN FACTS, or ACTIVE PLAN. Never invent an entity, location, item, method, target, or UUID.
-- If a material entity is referenced ambiguously or required information is missing, request clarification instead of guessing.
+- Use only persistent entity IDs already present in ACTOR ID, RESOLVED ENTITY IDS, PLAYER-KNOWN FACTS, CURRENT SCENE, RECENT TURNS, RELEVANT MEMORIES, or ACTIVE PLAN. Never invent a persistent UUID.
+- Recent turns and memories provide narrative continuity but never override current authoritative facts.
+- If a material persistent entity is referenced ambiguously or required information is missing, request clarification instead of guessing.
 - A search concept such as "a dog" is allowed in search intentPayload without an existing entity ID. It does not imply the dog exists.
 - A requested consumable may remain an open-ended semantic concept. Do not require an existing entity ID merely because the player names food, drink, medicine, or another substance.
 - Preserve the player's full intended order. Decompose compound commands into explicit steps.
@@ -170,6 +176,15 @@ ${parsed.command}
 
 ACTOR ID:
 ${parsed.actorId}
+
+CURRENT SCENE:
+${JSON.stringify(parsed.gameMasterContext.currentScene)}
+
+RECENT TURNS:
+${JSON.stringify(parsed.gameMasterContext.recentTurns)}
+
+RELEVANT MEMORIES:
+${JSON.stringify(parsed.gameMasterContext.relevantMemories)}
 
 RESOLVED ENTITY IDS:
 ${JSON.stringify(parsed.resolvedEntityIds)}
