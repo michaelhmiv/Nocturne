@@ -17,6 +17,7 @@ import {
   type WorldScope,
 } from "@nocturne/database";
 import { createActionService } from "./action-service.js";
+import { createEphemeralConsumptionService } from "./ephemeral-consumption-service.js";
 import { registerPersistentWorldRuntime } from "./persistent-world-runtime.js";
 
 const deterministicKey = (value: string) =>
@@ -104,6 +105,38 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
     return scope;
   }
 
+  const listRecentPlayerSafeText = async ({
+    scope,
+    limit,
+  }: {
+    scope: WorldScope;
+    limit: number;
+  }) => {
+    const boundedLimit = Math.max(1, Math.min(limit, 20));
+    const rows = await database.client<
+      { command: string; player_safe_result: Record<string, unknown> | null }[]
+    >`
+      SELECT command, player_safe_result
+      FROM game.world_action_requests
+      WHERE world_id = ${scope.worldId}
+        AND shard_id = ${scope.shardId}
+        AND user_id = ${scope.userId}
+      ORDER BY created_at DESC
+      LIMIT ${boundedLimit}
+    `;
+    return rows
+      .flatMap((row) => [row.command, playerText(row.player_safe_result)])
+      .filter((value): value is string => Boolean(value))
+      .slice(0, boundedLimit);
+  };
+
+  const ephemeralConsumption = createEphemeralConsumptionService({
+    database,
+    client,
+    rollSecret,
+    listRecentPlayerSafeText,
+  });
+
   const runtimeRows = await database.client<{ enabled: boolean }[]>`
     SELECT enabled
     FROM game.runtime_features
@@ -115,7 +148,10 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
   if (runtimeEnabled) {
     app.addHook("preHandler", async (request, reply) => {
       const path = request.url.split("?", 1)[0];
-      if (request.method === "POST" && (path === "/v1/ai-jobs/actions" || path === "/v1/actions")) {
+      if (
+        request.method === "POST" &&
+        (path === "/v1/ai-jobs/actions" || path === "/v1/actions")
+      ) {
         return reply.code(410).send({
           error: "legacy_action_route_disabled",
           message:
@@ -142,24 +178,7 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
     client,
     rollSecret,
     resolveScope,
-    listRecentPlayerSafeText: async ({ scope, limit }) => {
-      const boundedLimit = Math.max(1, Math.min(limit, 20));
-      const rows = await database.client<
-        { command: string; player_safe_result: Record<string, unknown> | null }[]
-      >`
-        SELECT command, player_safe_result
-        FROM game.world_action_requests
-        WHERE world_id = ${scope.worldId}
-          AND shard_id = ${scope.shardId}
-          AND user_id = ${scope.userId}
-        ORDER BY created_at DESC
-        LIMIT ${boundedLimit}
-      `;
-      return rows
-        .flatMap((row) => [row.command, playerText(row.player_safe_result)])
-        .filter((value): value is string => Boolean(value))
-        .slice(0, boundedLimit);
-    },
+    listRecentPlayerSafeText,
     loadReusableDefinitions: async ({ scope, requestedConcept }) => {
       const exactPattern = `%${requestedConcept.trim()}%`;
       const rows = await database.client<
@@ -185,13 +204,15 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
           definition.updated_at DESC
         LIMIT 24
       `;
-      return rows.map((row): MaterializationAnalysisRequest["reusableDefinitions"][number] => ({
-        definitionId: row.definition_id,
-        definitionType: row.definition_type,
-        name: row.name,
-        conceptSummary: row.concept_summary,
-        currentPayload: row.current_payload || {},
-      }));
+      return rows.map(
+        (row): MaterializationAnalysisRequest["reusableDefinitions"][number] => ({
+          definitionId: row.definition_id,
+          definitionType: row.definition_type,
+          name: row.name,
+          conceptSummary: row.concept_summary,
+          currentPayload: row.current_payload || {},
+        }),
+      );
     },
     loadArea: async ({ scope, areaId }) => {
       const rows = await database.client<{ name: string; description: string }[]>`
@@ -292,6 +313,7 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
       actorId,
       rawText,
       idempotencyKey,
+      payload,
     }: {
       kind: Exclude<WorldActionKind, "search" | "move">;
       scope: WorldScope;
@@ -300,6 +322,33 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
       idempotencyKey: string;
       payload: Record<string, unknown>;
     }) => {
+      if (kind === "consume" && payload.sourceMode === "ephemeral_environment") {
+        const result = await ephemeralConsumption({
+          scope,
+          actorId,
+          rawText,
+          idempotencyKey,
+          payload,
+        });
+        app.log.info(
+          {
+            eventId: result.eventId,
+            actorId,
+            rawText,
+            sourceType: "ephemeral_environment",
+            sourceId: null,
+            committedOutcomeGrade: result.outcomeGrade,
+          },
+          "persistent_ephemeral_consumption_resolved",
+        );
+        return {
+          state: "completed" as const,
+          outcomeGrade: result.outcomeGrade,
+          eventId: result.eventId,
+          narration: result.narration,
+        };
+      }
+
       const result = await legacyActions.execute(
         scope.userId,
         { actorId, rawText },
