@@ -11,6 +11,7 @@ export type AiTask =
   | "resolve_entity_references"
   | "analyze_materialization"
   | "analyze_search_discovery"
+  | "assess_environmental_affordances"
   | "plan_persistent_world_action"
   | "simulate_entity_elapsed_time";
 
@@ -38,6 +39,7 @@ const authoritativeTasks = new Set<AiTask>([
   "resolve_entity_references",
   "analyze_materialization",
   "analyze_search_discovery",
+  "assess_environmental_affordances",
   "plan_persistent_world_action",
   "simulate_entity_elapsed_time",
 ]);
