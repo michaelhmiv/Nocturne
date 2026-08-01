@@ -10,6 +10,8 @@ const expectedTasks = [
   "parse_intent",
   "normalize_content",
   "analyze_consumable",
+  "analyze_ephemeral_consumption",
+  "assess_affordances",
   "propose_adjudication",
   "plan_npc",
   "summarize_memory",
@@ -37,5 +39,9 @@ describe("shared game constitution", () => {
     expect(Object.keys(AI_TASK_CONTEXT_DECLARATIONS).sort()).toEqual(expectedTasks.sort());
     expect(AI_TASK_CONTEXT_DECLARATIONS.plan_persistent_world_action).toBe("player_safe_context");
     expect(AI_TASK_CONTEXT_DECLARATIONS.analyze_search_discovery).toBe("authoritative_context");
+    expect(AI_TASK_CONTEXT_DECLARATIONS.assess_affordances).toBe("player_safe_context");
+    expect(AI_TASK_CONTEXT_DECLARATIONS.analyze_ephemeral_consumption).toBe(
+      "player_safe_context",
+    );
   });
 });
