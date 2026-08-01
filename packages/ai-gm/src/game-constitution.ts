@@ -55,6 +55,7 @@ export const AI_TASK_CONTEXT_DECLARATIONS = {
   resolve_entity_references: "player_safe_context",
   analyze_materialization: "authoritative_context",
   analyze_search_discovery: "authoritative_context",
+  assess_environmental_affordances: "player_safe_context",
   plan_persistent_world_action: "player_safe_context",
   simulate_entity_elapsed_time: "authoritative_context",
 } satisfies Record<AiTask, AiContextConsumptionMode>;
