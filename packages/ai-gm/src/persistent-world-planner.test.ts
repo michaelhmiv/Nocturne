@@ -1,8 +1,13 @@
-import { describe, expect, it } from "vitest";
-import type { WorldActionPlannerRequest, WorldActionPlannerResult } from "@nocturne/contracts";
+import { describe, expect, it, vi } from "vitest";
+import type {
+  AffordanceAssessment,
+  WorldActionPlannerRequest,
+  WorldActionPlannerResult,
+} from "@nocturne/contracts";
 import { NOCTURNE_GAME_CONSTITUTION } from "./game-constitution.js";
 import {
   buildPersistentWorldPlannerPrompt,
+  planPersistentWorldAction,
   validatePersistentWorldPlan,
 } from "./persistent-world-planner.js";
 
@@ -50,10 +55,18 @@ const request: WorldActionPlannerRequest = {
   gameMasterContext: gameMasterContext("I walk into the street and attack him.", streetId),
 };
 
-const result: WorldActionPlannerResult = {
-  primaryKind: "move",
+const combatAssessment: AffordanceAssessment = {
+  terminalIntent: "combat",
+  premises: [],
+  requiresSearch: false,
   requiresClarification: false,
-  rationale: "Movement is required before the contested action can be attempted.",
+  rationale: "The attack is the terminal intent; walking is a prerequisite.",
+};
+
+const result: WorldActionPlannerResult = {
+  primaryKind: "combat",
+  requiresClarification: false,
+  rationale: "Movement is required before the terminal combat action can be attempted.",
   plan: {
     originalCommand: request.command,
     exclusivePhysical: true,
@@ -90,9 +103,83 @@ const result: WorldActionPlannerResult = {
   },
 };
 
+function gumRequest(): WorldActionPlannerRequest {
+  const command = "I eat gum off a light pole.";
+  return {
+    command,
+    actorId,
+    playerKnownFacts: [{ entityId: actorId, claim: "entity.version", value: 2 }],
+    resolvedEntityIds: [],
+    activePlanSummary: null,
+    enabledHandlers: ["consume", "search", "interact"],
+    gameMasterContext: gameMasterContext(command, streetId),
+  };
+}
+
+const gumAssessment: AffordanceAssessment = {
+  terminalIntent: "consume",
+  premises: [
+    {
+      text: "gum",
+      concept: "old chewing gum",
+      role: "object",
+      status: "plausible_ephemeral",
+      persistenceReason: "It is low-value and immediately consumed.",
+      advantageCategories: ["none"],
+      potentialConsequences: ["unpleasant taste", "minor contamination risk"],
+    },
+    {
+      text: "light pole",
+      concept: "generic municipal light pole",
+      role: "source",
+      status: "plausible_ephemeral",
+      persistenceReason: "It is incidental scenery and remains unchanged.",
+      advantageCategories: ["none"],
+      potentialConsequences: [],
+    },
+  ],
+  requiresSearch: false,
+  requiresClarification: false,
+  rationale: "Eating is the terminal intent and the asserted source is harmless texture.",
+};
+
+const gumPlan: WorldActionPlannerResult = {
+  primaryKind: "consume",
+  requiresClarification: false,
+  rationale: "The mundane asserted gum can support the immediate consume action.",
+  plan: {
+    originalCommand: "I eat gum off a light pole.",
+    exclusivePhysical: false,
+    steps: [
+      {
+        order: 1,
+        kind: "consume",
+        description: "Peel off and chew the old gum.",
+        intentPayload: {
+          rawText: "I eat gum off a light pole.",
+          requestedConcept: "old chewing gum",
+          sourceMode: "ephemeral_environmental",
+          environmentalAffordances: [
+            { concept: "old chewing gum", role: "object", status: "plausible_ephemeral" },
+            {
+              concept: "generic municipal light pole",
+              role: "source",
+              status: "plausible_ephemeral",
+            },
+          ],
+        },
+        referencedEntities: [{ entityId: actorId, role: "actor", expectedVersion: 2 }],
+      },
+    ],
+    dependencies: [],
+  },
+};
+
 describe("persistent world planner", () => {
-  it("requires travel to survive as an arrival dependency", () => {
-    const validated = validatePersistentWorldPlan(result, request);
+  it("preserves combat as terminal intent while travel remains a prerequisite", () => {
+    const validated = validatePersistentWorldPlan(result, request, combatAssessment);
+    expect(validated.primaryKind).toBe("combat");
+    expect(validated.plan?.steps[0]?.kind).toBe("move");
     expect(validated.plan?.dependencies[0]?.dependencyType).toBe("after_arrival");
     expect(validated.plan?.steps[1]?.kind).toBe("combat");
   });
@@ -111,6 +198,13 @@ describe("persistent world planner", () => {
       activePlanSummary: null,
       enabledHandlers: ["search"],
       gameMasterContext: gameMasterContext(command, roomId),
+    };
+    const observationAssessment: AffordanceAssessment = {
+      terminalIntent: "search",
+      premises: [],
+      requiresSearch: true,
+      requiresClarification: false,
+      rationale: "The player is observing the current location.",
     };
     const observationResult: WorldActionPlannerResult = {
       primaryKind: "search",
@@ -140,11 +234,35 @@ describe("persistent world planner", () => {
     };
 
     expect(
-      validatePersistentWorldPlan(observationResult, observationRequest).plan?.steps[0],
+      validatePersistentWorldPlan(
+        observationResult,
+        observationRequest,
+        observationAssessment,
+      ).plan?.steps[0],
     ).toMatchObject({
       kind: "search",
       intentPayload: { areaId: roomId },
     });
+  });
+
+  it("accepts ephemeral gum as consume without a search step", () => {
+    const validated = validatePersistentWorldPlan(gumPlan, gumRequest(), gumAssessment);
+    expect(validated.primaryKind).toBe("consume");
+    expect(validated.plan?.steps).toHaveLength(1);
+    expect(validated.plan?.steps[0]).toMatchObject({
+      kind: "consume",
+      intentPayload: { sourceMode: "ephemeral_environmental" },
+    });
+  });
+
+  it("rejects routing the gum command to search", () => {
+    expect(() =>
+      validatePersistentWorldPlan(
+        { ...gumPlan, primaryKind: "search" },
+        gumRequest(),
+        gumAssessment,
+      ),
+    ).toThrow(/terminal intent/i);
   });
 
   it("forbids invented persistent entity IDs in referenced entities", () => {
@@ -164,6 +282,7 @@ describe("persistent world planner", () => {
           },
         },
         request,
+        combatAssessment,
       ),
     ).toThrow(/absent from player-visible planner context/i);
   });
@@ -188,18 +307,37 @@ describe("persistent world planner", () => {
           },
         },
         request,
+        combatAssessment,
       ),
     ).toThrow(/absent from player-visible planner context/i);
   });
 
-  it("includes the constitution, scene, and recent turns in the prompt", () => {
-    const prompt = buildPersistentWorldPlannerPrompt(request);
+  it("includes the constitution, history, and affordance assessment in the prompt", () => {
+    const prompt = buildPersistentWorldPlannerPrompt(gumRequest(), gumAssessment);
     expect(prompt).toContain("NOCTURNE GAME CONSTITUTION");
+    expect(prompt).toContain("AFFORDANCE ASSESSMENT");
     expect(prompt).toContain("CURRENT SCENE");
     expect(prompt).toContain("RECENT TURNS");
     expect(prompt).toContain("The oatmeal was bland but filling");
-    expect(prompt).toContain("Do not decide outcomes");
-    expect(prompt).toContain("after_arrival");
-    expect(prompt).toContain("Discovery is separate from ownership");
+    expect(prompt).toContain("ephemeral_environmental");
+    expect(prompt).toContain("terminal intent");
+  });
+
+  it("uses a conservative assessment when the affordance provider fails", async () => {
+    const generateStructured = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("affordance provider failure"))
+      .mockResolvedValueOnce({
+        data: gumPlan,
+        requestedModel: "test-model",
+        actualModel: "test-model",
+      });
+
+    const planned = await planPersistentWorldAction({ generateStructured }, gumRequest());
+
+    expect(generateStructured).toHaveBeenCalledTimes(2);
+    expect(planned.affordanceSource).toBe("conservative_fallback");
+    expect(planned.affordanceAssessment.terminalIntent).toBe("consume");
+    expect(planned.data.primaryKind).toBe("consume");
   });
 });
