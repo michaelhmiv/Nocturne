@@ -6,6 +6,7 @@ export * from "./ai-provider.js";
 export * from "./consumable-analyzer.js";
 export * from "./content-normalizer.js";
 export * from "./conversation-adjudicator.js";
+export * from "./ephemeral-consumption.js";
 export * from "./game-constitution.js";
 export * from "./lazy-simulation-analyzer.js";
 export * from "./materialization-analyzer.js";
