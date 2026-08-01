@@ -2,6 +2,8 @@ export type AiTask =
   | "parse_intent"
   | "normalize_content"
   | "analyze_consumable"
+  | "analyze_ephemeral_consumption"
+  | "assess_affordances"
   | "propose_adjudication"
   | "plan_npc"
   | "summarize_memory"
@@ -32,6 +34,8 @@ const authoritativeTasks = new Set<AiTask>([
   "parse_intent",
   "normalize_content",
   "analyze_consumable",
+  "analyze_ephemeral_consumption",
+  "assess_affordances",
   "propose_adjudication",
   "plan_npc",
   "summarize_memory",
