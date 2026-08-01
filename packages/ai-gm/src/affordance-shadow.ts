@@ -1,7 +1,4 @@
-import type {
-  AffordanceAssessment,
-  AffordanceAssessmentRequest,
-} from "@nocturne/contracts";
+import type { AffordanceAssessment, AffordanceAssessmentRequest } from "@nocturne/contracts";
 import type { AiProviderClient } from "./ai-provider.js";
 import { assessEnvironmentalAffordances } from "./affordance-adjudicator.js";
 

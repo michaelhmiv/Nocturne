@@ -138,10 +138,7 @@ export function validateAffordanceAssessment(
   }
   for (const premise of parsed.premises) {
     const detected = detectedAdvantageCategories(`${premise.text} ${premise.concept}`);
-    if (
-      ["plausible_ephemeral", "scene_local"].includes(premise.status) &&
-      detected.length > 0
-    ) {
+    if (["plausible_ephemeral", "scene_local"].includes(premise.status) && detected.length > 0) {
       throw new Error(
         `High-impact premise cannot be improvised as ${premise.status}: ${detected.join(", ")}.`,
       );
