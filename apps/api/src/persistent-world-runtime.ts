@@ -3,6 +3,7 @@ import type { MaterializationAnalysisRequest, WorldActionKind } from "@nocturne/
 import type { AiProviderClient } from "@nocturne/ai-gm";
 import {
   createMaterializationStore,
+  createNarrativeMemoryStore,
   createPersistentPlanStore,
   createPersistentSceneStore,
   createReferenceResolutionStore,
@@ -34,7 +35,6 @@ export async function registerPersistentWorldRuntime(
     client: Pick<AiProviderClient, "generateStructured">;
     rollSecret: string | Buffer;
     resolveScope(request: FastifyRequest): Promise<WorldScope>;
-    listRecentPlayerSafeText(input: { scope: WorldScope; limit: number }): Promise<string[]>;
     loadReusableDefinitions(input: {
       scope: Pick<WorldScope, "worldId">;
       requestedConcept: string;
@@ -98,6 +98,7 @@ export async function registerPersistentWorldRuntime(
   const requests = createWorldActionRequestStore(dependencies.database);
   const steps = instrumentStepStore(createWorldActionStepStore(dependencies.database), telemetry);
   const materialization = createMaterializationStore(dependencies.database, executor);
+  const narrativeMemory = createNarrativeMemoryStore(dependencies.database);
   const search = createSearchDiscoveryService({
     client,
     context,
@@ -121,7 +122,8 @@ export async function registerPersistentWorldRuntime(
     plans,
     steps,
     handlers,
-    listRecentPlayerSafeText: dependencies.listRecentPlayerSafeText,
+    compileNarrativeContext: narrativeMemory.compile,
+    recordCompletedTurn: narrativeMemory.recordCompletedTurn,
     simulateReferencedEntity: dependencies.simulateReferencedEntity,
   });
   const scene = createPersistentSceneStore(dependencies.database);
