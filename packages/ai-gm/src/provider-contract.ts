@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  NOCTURNE_GAME_CONSTITUTION,
   createAiProviderClientFromEnv,
   planPersistentWorldAction,
   resolveAiProviderConfigFromEnv,
@@ -75,6 +76,22 @@ const planner = await planPersistentWorldAction(client, {
     "dialogue",
     "question",
   ],
+  gameMasterContext: {
+    constitution: NOCTURNE_GAME_CONSTITUTION,
+    currentCommand: "I look around.",
+    currentScene: {
+      locationId: areaId,
+      locationName: "Provider Contract Room",
+      locationDescription: "A deterministic room used for provider compatibility testing.",
+      summary: "The actor is standing in the room.",
+      unresolvedThreads: [],
+    },
+    recentTurns: [],
+    relevantMemories: [],
+    playerKnownFacts: [],
+    activePlan: null,
+    estimatedTokens: 256,
+  },
 });
 
 console.log(
