@@ -35,6 +35,8 @@ export async function registerPersistentWorldRuntime(
     client: Pick<AiProviderClient, "generateStructured">;
     rollSecret: string | Buffer;
     resolveScope(request: FastifyRequest): Promise<WorldScope>;
+    /** Compatibility input retained while narrative history moves into the database projection. */
+    listRecentPlayerSafeText?(input: { scope: WorldScope; limit: number }): Promise<string[]>;
     loadReusableDefinitions(input: {
       scope: Pick<WorldScope, "worldId">;
       requestedConcept: string;
