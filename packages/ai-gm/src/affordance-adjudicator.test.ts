@@ -157,9 +157,7 @@ describe("affordance and persistence adjudicator", () => {
   });
 
   it("falls back to consume and ephemeral texture for gum", () => {
-    const assessed = deriveConservativeAffordanceAssessment(
-      request("I eat gum off a light pole."),
-    );
+    const assessed = deriveConservativeAffordanceAssessment(request("I eat gum off a light pole."));
     expect(assessed.terminalIntent).toBe("consume");
     expect(assessed.requiresSearch).toBe(false);
     expect(assessed.premises).toEqual(

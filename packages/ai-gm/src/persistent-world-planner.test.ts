@@ -234,11 +234,8 @@ describe("persistent world planner", () => {
     };
 
     expect(
-      validatePersistentWorldPlan(
-        observationResult,
-        observationRequest,
-        observationAssessment,
-      ).plan?.steps[0],
+      validatePersistentWorldPlan(observationResult, observationRequest, observationAssessment).plan
+        ?.steps[0],
     ).toMatchObject({
       kind: "search",
       intentPayload: { areaId: roomId },
