@@ -1,0 +1,49 @@
+name: One-time improvisation formatting
+
+on:
+  push:
+    branches:
+      - feat/improvisational-affordances
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/improvisational-affordances
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: >-
+          pnpm exec prettier --write
+          packages/contracts/src/affordance.ts
+          packages/contracts/src/index.ts
+          packages/ai-gm/src/affordance-adjudicator.ts
+          packages/ai-gm/src/ephemeral-consumption-analyzer.ts
+          packages/ai-gm/src/game-constitution.ts
+          packages/ai-gm/src/game-constitution.test.ts
+          packages/ai-gm/src/index.ts
+          packages/ai-gm/src/model-policy.ts
+          packages/ai-gm/src/persistent-world-planner.ts
+          apps/api/src/ephemeral-consumption-service.ts
+          apps/api/src/persistent-world-runtime-env.ts
+      - name: Commit formatting
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add packages/contracts/src packages/ai-gm/src apps/api/src
+          git commit -m "style: format improvisational affordance implementation"
+          git push origin HEAD:feat/improvisational-affordances
