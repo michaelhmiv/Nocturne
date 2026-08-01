@@ -19,6 +19,7 @@ const expectedTasks = [
   "resolve_entity_references",
   "analyze_materialization",
   "analyze_search_discovery",
+  "assess_environmental_affordances",
   "plan_persistent_world_action",
   "simulate_entity_elapsed_time",
 ];
@@ -35,7 +36,14 @@ describe("shared game constitution", () => {
 
   it("requires every AI task to declare its context boundary", () => {
     expect(Object.keys(AI_TASK_CONTEXT_DECLARATIONS).sort()).toEqual(expectedTasks.sort());
-    expect(AI_TASK_CONTEXT_DECLARATIONS.plan_persistent_world_action).toBe("player_safe_context");
-    expect(AI_TASK_CONTEXT_DECLARATIONS.analyze_search_discovery).toBe("authoritative_context");
+    expect(AI_TASK_CONTEXT_DECLARATIONS.assess_environmental_affordances).toBe(
+      "player_safe_context",
+    );
+    expect(AI_TASK_CONTEXT_DECLARATIONS.plan_persistent_world_action).toBe(
+      "player_safe_context",
+    );
+    expect(AI_TASK_CONTEXT_DECLARATIONS.analyze_search_discovery).toBe(
+      "authoritative_context",
+    );
   });
 });
