@@ -3,6 +3,7 @@ import {
   AffordanceAssessmentSchema,
   type AffordanceAssessment,
   type AffordanceAssessmentRequest,
+  type WorldActionKind,
 } from "@nocturne/contracts";
 import { AiProviderClient, type StructuredGenerationResult } from "./ai-provider.js";
 import { buildGameConstitutionPrompt } from "./game-constitution.js";
@@ -91,7 +92,117 @@ const assessmentJsonSchema = {
 } as const;
 
 const protectedAdvantage =
-  /money|currency|weapon|ammunition|ammo|key|credential|access|vehicle|medicine|rare|valuable|named person|security|food stockpile|resource/i;
+  /money|currency|weapon|gun|rifle|pistol|ammunition|ammo|key|credential|access card|badge|vehicle|car|medicine|rare|valuable|named person|security|food stockpile|resource/i;
+const mundaneEphemeral =
+  /gum|dust|lint|pebble|rock|twig|napkin|paper bag|receipt|bottle cap|dead bug|bug|puddle|residue|wrapper|discarded cup|trash|dirt|mud|leaf|leaves/i;
+const incidentalFixture =
+  /light pole|lamp ?post|pole|wall|floor|ground|sidewalk|windowsill|shelf|curb|street fixture/i;
+
+function terminalIntent(command: string): WorldActionKind | null {
+  const text = command.toLowerCase();
+  if (/\b(eat|drink|consume|swallow|ingest|chew|taste|lick)\b/.test(text)) return "consume";
+  if (/\b(search|look for|find|hunt for|scan for|check for)\b/.test(text)) return "search";
+  if (/\b(walk|travel|go to|head to|move to|drive to)\b/.test(text)) return "move";
+  if (/\b(attack|punch|strike|fight|shoot|stab)\b/.test(text)) return "combat";
+  if (/\b(steal|take from|give|hand|buy|sell|trade|transfer)\b/.test(text)) return "transfer";
+  if (/\b(persuade|convince|threaten|bribe|befriend|follow me|come with me)\b/.test(text)) {
+    return "relationship";
+  }
+  if (/\b(ask|talk|say|tell|speak|chat)\b/.test(text)) return "dialogue";
+  if (/^(who|what|where|when|why|how|is|are|do|does|did|can|could|would|should)\b/.test(text.trim())) {
+    return "question";
+  }
+  if (/\b(kick|touch|push|pull|wear|pick up|throw|break|open|close|hide|craft|build|use)\b/.test(text)) {
+    return "interact";
+  }
+  return null;
+}
+
+function deterministicAssessment(
+  input: AffordanceAssessmentRequest,
+): AffordanceAssessment | null {
+  const intent = terminalIntent(input.command);
+  if (!intent || !input.enabledHandlers.includes(intent)) return null;
+  const text = input.command;
+  const lower = text.toLowerCase();
+  const premiseText = lower.replace(
+    /^.*?\b(?:eat|drink|consume|swallow|ingest|chew|taste|lick|search|look for|find|hunt for|scan for|check for)\b\s*/,
+    "",
+  );
+  const hasProtectedPremise = protectedAdvantage.test(premiseText);
+  const isMundane = mundaneEphemeral.test(premiseText);
+  const hasFixture = incidentalFixture.test(premiseText);
+  const explicitSearch = intent === "search";
+
+  if (intent === "consume" && (isMundane || hasFixture) && !hasProtectedPremise) {
+    const sourceMatch = premiseText.match(
+      /(?:off|from|on)\s+(?:an?\s+|the\s+)?(light pole|lamp ?post|pole|wall|floor|ground|sidewalk|windowsill|shelf|curb|street fixture)/i,
+    );
+    const concept = premiseText
+      .replace(/\s+(?:off|from|on)\s+(?:an?\s+|the\s+)?.*$/i, "")
+      .replace(/^(?:an?\s+|the\s+)/i, "")
+      .trim() || "mundane environmental substance";
+    const source = sourceMatch?.[1] || "the immediate environment";
+    return AffordanceAssessmentSchema.parse({
+      terminalIntent: "consume",
+      premises: [
+        {
+          text: concept,
+          concept,
+          role: "object",
+          status: "plausible_ephemeral",
+          persistenceReason:
+            "The asserted substance is mundane, low-value, immediately consumed, and has no continuing identity.",
+          potentialAdvantages: [],
+          potentialConsequences: ["unpleasant taste", "minor contamination risk"],
+        },
+        {
+          text: source,
+          concept: source,
+          role: "source",
+          status: "plausible_ephemeral",
+          persistenceReason:
+            "The generic environmental fixture only supports this immediate action and is not changed by it.",
+          potentialAdvantages: [],
+          potentialConsequences: [],
+        },
+      ],
+      requiresSearch: false,
+      requiresClarification: false,
+      rationale:
+        "The controlling verb is consumption; the mundane asserted object and generic source are harmless narrative affordances.",
+    });
+  }
+
+  if (hasProtectedPremise) {
+    return AffordanceAssessmentSchema.parse({
+      terminalIntent: intent,
+      premises: [
+        {
+          text: premiseText || text,
+          concept: premiseText || text,
+          role: "object",
+          status: "persistent_required",
+          persistenceReason:
+            "The premise could grant valuable, powerful, identity-bearing, or access-related advantage and requires authoritative support.",
+          potentialAdvantages: ["meaningful protected advantage"],
+          potentialConsequences: [],
+        },
+      ],
+      requiresSearch: explicitSearch,
+      requiresClarification: false,
+      rationale: "The terminal intent is clear, but the consequential premise cannot be accepted ephemerally.",
+    });
+  }
+
+  return AffordanceAssessmentSchema.parse({
+    terminalIntent: intent,
+    premises: [],
+    requiresSearch: explicitSearch,
+    requiresClarification: false,
+    rationale: "The command has a clear terminal action and no unsupported ephemeral premise was required.",
+  });
+}
 
 export function buildAffordanceAssessmentPrompt(input: AffordanceAssessmentRequest): string {
   const parsed = AffordanceAssessmentRequestSchema.parse(input);
@@ -158,6 +269,16 @@ export async function assessAffordances(
   input: AffordanceAssessmentRequest,
 ): Promise<StructuredGenerationResult<AffordanceAssessment>> {
   const parsedInput = AffordanceAssessmentRequestSchema.parse(input);
+  const deterministic = deterministicAssessment(parsedInput);
+  if (deterministic) {
+    return {
+      data: validateAffordanceAssessment(deterministic, parsedInput),
+      requestedModel: "deterministic-affordance-v1",
+      actualModel: "deterministic-affordance-v1",
+      attempts: 1,
+      latencyMs: 0,
+    };
+  }
   const result = await client.generateStructured(
     {
       task: "assess_affordances",
