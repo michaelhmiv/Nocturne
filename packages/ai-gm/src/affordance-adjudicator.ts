@@ -128,18 +128,32 @@ export function detectedAdvantageCategories(text: string) {
     .map(([, category]) => category);
 }
 
-function inferTerminalIntent(command: string, enabledHandlers: WorldActionKind[]): WorldActionKind {
-  const candidates: Array<[RegExp, WorldActionKind]> = [
-    [/\b(?:look for|search|find|scan|inspect for)\b/i, "search"],
-    [/\b(?:eat|drink|chew|swallow|lick|taste|consume)\b/i, "consume"],
-    [/\b(?:attack|punch|shoot|stab|fight|strike)\b/i, "combat"],
-    [/\b(?:walk|run|go|travel|drive|move to|head to)\b/i, "move"],
-    [/\b(?:give|hand|transfer|trade|steal|take possession)\b/i, "transfer"],
-    [/\b(?:befriend|follow|trust|adopt|recruit|accompany)\b/i, "relationship"],
-    [/\b(?:say|tell|speak|talk|shout|whisper)\b/i, "dialogue"],
-    [/^(?:who|what|where|when|why|how|is|are|can|do)\b|\?$/i, "question"],
-  ];
-  for (const [pattern, kind] of candidates) {
+const conservativeIntentSignals: Array<[RegExp, WorldActionKind]> = [
+  [
+    /\b(?:look for|search|find|scan|detect|observe|watch|inspect|check .*watching|hidden threats?)\b/i,
+    "search",
+  ],
+  [/\b(?:eat|drink|chew|swallow|lick|taste|consume|ingest)\b/i, "consume"],
+  [/\b(?:attack|punch|shoot|stab|fight|strike|hit|arrest|restrain .*custody)\b/i, "combat"],
+  [/\b(?:drive|take the car|walk|run|go|travel|move to|head to|head toward)\b/i, "move"],
+  [
+    /\b(?:bribe|persuade|convince|threaten|warn .*expose|befriend|follow|trust|adopt|recruit|accompany)\b/i,
+    "relationship",
+  ],
+  [/\b(?:steal|pickpocket|buy|purchase|sell|list .*for sale|give|hand|transfer|trade)\b/i, "transfer"],
+  [/\b(?:ask|talk|say|tell|speak|shout|whisper|conversation|bartender)\b/i, "dialogue"],
+  [/^(?:who|what|where|when|why|how|is|are|can|could|would|should|do|does|did)\b|\?$/i, "question"],
+  [
+    /\b(?:sneak|quietly|lockpick|pick the .*lock|hack|bandage|heal|treat .*injury|craft|build|disguise|forge|plant|hide|work|shift|delivery job|use|grab|kick|touch|open|close)\b/i,
+    "interact",
+  ],
+];
+
+export function inferConservativeTerminalIntent(
+  command: string,
+  enabledHandlers: WorldActionKind[],
+): WorldActionKind {
+  for (const [pattern, kind] of conservativeIntentSignals) {
     if (pattern.test(command) && enabledHandlers.includes(kind)) return kind;
   }
   return enabledHandlers.includes("interact") ? "interact" : enabledHandlers[0]!;
@@ -149,7 +163,7 @@ export function deriveConservativeAffordanceAssessment(
   input: AffordanceAssessmentRequest,
 ): AffordanceAssessment {
   const parsed = AffordanceAssessmentRequestSchema.parse(input);
-  const terminalIntent = inferTerminalIntent(parsed.command, parsed.enabledHandlers);
+  const terminalIntent = inferConservativeTerminalIntent(parsed.command, parsed.enabledHandlers);
   const advantages = detectedAdvantageCategories(parsed.command);
   const premises: AffordanceAssessment["premises"] = [];
 
