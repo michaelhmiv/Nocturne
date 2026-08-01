@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
   GameplayTelemetryEvent,
   GameplayTelemetryWriter,
@@ -87,6 +87,60 @@ describe("world action handler telemetry", () => {
       ]);
       expect(actionEvents.every((event) => event.traceId === `trace-${kind}`)).toBe(true);
     }
+  });
+
+  it("routes ephemeral environmental consumption without invoking the legacy action service", async () => {
+    const { events, writer } = collector();
+    const executeExistingAction = vi.fn();
+    const executeEphemeral = vi.fn().mockResolvedValue({
+      state: "completed" as const,
+      outcomeGrade: "complete_success",
+      eventId: randomUUID(),
+      narration: "You chew the old gum. It provides no nutrition.",
+    });
+    const handlers = createWorldActionHandlerRegistry({
+      telemetry: writer,
+      executeExistingAction,
+      ephemeralConsumption: { execute: executeEphemeral } as never,
+    });
+    const consumeInput = input("consume");
+    consumeInput.step.intentPayload = {
+      rawText: "I eat gum off a light pole.",
+      actionType: "consume",
+      requestedConcept: "old chewing gum",
+      sourceMode: "ephemeral_environmental",
+      environmentalAffordances: [
+        {
+          concept: "old chewing gum",
+          role: "object",
+          status: "plausible_ephemeral",
+        },
+        {
+          concept: "generic municipal light pole",
+          role: "source",
+          status: "plausible_ephemeral",
+        },
+      ],
+    };
+
+    const result = await runWithGameplayTrace("trace-ephemeral", () =>
+      handlers.consume!(consumeInput),
+    );
+
+    expect(result.state).toBe("completed");
+    expect(executeEphemeral).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rawText: "I eat gum off a light pole.",
+        payload: expect.objectContaining({ sourceMode: "ephemeral_environmental" }),
+      }),
+    );
+    expect(executeExistingAction).not.toHaveBeenCalled();
+    expect(events.map((event) => event.eventName)).toEqual([
+      "handler_started",
+      "handler_completed",
+      "resolution_committed",
+      "event_committed",
+    ]);
   });
 
   it("logs scheduled movement as waiting rather than failure", async () => {
