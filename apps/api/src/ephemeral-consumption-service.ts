@@ -66,7 +66,9 @@ export function createEphemeralConsumptionService(dependencies: {
         ? input.payload.sourceDescription.trim()
         : "";
     if (!concept || !sourceDescription) {
-      throw new Error("Ephemeral consumption requires a concept and incidental source description.");
+      throw new Error(
+        "Ephemeral consumption requires a concept and incidental source description.",
+      );
     }
 
     const actorRows = await dependencies.database.client<

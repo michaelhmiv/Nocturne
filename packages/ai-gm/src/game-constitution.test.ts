@@ -40,8 +40,6 @@ describe("shared game constitution", () => {
     expect(AI_TASK_CONTEXT_DECLARATIONS.plan_persistent_world_action).toBe("player_safe_context");
     expect(AI_TASK_CONTEXT_DECLARATIONS.analyze_search_discovery).toBe("authoritative_context");
     expect(AI_TASK_CONTEXT_DECLARATIONS.assess_affordances).toBe("player_safe_context");
-    expect(AI_TASK_CONTEXT_DECLARATIONS.analyze_ephemeral_consumption).toBe(
-      "player_safe_context",
-    );
+    expect(AI_TASK_CONTEXT_DECLARATIONS.analyze_ephemeral_consumption).toBe("player_safe_context");
   });
 });

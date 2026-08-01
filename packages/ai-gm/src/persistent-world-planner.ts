@@ -14,8 +14,7 @@ export const PERSISTENT_WORLD_PLANNER_POLICY_VERSION = "persistent-world-planner
 
 type PlannerRequest = z.infer<typeof WorldActionPlannerRequestSchema>;
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const persistentWorldPlannerJsonSchema = {
   name: "nocturne_persistent_world_action_plan",
@@ -160,14 +159,10 @@ function currentScene(input: PlannerRequest) {
     facts,
     (fact) => fact.entityId === input.actorId && fact.claim === "entity.location",
   );
-  const locationId = typeof locationValue === "string" && UUID_PATTERN.test(locationValue)
-    ? locationValue
-    : null;
+  const locationId =
+    typeof locationValue === "string" && UUID_PATTERN.test(locationValue) ? locationValue : null;
   const nameValue = locationId
-    ? factValue(
-        facts,
-        (fact) => fact.entityId === locationId && fact.claim === "entity.name",
-      )
+    ? factValue(facts, (fact) => fact.entityId === locationId && fact.claim === "entity.name")
     : undefined;
   const descriptionValue = locationId
     ? factValue(

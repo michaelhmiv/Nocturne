@@ -148,10 +148,7 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
   if (runtimeEnabled) {
     app.addHook("preHandler", async (request, reply) => {
       const path = request.url.split("?", 1)[0];
-      if (
-        request.method === "POST" &&
-        (path === "/v1/ai-jobs/actions" || path === "/v1/actions")
-      ) {
+      if (request.method === "POST" && (path === "/v1/ai-jobs/actions" || path === "/v1/actions")) {
         return reply.code(410).send({
           error: "legacy_action_route_disabled",
           message:
@@ -204,15 +201,13 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
           definition.updated_at DESC
         LIMIT 24
       `;
-      return rows.map(
-        (row): MaterializationAnalysisRequest["reusableDefinitions"][number] => ({
-          definitionId: row.definition_id,
-          definitionType: row.definition_type,
-          name: row.name,
-          conceptSummary: row.concept_summary,
-          currentPayload: row.current_payload || {},
-        }),
-      );
+      return rows.map((row): MaterializationAnalysisRequest["reusableDefinitions"][number] => ({
+        definitionId: row.definition_id,
+        definitionType: row.definition_type,
+        name: row.name,
+        conceptSummary: row.concept_summary,
+        currentPayload: row.current_payload || {},
+      }));
     },
     loadArea: async ({ scope, areaId }) => {
       const rows = await database.client<{ name: string; description: string }[]>`

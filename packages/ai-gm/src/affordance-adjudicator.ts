@@ -109,18 +109,20 @@ function terminalIntent(command: string): WorldActionKind | null {
     return "relationship";
   }
   if (/\b(ask|talk|say|tell|speak|chat)\b/.test(text)) return "dialogue";
-  if (/^(who|what|where|when|why|how|is|are|do|does|did|can|could|would|should)\b/.test(text.trim())) {
+  if (
+    /^(who|what|where|when|why|how|is|are|do|does|did|can|could|would|should)\b/.test(text.trim())
+  ) {
     return "question";
   }
-  if (/\b(kick|touch|push|pull|wear|pick up|throw|break|open|close|hide|craft|build|use)\b/.test(text)) {
+  if (
+    /\b(kick|touch|push|pull|wear|pick up|throw|break|open|close|hide|craft|build|use)\b/.test(text)
+  ) {
     return "interact";
   }
   return null;
 }
 
-function deterministicAssessment(
-  input: AffordanceAssessmentRequest,
-): AffordanceAssessment | null {
+function deterministicAssessment(input: AffordanceAssessmentRequest): AffordanceAssessment | null {
   const intent = terminalIntent(input.command);
   if (!intent || !input.enabledHandlers.includes(intent)) return null;
   const text = input.command;
@@ -138,10 +140,11 @@ function deterministicAssessment(
     const sourceMatch = premiseText.match(
       /(?:off|from|on)\s+(?:an?\s+|the\s+)?(light pole|lamp ?post|pole|wall|floor|ground|sidewalk|windowsill|shelf|curb|street fixture)/i,
     );
-    const concept = premiseText
-      .replace(/\s+(?:off|from|on)\s+(?:an?\s+|the\s+)?.*$/i, "")
-      .replace(/^(?:an?\s+|the\s+)/i, "")
-      .trim() || "mundane environmental substance";
+    const concept =
+      premiseText
+        .replace(/\s+(?:off|from|on)\s+(?:an?\s+|the\s+)?.*$/i, "")
+        .replace(/^(?:an?\s+|the\s+)/i, "")
+        .trim() || "mundane environmental substance";
     const source = sourceMatch?.[1] || "the immediate environment";
     return AffordanceAssessmentSchema.parse({
       terminalIntent: "consume",
@@ -191,7 +194,8 @@ function deterministicAssessment(
       ],
       requiresSearch: explicitSearch,
       requiresClarification: false,
-      rationale: "The terminal intent is clear, but the consequential premise cannot be accepted ephemerally.",
+      rationale:
+        "The terminal intent is clear, but the consequential premise cannot be accepted ephemerally.",
     });
   }
 
@@ -200,7 +204,8 @@ function deterministicAssessment(
     premises: [],
     requiresSearch: explicitSearch,
     requiresClarification: false,
-    rationale: "The command has a clear terminal action and no unsupported ephemeral premise was required.",
+    rationale:
+      "The command has a clear terminal action and no unsupported ephemeral premise was required.",
   });
 }
 
