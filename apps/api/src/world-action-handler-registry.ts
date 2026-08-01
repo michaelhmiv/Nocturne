@@ -4,11 +4,12 @@ import {
   hashIdempotencyKey,
   writeGameplayTelemetry,
 } from "./gameplay-telemetry.js";
-import type { SearchDiscoveryService } from "./search-discovery-service.js";
+import type { EphemeralConsumptionService } from "./ephemeral-consumption-service.js";
 import type {
   WorldActionStepHandler,
   WorldActionStepHandlerResult,
 } from "./persistent-world-action-service.js";
+import type { SearchDiscoveryService } from "./search-discovery-service.js";
 
 export class WorldActionHandlerRegistryError extends Error {
   constructor(
@@ -145,6 +146,7 @@ function instrumentHandler(
 export function createWorldActionHandlerRegistry(dependencies: {
   telemetry?: GameplayTelemetryWriter;
   search?: SearchDiscoveryService;
+  ephemeralConsumption?: EphemeralConsumptionService;
   scheduleMove?(input: {
     scope: Parameters<WorldActionStepHandler>[0]["scope"];
     requestId: string;
@@ -214,9 +216,43 @@ export function createWorldActionHandlerRegistry(dependencies: {
     };
   }
 
+  if (dependencies.executeExistingAction || dependencies.ephemeralConsumption) {
+    handlers.consume = async ({ scope, actorId, step }) => {
+      const rawText =
+        typeof step.intentPayload.rawText === "string"
+          ? step.intentPayload.rawText
+          : step.description;
+      if (
+        step.intentPayload.sourceMode === "ephemeral_environmental" &&
+        dependencies.ephemeralConsumption
+      ) {
+        return dependencies.ephemeralConsumption.execute({
+          scope,
+          actorId,
+          rawText,
+          idempotencyKey: step.idempotencyKey,
+          payload: step.intentPayload,
+        });
+      }
+      if (!dependencies.executeExistingAction) {
+        throw new WorldActionHandlerRegistryError(
+          "unsupported_handler",
+          "No persistent consumption handler is configured.",
+        );
+      }
+      return dependencies.executeExistingAction({
+        kind: "consume",
+        scope,
+        actorId,
+        rawText,
+        idempotencyKey: step.idempotencyKey,
+        payload: step.intentPayload,
+      });
+    };
+  }
+
   if (dependencies.executeExistingAction) {
     for (const kind of [
-      "consume",
       "relationship",
       "combat",
       "transfer",
