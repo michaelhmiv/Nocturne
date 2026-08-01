@@ -75,9 +75,7 @@ export function createNarrativeMemoryStore(database: ReturnType<typeof createDat
     const recentTurnLimit = bounded(input.recentTurnLimit ?? 8, 1, 12);
     const memoryLimit = bounded(input.memoryLimit ?? 16, 1, 32);
 
-    const summaryRows = await database.client<
-      { summary: string; unresolved_threads: unknown }[]
-    >`
+    const summaryRows = await database.client<{ summary: string; unresolved_threads: unknown }[]>`
       SELECT summary, unresolved_threads
       FROM game.scene_summaries
       WHERE world_id = ${input.scope.worldId}
@@ -89,7 +87,9 @@ export function createNarrativeMemoryStore(database: ReturnType<typeof createDat
     `;
     const summary = summaryRows[0];
     const unresolvedThreads = Array.isArray(summary?.unresolved_threads)
-      ? summary.unresolved_threads.filter((value): value is string => typeof value === "string").slice(0, 24)
+      ? summary.unresolved_threads
+          .filter((value): value is string => typeof value === "string")
+          .slice(0, 24)
       : [];
     const currentScene = SceneContextSchema.parse({
       locationId: location?.location_id ?? null,
@@ -239,7 +239,9 @@ export function createNarrativeMemoryStore(database: ReturnType<typeof createDat
         ON CONFLICT DO NOTHING
       `;
     }
-    const mentionedEntityIds = [...new Set([input.viewpointId, ...(input.mentionedEntityIds || [])])];
+    const mentionedEntityIds = [
+      ...new Set([input.viewpointId, ...(input.mentionedEntityIds || [])]),
+    ];
     for (const entityId of mentionedEntityIds) {
       await database.client`
         INSERT INTO game.memory_mentions (memory_id, entity_id)
