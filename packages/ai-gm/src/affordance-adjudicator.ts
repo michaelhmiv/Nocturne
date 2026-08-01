@@ -4,11 +4,12 @@ import {
   type AffordanceAssessment,
   type AffordanceAssessmentRequest,
   type AffordanceAdvantageCategory,
+  type WorldActionKind,
 } from "@nocturne/contracts";
 import { AiProviderClient, type StructuredGenerationResult } from "./ai-provider.js";
 import { buildGameConstitutionPrompt } from "./game-constitution.js";
 
-export const AFFORDANCE_ASSESSMENT_POLICY_VERSION = "affordance-assessment-v1";
+export const AFFORDANCE_ASSESSMENT_POLICY_VERSION = "affordance-assessment-v2";
 
 const assessmentJsonSchema = {
   name: "nocturne_environmental_affordance_assessment",
@@ -121,10 +122,85 @@ const highImpactSignals: Array<[RegExp, AffordanceAdvantageCategory]> = [
   [/\b(?:diamond|jewelry|valuable artifact|priceless|expensive watch)\b/i, "high_value_item"],
 ];
 
-function detectedAdvantageCategories(text: string) {
+export function detectedAdvantageCategories(text: string) {
   return highImpactSignals
     .filter(([pattern]) => pattern.test(text))
     .map(([, category]) => category);
+}
+
+function inferTerminalIntent(command: string, enabledHandlers: WorldActionKind[]): WorldActionKind {
+  const candidates: Array<[RegExp, WorldActionKind]> = [
+    [/\b(?:look for|search|find|scan|inspect for)\b/i, "search"],
+    [/\b(?:eat|drink|chew|swallow|lick|taste|consume)\b/i, "consume"],
+    [/\b(?:attack|punch|shoot|stab|fight|strike)\b/i, "combat"],
+    [/\b(?:walk|run|go|travel|drive|move to|head to)\b/i, "move"],
+    [/\b(?:give|hand|transfer|trade|steal|take possession)\b/i, "transfer"],
+    [/\b(?:befriend|follow|trust|adopt|recruit|accompany)\b/i, "relationship"],
+    [/\b(?:say|tell|speak|talk|shout|whisper)\b/i, "dialogue"],
+    [/^(?:who|what|where|when|why|how|is|are|can|do)\b|\?$/i, "question"],
+  ];
+  for (const [pattern, kind] of candidates) {
+    if (pattern.test(command) && enabledHandlers.includes(kind)) return kind;
+  }
+  return enabledHandlers.includes("interact") ? "interact" : enabledHandlers[0]!;
+}
+
+export function deriveConservativeAffordanceAssessment(
+  input: AffordanceAssessmentRequest,
+): AffordanceAssessment {
+  const parsed = AffordanceAssessmentRequestSchema.parse(input);
+  const terminalIntent = inferTerminalIntent(parsed.command, parsed.enabledHandlers);
+  const advantages = detectedAdvantageCategories(parsed.command);
+  const premises: AffordanceAssessment["premises"] = [];
+
+  if (/\bgum\b/i.test(parsed.command)) {
+    premises.push({
+      text: "gum",
+      concept: "old chewing gum",
+      role: "object",
+      status: advantages.length ? "persistent_required" : "plausible_ephemeral",
+      persistenceReason: advantages.length
+        ? "The premise could grant an advantage and requires authority."
+        : "The low-value detail is consumed immediately and has no durable identity.",
+      advantageCategories: advantages.length ? advantages : ["none"],
+      potentialConsequences: ["unpleasant taste", "minor contamination risk"],
+    });
+  }
+  if (/\b(?:light pole|lamp post|lamppost)\b/i.test(parsed.command)) {
+    premises.push({
+      text: "light pole",
+      concept: "generic municipal light pole",
+      role: "source",
+      status: advantages.length ? "persistent_required" : "plausible_ephemeral",
+      persistenceReason: advantages.length
+        ? "The asserted source is tied to an advantage-bearing premise."
+        : "The fixture is incidental scenery and is not changed by the action.",
+      advantageCategories: advantages.length ? advantages : ["none"],
+      potentialConsequences: [],
+    });
+  }
+  if (advantages.length && premises.length === 0) {
+    premises.push({
+      text: parsed.command,
+      concept: "advantage-bearing asserted premise",
+      role: "object",
+      status: "persistent_required",
+      persistenceReason: "High-impact or identity-bearing details require authoritative support.",
+      advantageCategories: advantages,
+      potentialConsequences: ["unauthorized advantage if accepted without authority"],
+    });
+  }
+
+  return AffordanceAssessmentSchema.parse({
+    terminalIntent,
+    premises,
+    requiresSearch: terminalIntent === "search" || advantages.length > 0,
+    requiresClarification: false,
+    rationale:
+      advantages.length > 0
+        ? "Conservative fallback requires authoritative support for the asserted advantage."
+        : "Conservative fallback preserves the terminal verb and permits only low-impact texture.",
+  });
 }
 
 export function validateAffordanceAssessment(
@@ -206,4 +282,25 @@ export async function assessEnvironmentalAffordances(
     ...result,
     data: validateAffordanceAssessment(result.data, parsedInput),
   };
+}
+
+export async function assessEnvironmentalAffordancesResilient(
+  client: Pick<AiProviderClient, "generateStructured">,
+  input: AffordanceAssessmentRequest,
+): Promise<{
+  assessment: AffordanceAssessment;
+  source: "provider" | "conservative_fallback";
+  providerResult?: StructuredGenerationResult<AffordanceAssessment>;
+  providerError?: string;
+}> {
+  try {
+    const providerResult = await assessEnvironmentalAffordances(client, input);
+    return { assessment: providerResult.data, source: "provider", providerResult };
+  } catch (error) {
+    return {
+      assessment: deriveConservativeAffordanceAssessment(input),
+      source: "conservative_fallback",
+      providerError: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
