@@ -1,0 +1,47 @@
+name: One-time ephemeral consumption formatting
+
+on:
+  push:
+    branches:
+      - feat/ephemeral-environmental-resolution
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/ephemeral-environmental-resolution
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: >-
+          pnpm exec prettier --write
+          packages/contracts/src/consumption.ts
+          packages/ai-gm/src/consumable-analyzer.ts
+          packages/ai-gm/src/ephemeral-consumption.ts
+          packages/ai-gm/src/ephemeral-consumption.test.ts
+          packages/ai-gm/src/index.ts
+          apps/api/src/ephemeral-consumption-service.ts
+          apps/api/src/persistent-world-runtime.ts
+          apps/api/src/world-action-handler-registry.ts
+          apps/api/src/world-action-handler-registry.test.ts
+      - name: Commit formatting
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add packages/contracts/src/consumption.ts packages/ai-gm/src/consumable-analyzer.ts packages/ai-gm/src/ephemeral-consumption.ts packages/ai-gm/src/ephemeral-consumption.test.ts packages/ai-gm/src/index.ts apps/api/src/ephemeral-consumption-service.ts apps/api/src/persistent-world-runtime.ts apps/api/src/world-action-handler-registry.ts apps/api/src/world-action-handler-registry.test.ts
+          git commit -m "style: format ephemeral consumption implementation"
+          git push origin HEAD:feat/ephemeral-environmental-resolution
