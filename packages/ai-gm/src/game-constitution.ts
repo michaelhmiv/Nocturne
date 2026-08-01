@@ -46,6 +46,8 @@ export const AI_TASK_CONTEXT_DECLARATIONS = {
   parse_intent: "player_safe_context",
   normalize_content: "constitution_only",
   analyze_consumable: "player_safe_context",
+  analyze_ephemeral_consumption: "player_safe_context",
+  assess_affordances: "player_safe_context",
   propose_adjudication: "authoritative_context",
   plan_npc: "authoritative_context",
   summarize_memory: "authoritative_context",
