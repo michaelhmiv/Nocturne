@@ -1,0 +1,31 @@
+name: One-time format artifact
+
+on:
+  push:
+    branches:
+      - feat/gm-context-constitution
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prettier --write packages/ai-gm/src/game-constitution.ts packages/ai-gm/src/game-constitution.test.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: formatted-gm-context
+          path: |
+            packages/ai-gm/src/game-constitution.ts
+            packages/ai-gm/src/game-constitution.test.ts
