@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import type { MaterializationAnalysisRequest, WorldActionKind } from "@nocturne/contracts";
 import type { AiProviderClient } from "@nocturne/ai-gm";
+import type { MaterializationAnalysisRequest, WorldActionKind } from "@nocturne/contracts";
 import {
   createMaterializationStore,
   createNarrativeMemoryStore,
@@ -15,6 +15,7 @@ import {
   type WorldScope,
   type createDatabase,
 } from "@nocturne/database";
+import { createEphemeralConsumptionService } from "./ephemeral-consumption-service.js";
 import { createGameplayTelemetryWriter } from "./gameplay-telemetry.js";
 import {
   instrumentAiClient,
@@ -101,6 +102,12 @@ export async function registerPersistentWorldRuntime(
   const steps = instrumentStepStore(createWorldActionStepStore(dependencies.database), telemetry);
   const materialization = createMaterializationStore(dependencies.database, executor);
   const narrativeMemory = createNarrativeMemoryStore(dependencies.database);
+  const ephemeralConsumption = createEphemeralConsumptionService({
+    database: dependencies.database,
+    client,
+    rollSecret: dependencies.rollSecret,
+    logger: app.log,
+  });
   const search = createSearchDiscoveryService({
     client,
     context,
@@ -113,6 +120,7 @@ export async function registerPersistentWorldRuntime(
   const handlers = createWorldActionHandlerRegistry({
     telemetry,
     search,
+    ephemeralConsumption,
     scheduleMove: dependencies.scheduleMove,
     executeExistingAction: dependencies.executeExistingAction,
   });
