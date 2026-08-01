@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { PersistentActionPlanProposalSchema, PersistentActionPlanSchema } from "./action-plans.js";
+import { GameMasterContextSchema } from "./game-master-context.js";
 
 const UuidSchema = z.string().uuid();
 const TextSchema = z.string().trim().min(1).max(4_000);
@@ -25,6 +26,7 @@ export const WorldActionPlannerRequestSchema = z
     resolvedEntityIds: z.array(UuidSchema).max(32),
     activePlanSummary: z.record(z.string(), z.unknown()).nullable(),
     enabledHandlers: z.array(WorldActionKindSchema).min(1),
+    gameMasterContext: GameMasterContextSchema,
   })
   .strict();
 export type WorldActionPlannerRequest = z.infer<typeof WorldActionPlannerRequestSchema>;

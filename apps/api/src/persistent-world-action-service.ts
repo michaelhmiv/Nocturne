@@ -1,17 +1,22 @@
 import {
+  GameMasterContextSchema,
   WorldActionPlayerSafeResultSchema,
   WorldActionPlannerRequestSchema,
+  type GameMasterContext,
   type PersistentActionPlan,
   type RelevanceCompiledContext,
   type WorldActionKind,
   type WorldActionPlayerSafeResult,
 } from "@nocturne/contracts";
 import {
+  NOCTURNE_GAME_CONSTITUTION,
+  estimateGameMasterContextTokens,
   interpretEntityReferences,
   planPersistentWorldAction,
   type AiProviderClient,
 } from "@nocturne/ai-gm";
 import type {
+  NarrativeContextProjection,
   PersistentPlanStore,
   ReferenceResolutionStore,
   RelevanceContextStore,
@@ -81,13 +86,6 @@ type WorldActionRequestStoreLike = {
     inputSummary?: Record<string, unknown>;
     outputSummary?: Record<string, unknown>;
   }): Promise<void>;
-  get(input: { scope: Pick<WorldScope, "worldId">; requestId: string }): Promise<{
-    request_id: string;
-    status: string;
-    plan_id: string | null;
-    player_safe_result: WorldActionPlayerSafeResult | null;
-    error_code: string | null;
-  }>;
 };
 
 type WorldActionStepStoreLike = {
@@ -132,6 +130,27 @@ function planNarration(plan: PersistentActionPlan) {
   return active ? active.description : "The action plan is ready to continue.";
 }
 
+function buildGameMasterContext(input: {
+  command: string;
+  context: RelevanceCompiledContext;
+  narrative: NarrativeContextProjection;
+  activePlan: PersistentActionPlan | null;
+}): GameMasterContext {
+  const withoutTokens: Omit<GameMasterContext, "estimatedTokens"> = {
+    constitution: NOCTURNE_GAME_CONSTITUTION,
+    currentCommand: input.command,
+    currentScene: input.narrative.currentScene,
+    recentTurns: input.narrative.recentTurns,
+    relevantMemories: input.narrative.relevantMemories,
+    playerKnownFacts: input.context.playerKnownFacts,
+    activePlan: input.activePlan,
+  };
+  return GameMasterContextSchema.parse({
+    ...withoutTokens,
+    estimatedTokens: estimateGameMasterContextTokens(withoutTokens),
+  });
+}
+
 export function createPersistentWorldActionService(dependencies: {
   client: Pick<AiProviderClient, "generateStructured">;
   requests: WorldActionRequestStoreLike;
@@ -140,7 +159,19 @@ export function createPersistentWorldActionService(dependencies: {
   plans: PersistentPlanStore;
   steps: WorldActionStepStoreLike;
   handlers: Partial<Record<WorldActionKind, WorldActionStepHandler>>;
-  listRecentPlayerSafeText(input: { scope: WorldScope; limit: number }): Promise<string[]>;
+  compileNarrativeContext(input: {
+    scope: WorldScope;
+    viewpointId: string;
+    command: string;
+  }): Promise<NarrativeContextProjection>;
+  recordCompletedTurn?(input: {
+    scope: WorldScope;
+    viewpointId: string;
+    requestId: string;
+    narration: string;
+    eventIds: string[];
+    mentionedEntityIds?: string[];
+  }): Promise<unknown>;
   simulateReferencedEntity?(input: {
     scope: WorldScope;
     entityId: string;
@@ -192,11 +223,12 @@ export function createPersistentWorldActionService(dependencies: {
       if (!started) {
         const plan = await dependencies.plans.read({ scope: input.scope, planId: input.planId });
         if (plan.status === "completed") {
+          const narration = narrations.join(" ") || planNarration(plan);
           const result = WorldActionPlayerSafeResultSchema.parse({
             state: "completed",
             requestId: input.requestId,
             plan,
-            narration: narrations.join(" ") || planNarration(plan),
+            narration,
             eventIds,
           });
           await dependencies.requests.transition({
@@ -208,6 +240,16 @@ export function createPersistentWorldActionService(dependencies: {
             authoritativeResult: { eventIds },
             playerSafeResult: result,
           });
+          await dependencies
+            .recordCompletedTurn?.({
+              scope: input.scope,
+              viewpointId: input.actorId,
+              requestId: input.requestId,
+              narration,
+              eventIds,
+              mentionedEntityIds: input.context.entities.map(({ entityId }) => entityId),
+            })
+            .catch(() => {});
           return result;
         }
         const result = WorldActionPlayerSafeResultSchema.parse({
@@ -393,6 +435,11 @@ export function createPersistentWorldActionService(dependencies: {
         viewpointId: input.actorId,
         command: input.command,
       });
+      let narrative = await dependencies.compileNarrativeContext({
+        scope: input.scope,
+        viewpointId: input.actorId,
+        command: input.command,
+      });
       await dependencies.requests.stage({
         requestId: reservation.requestId,
         order: 1,
@@ -401,6 +448,8 @@ export function createPersistentWorldActionService(dependencies: {
         outputSummary: {
           compilationId: context.compilationId,
           factCount: context.playerKnownFacts.length + context.authoritativeHiddenFacts.length,
+          recentTurnCount: narrative.recentTurns.length,
+          memoryCount: narrative.relevantMemories.length,
         },
       });
       await dependencies.requests.transition({
@@ -417,10 +466,9 @@ export function createPersistentWorldActionService(dependencies: {
         viewpointId: input.actorId,
         context,
       });
-      const recentPlayerSafeText = await dependencies.listRecentPlayerSafeText({
-        scope: input.scope,
-        limit: 20,
-      });
+      const recentPlayerSafeText = narrative.recentTurns
+        .flatMap((turn) => [turn.command, turn.playerSafeResult])
+        .slice(-20);
       const interpreted = await interpretEntityReferences(dependencies.client, {
         command: input.command,
         viewpointId: input.actorId,
@@ -467,6 +515,11 @@ export function createPersistentWorldActionService(dependencies: {
           command: input.command,
           explicitEntityIds: resolvedEntityIds,
         });
+        narrative = await dependencies.compileNarrativeContext({
+          scope: input.scope,
+          viewpointId: input.actorId,
+          command: input.command,
+        });
       }
 
       await dependencies.requests.transition({
@@ -484,6 +537,12 @@ export function createPersistentWorldActionService(dependencies: {
       const activePlanSummary = activePlanId
         ? await dependencies.plans.read({ scope: input.scope, planId: activePlanId })
         : null;
+      const gameMasterContext = buildGameMasterContext({
+        command: input.command,
+        context,
+        narrative,
+        activePlan: activePlanSummary,
+      });
       const plannerInput = WorldActionPlannerRequestSchema.parse({
         command: input.command,
         actorId: input.actorId,
@@ -491,6 +550,7 @@ export function createPersistentWorldActionService(dependencies: {
         resolvedEntityIds,
         activePlanSummary,
         enabledHandlers,
+        gameMasterContext,
       });
       const planned = await planPersistentWorldAction(dependencies.client, plannerInput);
       if (planned.data.requiresClarification) {
@@ -504,7 +564,10 @@ export function createPersistentWorldActionService(dependencies: {
           requestId: reservation.requestId,
           expectedStatus: currentStatus,
           status: "waiting_for_clarification",
-          authoritativeResult: { plannerRationale: planned.data.rationale },
+          authoritativeResult: {
+            plannerRationale: planned.data.rationale,
+            gameMasterContextTokens: gameMasterContext.estimatedTokens,
+          },
           playerSafeResult: result,
         });
         return result;
@@ -531,6 +594,9 @@ export function createPersistentWorldActionService(dependencies: {
         authoritativeResult: {
           plannerRationale: planned.data.rationale,
           contextCompilationId: context.compilationId,
+          gameMasterContextTokens: gameMasterContext.estimatedTokens,
+          recentTurnCount: gameMasterContext.recentTurns.length,
+          memoryCount: gameMasterContext.relevantMemories.length,
         },
       });
       currentStatus = "executing";
