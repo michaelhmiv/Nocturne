@@ -137,7 +137,7 @@ const conservativeIntentSignals: Array<[RegExp, WorldActionKind]> = [
   [/\b(?:attack|punch|shoot|stab|fight|strike|hit|arrest|restrain .*custody)\b/i, "combat"],
   [/\b(?:drive|take the car|walk|run|go|travel|move to|head to|head toward)\b/i, "move"],
   [
-    /\b(?:bribe|persuade|convince|threaten|warn .*expose|befriend|follow|trust|adopt|recruit|accompany)\b/i,
+    /\b(?:bribe|offer .*money|pay .*look the other way|persuade|convince|threaten|warn .*expose|befriend|follow|trust|adopt|recruit|accompany)\b/i,
     "relationship",
   ],
   [
