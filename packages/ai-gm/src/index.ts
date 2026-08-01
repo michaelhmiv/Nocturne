@@ -1,5 +1,7 @@
 export * from "./action-adjudicator.js";
 export * from "./action-planner.js";
+export * from "./affordance-adjudicator.js";
+export * from "./affordance-shadow.js";
 export * from "./ai-provider.js";
 export * from "./consumable-analyzer.js";
 export * from "./content-normalizer.js";
