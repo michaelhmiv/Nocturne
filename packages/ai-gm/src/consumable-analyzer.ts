@@ -365,7 +365,8 @@ export function deriveEphemeralConsumableFallback(
   const candidate = parsedInput.candidates.find(
     ({ sourceType }) => sourceType === "ephemeral_environment",
   );
-  if (!candidate) throw new Error("Ephemeral consumption fallback requires an ephemeral candidate.");
+  if (!candidate)
+    throw new Error("Ephemeral consumption fallback requires an ephemeral candidate.");
   const dirty = /\b(?:old|discarded|street|pole|wall|floor|dirty|stale|used|trash|garbage)\b/i.test(
     `${parsedInput.rawText} ${candidate.name} ${candidate.description}`,
   );

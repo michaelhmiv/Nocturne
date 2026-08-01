@@ -15,11 +15,7 @@ import {
   type ConsumableAnalysis,
   type ConsumptionMechanicsResult,
 } from "@nocturne/contracts";
-import {
-  serializeJson as json,
-  type WorldScope,
-  type createDatabase,
-} from "@nocturne/database";
+import { serializeJson as json, type WorldScope, type createDatabase } from "@nocturne/database";
 import { resolveConsumptionMechanics } from "@nocturne/rules-engine";
 
 export class EphemeralConsumptionError extends Error {
@@ -81,13 +77,11 @@ function parseAffordances(payload: Record<string, unknown>) {
         typeof value.role === "string" &&
         ["plausible_ephemeral", "scene_local"].includes(String(value.status)),
     )
-    .map(
-      (value): EnvironmentalAffordance => ({
-        concept: String(value.concept).trim().slice(0, 500),
-        role: String(value.role).trim().slice(0, 100),
-        status: value.status as EnvironmentalAffordance["status"],
-      }),
-    )
+    .map((value): EnvironmentalAffordance => ({
+      concept: String(value.concept).trim().slice(0, 500),
+      role: String(value.role).trim().slice(0, 100),
+      status: value.status as EnvironmentalAffordance["status"],
+    }))
     .filter(({ concept }) => concept.length > 0)
     .slice(0, 16);
   if (!affordances.length) {

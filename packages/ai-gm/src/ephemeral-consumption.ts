@@ -210,7 +210,7 @@ export function deterministicEphemeralNarration(input: {
   if (/\bgum\b/i.test(`${input.rawText} ${input.displayName}`)) {
     return risk
       ? "You peel the weathered gum from the pole and chew it. It tastes like exhausted mint and municipal neglect, and your stomach immediately questions the decision. You gain no nutrition whatsoever."
-      : "You peel the weathered gum from the pole and chew it. It stretches farther than dignity should allow before giving way to a flavor best described as old mint and public infrastructure. You gain no nutrition whatsoever."
+      : "You peel the weathered gum from the pole and chew it. It stretches farther than dignity should allow before giving way to a flavor best described as old mint and public infrastructure. You gain no nutrition whatsoever.";
   }
   return risk
     ? `You go through with it and consume ${input.displayName}. It provides no meaningful nourishment, and the committed consequence arrives quickly.`
