@@ -7,6 +7,7 @@ import type {
 import { NOCTURNE_GAME_CONSTITUTION } from "./game-constitution.js";
 import {
   buildAffordanceAssessmentPrompt,
+  deriveConservativeAffordanceAssessment,
   validateAffordanceAssessment,
 } from "./affordance-adjudicator.js";
 
@@ -153,6 +154,46 @@ describe("affordance and persistence adjudicator", () => {
         request("I use the mayor's master key hidden under the pole."),
       ),
     ).toThrow();
+  });
+
+  it("falls back to consume and ephemeral texture for gum", () => {
+    const assessed = deriveConservativeAffordanceAssessment(
+      request("I eat gum off a light pole."),
+    );
+    expect(assessed.terminalIntent).toBe("consume");
+    expect(assessed.requiresSearch).toBe(false);
+    expect(assessed.premises).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ concept: "old chewing gum", status: "plausible_ephemeral" }),
+        expect.objectContaining({
+          concept: "generic municipal light pole",
+          status: "plausible_ephemeral",
+        }),
+      ]),
+    );
+  });
+
+  it("falls back to persistent authority for a loaded rifle", () => {
+    const assessed = deriveConservativeAffordanceAssessment(
+      request("I grab the loaded rifle leaning against the pole."),
+    );
+    expect(assessed.terminalIntent).toBe("interact");
+    expect(assessed.requiresSearch).toBe(true);
+    expect(assessed.premises[0]).toMatchObject({
+      status: "persistent_required",
+      advantageCategories: expect.arrayContaining(["weapon"]),
+    });
+  });
+
+  it("falls back to persistent authority for a master key", () => {
+    const assessed = deriveConservativeAffordanceAssessment(
+      request("I use the mayor's master key hidden under the pole."),
+    );
+    expect(assessed.requiresSearch).toBe(true);
+    expect(assessed.premises[0]).toMatchObject({
+      status: "persistent_required",
+      advantageCategories: expect.arrayContaining(["key", "named_person"]),
+    });
   });
 
   it("makes the terminal-intent and persistence rules explicit in the prompt", () => {
