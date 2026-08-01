@@ -140,7 +140,10 @@ const conservativeIntentSignals: Array<[RegExp, WorldActionKind]> = [
     /\b(?:bribe|persuade|convince|threaten|warn .*expose|befriend|follow|trust|adopt|recruit|accompany)\b/i,
     "relationship",
   ],
-  [/\b(?:steal|pickpocket|buy|purchase|sell|list .*for sale|give|hand|transfer|trade)\b/i, "transfer"],
+  [
+    /\b(?:steal|pickpocket|buy|purchase|sell|list .*for sale|give|hand|transfer|trade)\b/i,
+    "transfer",
+  ],
   [/\b(?:ask|talk|say|tell|speak|shout|whisper|conversation|bartender)\b/i, "dialogue"],
   [/^(?:who|what|where|when|why|how|is|are|can|could|would|should|do|does|did)\b|\?$/i, "question"],
   [
