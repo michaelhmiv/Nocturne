@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { deriveSemanticActionFrame, isRoutineSelfDirectedAction } from "./semantic-action-frame.js";
+import {
+  deriveSemanticActionFrame,
+  isRoutineSelfDirectedAction,
+} from "./semantic-action-frame.js";
 
 function context(actorId: string, targetId?: string) {
   return {
@@ -97,5 +100,18 @@ describe("semantic action frame", () => {
     expect(frame.quantity).toBe(100);
     expect(frame.demands.physicalEffort).toBeGreaterThan(2);
     expect(isRoutineSelfDirectedAction(frame)).toBe(false);
+  });
+
+  it("accepts minimal legacy test context without an entity collection", () => {
+    const actorId = randomUUID();
+    const frame = deriveSemanticActionFrame({
+      kind: "consume",
+      actorId,
+      rawText: "Drink water",
+      payload: { rawText: "Drink water" },
+      context: {} as never,
+    });
+    expect(frame.actorId).toBe(actorId);
+    expect(frame.targetIds).toEqual([]);
   });
 });
