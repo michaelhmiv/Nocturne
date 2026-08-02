@@ -6,6 +6,7 @@ import {
   type PlayerVisibleEffect,
 } from "@nocturne/contracts";
 import type { createDatabase } from "./index.js";
+import { toIsoTimestamp } from "./timestamp.js";
 import type { WorldScope } from "./world-store.js";
 
 const object = (value: unknown): Record<string, unknown> =>
@@ -289,7 +290,12 @@ export function createPlayerEffectStore(database: ReturnType<typeof createDataba
 
     const limit = Math.max(1, Math.min(input.limit ?? 50, 200));
     const rows = await database.client<
-      { event_id: string; event_type: string; world_time: Date; payload: Record<string, unknown> }[]
+      {
+        event_id: string;
+        event_type: string;
+        world_time: Date | string;
+        payload: Record<string, unknown>;
+      }[]
     >`
       SELECT event_id, event_type, world_time, payload
       FROM game.event_ledger
@@ -307,7 +313,7 @@ export function createPlayerEffectStore(database: ReturnType<typeof createDataba
           eventId: row.event_id,
           actorId: input.actorId,
           eventType: row.event_type,
-          occurredAt: row.world_time.toISOString(),
+          occurredAt: toIsoTimestamp(row.world_time, "event_ledger.world_time"),
           payload: object(row.payload),
         }),
       ),
