@@ -48,19 +48,46 @@ function numberValue(payload: Record<string, unknown>, key: string) {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-function collectUuidValues(value: unknown, values = new Set<string>()) {
+type ReferenceBuckets = {
+  targets: Set<string>;
+  objects: Set<string>;
+  tools: Set<string>;
+  unclassified: Set<string>;
+};
+
+function referenceBucket(key: string) {
+  const normalized = key.replace(/[^a-z0-9]/gi, "").toLowerCase();
+  if (/(?:tool|method|weapon|instrument)/.test(normalized)) return "tools" as const;
+  if (/(?:object|item|asset|vehicle|device|equipment|source)/.test(normalized)) {
+    return "objects" as const;
+  }
+  if (
+    /(?:target|recipient|subject|opponent|person|npc|character|holder|possessor)/.test(normalized)
+  ) {
+    return "targets" as const;
+  }
+  return "unclassified" as const;
+}
+
+function collectReferenceIds(
+  value: unknown,
+  buckets: ReferenceBuckets,
+  key = "",
+): ReferenceBuckets {
   if (typeof value === "string") {
-    if (uuidPattern.test(value)) values.add(value);
-    return values;
+    if (uuidPattern.test(value)) buckets[referenceBucket(key)].add(value);
+    return buckets;
   }
   if (Array.isArray(value)) {
-    for (const item of value) collectUuidValues(item, values);
-    return values;
+    for (const item of value) collectReferenceIds(item, buckets, key);
+    return buckets;
   }
   if (value && typeof value === "object") {
-    for (const nested of Object.values(value)) collectUuidValues(nested, values);
+    for (const [nestedKey, nested] of Object.entries(value)) {
+      collectReferenceIds(nested, buckets, nestedKey);
+    }
   }
-  return values;
+  return buckets;
 }
 
 function normalizedActionType(
@@ -130,17 +157,39 @@ export function deriveSemanticActionFrame(input: {
     return supplied.data;
   }
 
-  const referencedIds = collectUuidValues(input.resolvedReferences || {});
-  for (const id of collectUuidValues(payload)) referencedIds.add(id);
-  referencedIds.delete(input.actorId);
-  const visibleIds = new Set((input.context?.entities ?? []).map(({ entityId }) => entityId));
-  const targetIds = [...referencedIds].filter((id) => visibleIds.size === 0 || visibleIds.has(id));
+  const buckets: ReferenceBuckets = {
+    targets: new Set(),
+    objects: new Set(),
+    tools: new Set(),
+    unclassified: new Set(),
+  };
+  collectReferenceIds(input.resolvedReferences || {}, buckets);
+  collectReferenceIds(payload, buckets);
+  for (const bucket of Object.values(buckets)) bucket.delete(input.actorId);
+
+  const contextById = new Map(
+    (input.context?.entities ?? []).map((entity) => [entity.entityId, entity]),
+  );
+  for (const id of buckets.unclassified) {
+    const definitionType = contextById.get(id)?.definitionType.toLowerCase() || "";
+    if (/(?:item|object|device|vehicle|equipment|weapon|tool)/.test(definitionType)) {
+      buckets.objects.add(id);
+    } else if (/(?:character|npc|person|creature)/.test(definitionType)) {
+      buckets.targets.add(id);
+    }
+  }
+  const visible = (id: string) => contextById.size === 0 || contextById.has(id);
+  const targetIds = [...buckets.targets].filter(visible);
+  const objectIds = [...buckets.objects].filter(visible);
+  const toolIds = [...buckets.tools].filter(visible);
+
   const routineSelfDirected = routineSelfDirectedPatterns.some((pattern) =>
     pattern.test(input.rawText),
   );
-  const kindImpliesOpposition = ["combat", "relationship", "transfer"].includes(input.kind);
-  const opposed = Boolean(payload.opposed) || kindImpliesOpposition || targetIds.length > 0;
-  const selfDirected = routineSelfDirected && targetIds.length === 0;
+  const kindImpliesOpposition = ["combat", "relationship"].includes(input.kind);
+  const transferResistance = input.kind === "transfer" && illegalPattern.test(input.rawText);
+  const opposed = Boolean(payload.opposed) || kindImpliesOpposition || transferResistance;
+  const selfDirected = routineSelfDirected && targetIds.length === 0 && objectIds.length === 0;
   const durationSeconds =
     numberValue(payload, "durationSeconds") || durationFromText(input.rawText);
   const quantity = numberValue(payload, "quantity") || quantityFromText(input.rawText);
@@ -160,8 +209,8 @@ export function deriveSemanticActionFrame(input: {
       firstString(payload, ["objective", "desiredOutcome"]) || objectiveFromRawText(input.rawText),
     actorId: input.actorId,
     targetIds,
-    objectIds: [],
-    toolIds: [],
+    objectIds,
+    toolIds,
     ...(locationId ? { locationId } : {}),
     ...(quantity ? { quantity } : {}),
     ...(durationSeconds ? { durationSeconds } : {}),

@@ -64,34 +64,36 @@ export function evaluateActionAffordance(
   }
 
   const entityById = new Map(entities.map((entity) => [entity.entityId, entity]));
-  const missingTargets = frame.targetIds.filter((id) => !entityById.has(id));
-  if (missingTargets.length > 0) {
+  const referencedIds = [...frame.targetIds, ...frame.objectIds, ...frame.toolIds];
+  const missingReferences = referencedIds.filter((id) => !entityById.has(id));
+  if (missingReferences.length > 0) {
     return result(frame, context, {
       status: "clarification_required",
       rationale:
-        "At least one referenced target is not established in the relevant authoritative context.",
-      missingRequirements: missingTargets.map((id) => `resolvable target ${id}`),
+        "At least one referenced entity is not established in the relevant authoritative context.",
+      missingRequirements: missingReferences.map((id) => `resolvable entity ${id}`),
       warnings: [],
     });
   }
 
   const remotelyActionable = frame.properties.movement || frame.properties.social;
-  const unreachableTargets = frame.targetIds
+  const physicallyReferencedIds = [...frame.targetIds, ...frame.objectIds];
+  const unreachableEntities = physicallyReferencedIds
     .map((id) => entityById.get(id))
-    .filter((target) => Boolean(target))
+    .filter((entity) => Boolean(entity))
     .filter(
-      (target) =>
+      (entity) =>
         !remotelyActionable &&
         actor.locationId !== null &&
-        target!.locationId !== null &&
-        actor.locationId !== target!.locationId,
+        entity!.locationId !== null &&
+        actor.locationId !== entity!.locationId,
     );
-  if (unreachableTargets.length > 0) {
+  if (unreachableEntities.length > 0) {
     return result(frame, context, {
       status: "blocked",
       rationale:
-        "The requested target is not reachable from the actor's authoritative current location.",
-      missingRequirements: unreachableTargets.map((target) => `reach ${target!.name}`),
+        "A referenced entity is not reachable from the actor's authoritative current location.",
+      missingRequirements: unreachableEntities.map((entity) => `reach ${entity!.name}`),
       warnings: [],
     });
   }
@@ -137,7 +139,7 @@ export function evaluateActionAffordance(
   return result(frame, context, {
     status: "feasible",
     rationale:
-      "The actor, relevant targets, location, and required controlled tools satisfy current affordance checks.",
+      "The actor, relevant entities, location, and required controlled tools satisfy current affordance checks.",
     missingRequirements: [],
     warnings: [
       ...(frame.properties.destructive ? ["The action may permanently damage world state."] : []),

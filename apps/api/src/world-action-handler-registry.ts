@@ -1,6 +1,7 @@
 import type {
   ActionResolutionDecision,
   GameplayTelemetryWriter,
+  RelevanceCompiledContext,
   SemanticActionFrame,
   WorldActionKind,
 } from "@nocturne/contracts";
@@ -44,6 +45,15 @@ const stableErrorCode = (error: unknown) =>
   typeof (error as { code?: unknown }).code === "string"
     ? String((error as { code: string }).code)
     : "handler_failed";
+
+const semanticExecutionModes = new Set<ActionResolutionDecision["mode"]>([
+  "automatic_success",
+  "automatic_failure",
+  "unopposed_check",
+  "opposed_contest",
+  "transaction",
+  "conversation",
+]);
 
 function instrumentHandler(
   kind: WorldActionKind,
@@ -171,6 +181,16 @@ export function createWorldActionHandlerRegistry(dependencies: {
     frame: SemanticActionFrame;
     resolution: ActionResolutionDecision;
   }): Promise<WorldActionStepHandlerResult>;
+  executeSemanticAction?(input: {
+    scope: Parameters<WorldActionStepHandler>[0]["scope"];
+    actorId: string;
+    planId: string;
+    stepId: string;
+    idempotencyKey: string;
+    frame: SemanticActionFrame;
+    resolution: ActionResolutionDecision;
+    context: RelevanceCompiledContext;
+  }): Promise<WorldActionStepHandlerResult>;
   executeExistingAction?(input: {
     kind: Exclude<WorldActionKind, "search" | "move">;
     scope: Parameters<WorldActionStepHandler>[0]["scope"];
@@ -230,7 +250,7 @@ export function createWorldActionHandlerRegistry(dependencies: {
     };
   }
 
-  if (dependencies.executeExistingAction) {
+  if (dependencies.executeExistingAction || dependencies.executeSemanticAction) {
     for (const kind of [
       "consume",
       "relationship",
@@ -293,7 +313,29 @@ export function createWorldActionHandlerRegistry(dependencies: {
             resolution,
           });
         }
-        return dependencies.executeExistingAction!({
+        if (
+          kind !== "consume" &&
+          dependencies.executeSemanticAction &&
+          semanticExecutionModes.has(resolution.mode)
+        ) {
+          return dependencies.executeSemanticAction({
+            scope,
+            actorId,
+            planId,
+            stepId: step.stepId,
+            idempotencyKey: step.idempotencyKey,
+            frame,
+            resolution,
+            context,
+          });
+        }
+        if (!dependencies.executeExistingAction) {
+          throw new WorldActionHandlerRegistryError(
+            "unsupported_handler",
+            `No executor is configured for ${kind}:${resolution.mode}.`,
+          );
+        }
+        return dependencies.executeExistingAction({
           kind,
           scope,
           actorId,
