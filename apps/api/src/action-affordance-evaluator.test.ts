@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import type { RelevanceCompiledContext, SemanticActionFrame } from "@nocturne/contracts";
+import type {
+  RelevanceCompiledContext,
+  SemanticActionFrame,
+} from "@nocturne/contracts";
 import { evaluateActionAffordance } from "./action-affordance-evaluator.js";
 
 function context(input: {
@@ -11,7 +14,8 @@ function context(input: {
   targetLocation?: string | null;
   facts?: string[];
 }): RelevanceCompiledContext {
-  const actorLocation = input.actorLocation === undefined ? randomUUID() : input.actorLocation;
+  const actorLocation =
+    input.actorLocation === undefined ? randomUUID() : input.actorLocation;
   return {
     compilationId: randomUUID(),
     policyVersion: "test-v1",
@@ -40,7 +44,10 @@ function context(input: {
               definitionId: "target",
               name: "Cabinet",
               definitionType: "object",
-              locationId: input.targetLocation === undefined ? actorLocation : input.targetLocation,
+              locationId:
+                input.targetLocation === undefined
+                  ? actorLocation
+                  : input.targetLocation,
               condition: 100,
               lifecycleStatus: "active",
               version: 1,
@@ -57,7 +64,10 @@ function context(input: {
       claim,
       value: true,
       visibility: "player_known" as const,
-      provenance: { kind: "character_state" as const, sourceId: input.actorId },
+      provenance: {
+        kind: "character_state" as const,
+        sourceId: input.actorId,
+      },
       relevanceScore: 100 - index,
       inclusionReasons: ["safety_critical" as const],
     })),
@@ -67,7 +77,10 @@ function context(input: {
   };
 }
 
-function frame(actorId: string, overrides: Partial<SemanticActionFrame> = {}): SemanticActionFrame {
+function frame(
+  actorId: string,
+  overrides: Partial<SemanticActionFrame> = {},
+): SemanticActionFrame {
   return {
     kind: "interact",
     actionType: "exercise",
@@ -101,7 +114,9 @@ function frame(actorId: string, overrides: Partial<SemanticActionFrame> = {}): S
 describe("action affordance evaluator", () => {
   it("allows an ordinary self-directed action", () => {
     const actorId = randomUUID();
-    expect(evaluateActionAffordance(frame(actorId), context({ actorId })).status).toBe("feasible");
+    expect(
+      evaluateActionAffordance(frame(actorId), context({ actorId })).status,
+    ).toBe("feasible");
   });
 
   it("blocks an incapacitated actor", () => {
@@ -163,7 +178,10 @@ describe("action affordance evaluator", () => {
     );
     expect(evaluation.status).toBe("feasible");
     expect(evaluation.warnings).toEqual(
-      expect.arrayContaining([expect.stringMatching(/damage/i), expect.stringMatching(/danger/i)]),
+      expect.arrayContaining([
+        expect.stringMatching(/damage/i),
+        expect.stringMatching(/danger/i),
+      ]),
     );
   });
 });
