@@ -87,8 +87,9 @@ describe("world action handler telemetry", () => {
         "mutation_receipt_committed",
       ]);
       expect(actionEvents.every((event) => event.traceId === `trace-${kind}`)).toBe(true);
-      expect(actionEvents.find((event) => event.eventName === "resolution_mode_selected")?.details)
-        .toMatchObject({ meaningfulUncertainty: expect.any(Boolean) });
+      expect(
+        actionEvents.find((event) => event.eventName === "resolution_mode_selected")?.details,
+      ).toMatchObject({ meaningfulUncertainty: expect.any(Boolean) });
     }
   });
 
