@@ -42,10 +42,7 @@ function ResourceMeter({
   resource: PlayerDashboard["character"]["resources"][number];
 }) {
   const span = Math.max(1, resource.maximum - resource.minimum);
-  const percent = Math.max(
-    0,
-    Math.min(100, ((resource.value - resource.minimum) / span) * 100),
-  );
+  const percent = Math.max(0, Math.min(100, ((resource.value - resource.minimum) / span) * 100));
   return (
     <div className="dashboard-resource">
       <div>
@@ -141,7 +138,9 @@ export default function PlayerDashboardClient() {
         <div className="player-dashboard__hero-status">
           <span>{scene.location.name}</span>
           <strong>{character.condition}/100 condition</strong>
-          <span>{money(character.cashOnPerson)} · Heat {character.heat}</span>
+          <span>
+            {money(character.cashOnPerson)} · Heat {character.heat}
+          </span>
           <button disabled={refreshing} type="button" onClick={() => void load(true)}>
             {refreshing ? "Refreshing…" : "Refresh"}
           </button>
@@ -174,11 +173,26 @@ export default function PlayerDashboardClient() {
               <span>condition</span>
             </div>
             <dl className="dashboard-stat-list">
-              <div><dt>Status</dt><dd>{label(character.status)}</dd></div>
-              <div><dt>Lifecycle</dt><dd>{label(character.lifecycleStatus)}</dd></div>
-              <div><dt>Cash</dt><dd>{money(character.cashOnPerson)}</dd></div>
-              <div><dt>Heat</dt><dd>{character.heat}</dd></div>
-              <div><dt>Warrant</dt><dd>{character.warrant ? "Active" : "None"}</dd></div>
+              <div>
+                <dt>Status</dt>
+                <dd>{label(character.status)}</dd>
+              </div>
+              <div>
+                <dt>Lifecycle</dt>
+                <dd>{label(character.lifecycleStatus)}</dd>
+              </div>
+              <div>
+                <dt>Cash</dt>
+                <dd>{money(character.cashOnPerson)}</dd>
+              </div>
+              <div>
+                <dt>Heat</dt>
+                <dd>{character.heat}</dd>
+              </div>
+              <div>
+                <dt>Warrant</dt>
+                <dd>{character.warrant ? "Active" : "None"}</dd>
+              </div>
             </dl>
           </section>
 
@@ -202,7 +216,9 @@ export default function PlayerDashboardClient() {
                 <article className="dashboard-condition" key={condition.key}>
                   <strong>{condition.name}</strong>
                   <span>Intensity {condition.intensity}</span>
-                  {condition.expiresAt && <time dateTime={condition.expiresAt}>Until {when(condition.expiresAt)}</time>}
+                  {condition.expiresAt && (
+                    <time dateTime={condition.expiresAt}>Until {when(condition.expiresAt)}</time>
+                  )}
                   {condition.rationale && <p>{condition.rationale}</p>}
                 </article>
               ))
@@ -225,7 +241,10 @@ export default function PlayerDashboardClient() {
                       <span>{step.order}</span>
                       <div>
                         <strong>{step.description}</strong>
-                        <small>{label(step.status)}{step.outcomeGrade ? ` · ${label(step.outcomeGrade)}` : ""}</small>
+                        <small>
+                          {label(step.status)}
+                          {step.outcomeGrade ? ` · ${label(step.outcomeGrade)}` : ""}
+                        </small>
                         {step.waitingReason && <p>{step.waitingReason}</p>}
                       </div>
                     </li>
@@ -258,8 +277,15 @@ export default function PlayerDashboardClient() {
               <div className="dashboard-history-list">
                 {recentChanges.map((event) => (
                   <article key={event.eventId}>
-                    <div><strong>{event.summary}</strong><time dateTime={event.occurredAt}>{when(event.occurredAt)}</time></div>
-                    <ul>{event.effects.map((effect, index) => <li key={`${event.eventId}:${index}`}>{effectText(effect)}</li>)}</ul>
+                    <div>
+                      <strong>{event.summary}</strong>
+                      <time dateTime={event.occurredAt}>{when(event.occurredAt)}</time>
+                    </div>
+                    <ul>
+                      {event.effects.map((effect, index) => (
+                        <li key={`${event.eventId}:${index}`}>{effectText(effect)}</li>
+                      ))}
+                    </ul>
                   </article>
                 ))}
               </div>
@@ -277,38 +303,76 @@ export default function PlayerDashboardClient() {
             <h2>{character.name}</h2>
             <p>{character.conceptSummary}</p>
             <dl className="dashboard-stat-list dashboard-stat-list--columns">
-              <div><dt>Entity version</dt><dd>{character.version}</dd></div>
-              <div><dt>Simulation version</dt><dd>{character.simulationVersion}</dd></div>
-              <div><dt>Definition</dt><dd>{character.definitionId}</dd></div>
-              <div><dt>Character ID</dt><dd>{character.characterId}</dd></div>
+              <div>
+                <dt>Entity version</dt>
+                <dd>{character.version}</dd>
+              </div>
+              <div>
+                <dt>Simulation version</dt>
+                <dd>{character.simulationVersion}</dd>
+              </div>
+              <div>
+                <dt>Definition</dt>
+                <dd>{character.definitionId}</dd>
+              </div>
+              <div>
+                <dt>Character ID</dt>
+                <dd>{character.characterId}</dd>
+              </div>
             </dl>
           </section>
           <section className="player-dashboard__card">
             <p className="player-dashboard__eyebrow">SKILLS</p>
-            {Object.keys(character.skills).length ? Object.entries(character.skills).map(([skill, value]) => (
-              <div className="dashboard-value-row" key={skill}><span>{label(skill)}</span><strong>{value}</strong></div>
-            )) : <Empty>No skills recorded.</Empty>}
+            {Object.keys(character.skills).length ? (
+              Object.entries(character.skills).map(([skill, value]) => (
+                <div className="dashboard-value-row" key={skill}>
+                  <span>{label(skill)}</span>
+                  <strong>{value}</strong>
+                </div>
+              ))
+            ) : (
+              <Empty>No skills recorded.</Empty>
+            )}
           </section>
           <section className="player-dashboard__card">
             <p className="player-dashboard__eyebrow">FACTION STANDING</p>
-            {Object.keys(character.factionStanding).length ? Object.entries(character.factionStanding).map(([faction, value]) => (
-              <div className="dashboard-value-row" key={faction}><span>{label(faction)}</span><strong>{signed(value)}</strong></div>
-            )) : <Empty>No faction standing recorded.</Empty>}
+            {Object.keys(character.factionStanding).length ? (
+              Object.entries(character.factionStanding).map(([faction, value]) => (
+                <div className="dashboard-value-row" key={faction}>
+                  <span>{label(faction)}</span>
+                  <strong>{signed(value)}</strong>
+                </div>
+              ))
+            ) : (
+              <Empty>No faction standing recorded.</Empty>
+            )}
           </section>
           <section className="player-dashboard__card player-dashboard__card--wide">
             <p className="player-dashboard__eyebrow">RESOURCE HISTORY</p>
-            {dashboard.resourceHistory.length ? dashboard.resourceHistory.map((history) => (
-              <details className="dashboard-resource-history" key={history.resource}>
-                <summary>{history.label} · {history.points.length} changes</summary>
-                {history.points.slice().reverse().map((point) => (
-                  <div key={`${history.resource}:${point.eventId}`}>
-                    <span>{point.summary}</span>
-                    <strong>{signed(point.delta)}{point.after === null ? "" : ` → ${point.after}`}</strong>
-                    <time dateTime={point.occurredAt}>{when(point.occurredAt)}</time>
-                  </div>
-                ))}
-              </details>
-            )) : <Empty>No resource history yet.</Empty>}
+            {dashboard.resourceHistory.length ? (
+              dashboard.resourceHistory.map((history) => (
+                <details className="dashboard-resource-history" key={history.resource}>
+                  <summary>
+                    {history.label} · {history.points.length} changes
+                  </summary>
+                  {history.points
+                    .slice()
+                    .reverse()
+                    .map((point) => (
+                      <div key={`${history.resource}:${point.eventId}`}>
+                        <span>{point.summary}</span>
+                        <strong>
+                          {signed(point.delta)}
+                          {point.after === null ? "" : ` → ${point.after}`}
+                        </strong>
+                        <time dateTime={point.occurredAt}>{when(point.occurredAt)}</time>
+                      </div>
+                    ))}
+                </details>
+              ))
+            ) : (
+              <Empty>No resource history yet.</Empty>
+            )}
           </section>
         </div>
       )}
@@ -321,25 +385,43 @@ export default function PlayerDashboardClient() {
               <div className="dashboard-inventory-grid">
                 {character.inventory.map((item, index) => (
                   <article key={item.instanceId || `${item.title}:${index}`}>
-                    <div><strong>{item.title}</strong>{item.equipped && <span>Equipped</span>}</div>
+                    <div>
+                      <strong>{item.title}</strong>
+                      {item.equipped && <span>Equipped</span>}
+                    </div>
                     <dl>
-                      <div><dt>Quantity</dt><dd>{item.quantity ?? "—"}</dd></div>
-                      <div><dt>Condition</dt><dd>{item.condition ?? "—"}</dd></div>
+                      <div>
+                        <dt>Quantity</dt>
+                        <dd>{item.quantity ?? "—"}</dd>
+                      </div>
+                      <div>
+                        <dt>Condition</dt>
+                        <dd>{item.condition ?? "—"}</dd>
+                      </div>
                     </dl>
                     {item.instanceId && <small>{item.instanceId}</small>}
                   </article>
                 ))}
               </div>
-            ) : <Empty>Your carried inventory is empty.</Empty>}
+            ) : (
+              <Empty>Your carried inventory is empty.</Empty>
+            )}
           </section>
           <section className="player-dashboard__card">
             <p className="player-dashboard__eyebrow">ACCOMPANYING / CARRIED ENTITIES</p>
-            {scene.accompanyingEntities.length ? scene.accompanyingEntities.map((entity) => (
-              <article className="dashboard-entity-row" key={entity.entityId}>
-                <strong>{entity.name}</strong><span>{label(entity.presence)}</span>
-                <small>{entity.relationshipLabels.map(label).join(" · ") || entity.definitionType}</small>
-              </article>
-            )) : <Empty>No accompanying entities.</Empty>}
+            {scene.accompanyingEntities.length ? (
+              scene.accompanyingEntities.map((entity) => (
+                <article className="dashboard-entity-row" key={entity.entityId}>
+                  <strong>{entity.name}</strong>
+                  <span>{label(entity.presence)}</span>
+                  <small>
+                    {entity.relationshipLabels.map(label).join(" · ") || entity.definitionType}
+                  </small>
+                </article>
+              ))
+            ) : (
+              <Empty>No accompanying entities.</Empty>
+            )}
           </section>
         </div>
       )}
@@ -350,53 +432,101 @@ export default function PlayerDashboardClient() {
             <p className="player-dashboard__eyebrow">LOCATION</p>
             <h2>{scene.location.name}</h2>
             <div className="dashboard-location-path">
-              {scene.location.hierarchy.map((location) => <span key={location.locationId}>{location.name}</span>)}
+              {scene.location.hierarchy.map((location) => (
+                <span key={location.locationId}>{location.name}</span>
+              ))}
             </div>
             {scene.location.locationId && <small>{scene.location.locationId}</small>}
           </section>
           <section className="player-dashboard__card">
             <p className="player-dashboard__eyebrow">NEARBY</p>
-            {scene.nearbyEntities.length ? scene.nearbyEntities.map((entity) => (
-              <article className="dashboard-entity-row" key={entity.entityId}>
-                <strong>{entity.name}</strong><span>{label(entity.lifecycleStatus)}</span>
-                <small>{entity.relationshipLabels.map(label).join(" · ") || label(entity.definitionType)}</small>
-              </article>
-            )) : <Empty>No known entities are immediately nearby.</Empty>}
+            {scene.nearbyEntities.length ? (
+              scene.nearbyEntities.map((entity) => (
+                <article className="dashboard-entity-row" key={entity.entityId}>
+                  <strong>{entity.name}</strong>
+                  <span>{label(entity.lifecycleStatus)}</span>
+                  <small>
+                    {entity.relationshipLabels.map(label).join(" · ") ||
+                      label(entity.definitionType)}
+                  </small>
+                </article>
+              ))
+            ) : (
+              <Empty>No known entities are immediately nearby.</Empty>
+            )}
           </section>
           <section className="player-dashboard__card">
             <p className="player-dashboard__eyebrow">KNOWN ELSEWHERE</p>
-            {scene.knownEntities.length ? scene.knownEntities.map((entity) => (
-              <article className="dashboard-entity-row" key={entity.entityId}>
-                <strong>{entity.name}</strong><span>{entity.locationName || "Location unknown"}</span>
-                <small>Last observed {entity.lastObservedAt ? when(entity.lastObservedAt) : "unknown"}</small>
-              </article>
-            )) : <Empty>No persistent entities are known elsewhere.</Empty>}
+            {scene.knownEntities.length ? (
+              scene.knownEntities.map((entity) => (
+                <article className="dashboard-entity-row" key={entity.entityId}>
+                  <strong>{entity.name}</strong>
+                  <span>{entity.locationName || "Location unknown"}</span>
+                  <small>
+                    Last observed {entity.lastObservedAt ? when(entity.lastObservedAt) : "unknown"}
+                  </small>
+                </article>
+              ))
+            ) : (
+              <Empty>No persistent entities are known elsewhere.</Empty>
+            )}
           </section>
           <section className="player-dashboard__card player-dashboard__card--wide">
             <p className="player-dashboard__eyebrow">RECENT WORLD EVENTS</p>
-            {scene.recentEvents.length ? scene.recentEvents.map((event) => (
-              <article className="dashboard-world-event" key={event.eventId}>
-                <div><strong>{event.summary}</strong><span>{label(event.eventType)}</span></div>
-                <time dateTime={event.occurredAt}>{when(event.occurredAt)}</time>
-              </article>
-            )) : <Empty>No recent committed events.</Empty>}
+            {scene.recentEvents.length ? (
+              scene.recentEvents.map((event) => (
+                <article className="dashboard-world-event" key={event.eventId}>
+                  <div>
+                    <strong>{event.summary}</strong>
+                    <span>{label(event.eventType)}</span>
+                  </div>
+                  <time dateTime={event.occurredAt}>{when(event.occurredAt)}</time>
+                </article>
+              ))
+            ) : (
+              <Empty>No recent committed events.</Empty>
+            )}
           </section>
         </div>
       )}
 
       {tab === "history" && (
         <section className="player-dashboard__history">
-          <header><div><p className="player-dashboard__eyebrow">EVENT HISTORY</p><h2>{dashboard.effects.events.length} committed events</h2></div><span>Newest first</span></header>
-          {dashboard.effects.events.length ? dashboard.effects.events.map((event) => (
-            <article key={event.eventId}>
-              <div className="player-dashboard__history-meta">
-                <div><strong>{event.summary}</strong><span>{label(event.eventType)}</span></div>
-                <time dateTime={event.occurredAt}>{when(event.occurredAt)}</time>
-              </div>
-              {event.effects.length ? <ul>{event.effects.map((effect, index) => <li key={`${event.eventId}:${index}`}>{effectText(effect)}</li>)}</ul> : <p>No normalized mechanical effects were exposed for this event.</p>}
-              <details><summary>Event identifiers</summary><code>{event.eventId}</code></details>
-            </article>
-          )) : <Empty>No committed events are available.</Empty>}
+          <header>
+            <div>
+              <p className="player-dashboard__eyebrow">EVENT HISTORY</p>
+              <h2>{dashboard.effects.events.length} committed events</h2>
+            </div>
+            <span>Newest first</span>
+          </header>
+          {dashboard.effects.events.length ? (
+            dashboard.effects.events.map((event) => (
+              <article key={event.eventId}>
+                <div className="player-dashboard__history-meta">
+                  <div>
+                    <strong>{event.summary}</strong>
+                    <span>{label(event.eventType)}</span>
+                  </div>
+                  <time dateTime={event.occurredAt}>{when(event.occurredAt)}</time>
+                </div>
+                {event.effects.length ? (
+                  <ul>
+                    {event.effects.map((effect, index) => (
+                      <li key={`${event.eventId}:${index}`}>{effectText(effect)}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>No normalized mechanical effects were exposed for this event.</p>
+                )}
+                <details>
+                  <summary>Event identifiers</summary>
+                  <code>{event.eventId}</code>
+                </details>
+              </article>
+            ))
+          ) : (
+            <Empty>No committed events are available.</Empty>
+          )}
         </section>
       )}
     </main>

@@ -58,9 +58,7 @@ describe("dashboard effect consistency", () => {
         heat: 0,
         warrant: false,
         status: "active",
-        resources: [
-          { key: "satiety", label: "Satiety", value: 12, minimum: -100, maximum: 100 },
-        ],
+        resources: [{ key: "satiety", label: "Satiety", value: 12, minimum: -100, maximum: 100 }],
         activeConditions: [],
         skills: {},
         factionStanding: {},

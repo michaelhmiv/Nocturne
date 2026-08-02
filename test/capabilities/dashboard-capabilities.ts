@@ -1,9 +1,7 @@
 import type { SystemCapability } from "./system-capabilities.js";
 
 export type DashboardCapabilityName =
-  | "player_effect_projection"
-  | "player_dashboard"
-  | "operator_world_inspector";
+  "player_effect_projection" | "player_dashboard" | "operator_world_inspector";
 
 export interface DashboardCapability extends SystemCapability {
   requiredEndpoints: readonly [string, ...string[]];

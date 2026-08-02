@@ -25,7 +25,9 @@ const text = (value: unknown, fallback: string) =>
 
 const uuid = (value: unknown): string | null => {
   const candidate = typeof value === "string" ? value.trim() : "";
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidate)
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    candidate,
+  )
     ? candidate
     : null;
 };
@@ -47,9 +49,7 @@ const semanticKey = (value: unknown, fallback: string) => {
 };
 
 const label = (key: string) =>
-  key
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (character) => character.toUpperCase());
+  key.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
 
 const numericRecord = (value: unknown) =>
   Object.fromEntries(
