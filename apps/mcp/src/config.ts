@@ -46,9 +46,7 @@ function normalizedBaseUrl(value: string, key: string) {
   return url.toString().replace(/\/$/, "");
 }
 
-export function loadMcpConfig(
-  env: Record<string, string | undefined> = process.env,
-): McpConfig {
+export function loadMcpConfig(env: Record<string, string | undefined> = process.env): McpConfig {
   const apiAuthMode = (env.NOCTURNE_API_AUTH_MODE || "guest").trim().toLowerCase();
   if (apiAuthMode !== "guest" && apiAuthMode !== "bearer") {
     throw new Error("NOCTURNE_API_AUTH_MODE must be guest or bearer.");
@@ -59,8 +57,7 @@ export function loadMcpConfig(
   }
 
   const allowedRedirectHosts = new Set(
-    (env.MCP_ALLOWED_REDIRECT_HOSTS ||
-      "chatgpt.com,openai.com,localhost,127.0.0.1")
+    (env.MCP_ALLOWED_REDIRECT_HOSTS || "chatgpt.com,openai.com,localhost,127.0.0.1")
       .split(",")
       .map((host) => host.trim().toLowerCase().replace(/^\./, ""))
       .filter(Boolean),
@@ -79,10 +76,7 @@ export function loadMcpConfig(
   return {
     host: env.HOST?.trim() || "0.0.0.0",
     port: positiveInteger(env.PORT, 3002, "PORT"),
-    publicBaseUrl: normalizedBaseUrl(
-      required(env, "MCP_PUBLIC_BASE_URL"),
-      "MCP_PUBLIC_BASE_URL",
-    ),
+    publicBaseUrl: normalizedBaseUrl(required(env, "MCP_PUBLIC_BASE_URL"), "MCP_PUBLIC_BASE_URL"),
     apiBaseUrl: normalizedBaseUrl(required(env, "NOCTURNE_API_URL"), "NOCTURNE_API_URL"),
     apiAuthMode,
     apiBearerToken,

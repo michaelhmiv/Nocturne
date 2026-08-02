@@ -60,7 +60,13 @@ function optionalString(input: JsonObject, key: string) {
   return trimmed || undefined;
 }
 
-function optionalInteger(input: JsonObject, key: string, fallback: number, min: number, max: number) {
+function optionalInteger(
+  input: JsonObject,
+  key: string,
+  fallback: number,
+  min: number,
+  max: number,
+) {
   const value = input[key];
   if (value === undefined || value === null) return fallback;
   if (typeof value !== "number" || !Number.isInteger(value) || value < min || value > max) {
@@ -69,7 +75,13 @@ function optionalInteger(input: JsonObject, key: string, fallback: number, min: 
   return value;
 }
 
-function optionalNumber(input: JsonObject, key: string, fallback: number, min: number, max: number) {
+function optionalNumber(
+  input: JsonObject,
+  key: string,
+  fallback: number,
+  min: number,
+  max: number,
+) {
   const value = input[key];
   if (value === undefined || value === null) return fallback;
   if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max) {
@@ -382,7 +394,9 @@ export function createNocturneTools(config: McpConfig, fetchImpl: FetchLike = fe
       },
       async (raw) => {
         const ownerId = optionalString(object(raw), "ownerId");
-        return api.request(`/v1/vehicles${ownerId ? `?ownerId=${encodeURIComponent(ownerId)}` : ""}`);
+        return api.request(
+          `/v1/vehicles${ownerId ? `?ownerId=${encodeURIComponent(ownerId)}` : ""}`,
+        );
       },
     ),
     readTool(

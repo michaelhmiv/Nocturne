@@ -293,10 +293,7 @@ export class OAuthService {
     const authorization = this.authorizationInput(input);
     const hidden = [...input.entries()]
       .filter(([key]) => key !== "password")
-      .map(
-        ([key, value]) =>
-          `<input type="hidden" name="${html(key)}" value="${html(value)}">`,
-      )
+      .map(([key, value]) => `<input type="hidden" name="${html(key)}" value="${html(value)}">`)
       .join("");
     return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -461,7 +458,11 @@ ${errorMessage ? `<p class="error">${html(errorMessage)}</p>` : ""}
       throw new OAuthError("invalid_token", "Bearer token is invalid or expired.", 401);
     }
     if (payload.aud !== this.resource) {
-      throw new OAuthError("invalid_token", "Bearer token was not issued for this MCP server.", 401);
+      throw new OAuthError(
+        "invalid_token",
+        "Bearer token was not issued for this MCP server.",
+        401,
+      );
     }
     return {
       subject: payload.sub,

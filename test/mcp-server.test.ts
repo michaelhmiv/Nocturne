@@ -84,8 +84,7 @@ async function authorize(baseUrl: string) {
       resource,
     }),
   }).then(
-    (response) =>
-      response.json() as Promise<{ access_token: string; refresh_token: string }>,
+    (response) => response.json() as Promise<{ access_token: string; refresh_token: string }>,
   );
   return { ...tokens, clientId: registered.client_id, resource };
 }
@@ -217,8 +216,6 @@ describe("Nocturne MCP service", () => {
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
     });
     expect(response.status).toBe(401);
-    expect(response.headers.get("www-authenticate")).toContain(
-      "oauth-protected-resource/mcp",
-    );
+    expect(response.headers.get("www-authenticate")).toContain("oauth-protected-resource/mcp");
   });
 });
