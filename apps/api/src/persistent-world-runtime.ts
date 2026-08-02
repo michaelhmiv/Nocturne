@@ -31,6 +31,7 @@ import { registerPlayerDashboardRoutes } from "./player-dashboard-routes.js";
 import { registerPlayerEffectRoutes } from "./player-effect-routes.js";
 import { createPersistentWorldActionService } from "./persistent-world-action-service.js";
 import { registerPersistentWorldRoutes } from "./persistent-world-routes.js";
+import { createRoutineActionService } from "./routine-action-service.js";
 import { createSearchDiscoveryService } from "./search-discovery-service.js";
 import { createWorldActionHandlerRegistry } from "./world-action-handler-registry.js";
 
@@ -92,6 +93,7 @@ export async function registerPersistentWorldRuntime(
   },
 ) {
   const executor = createUniversalOperationExecutor(dependencies.database);
+  const routineActions = createRoutineActionService(executor);
   const telemetry = createGameplayTelemetryWriter(app.log);
   const client = instrumentAiClient(dependencies.client, telemetry);
   const context = instrumentContextStore(
@@ -120,6 +122,7 @@ export async function registerPersistentWorldRuntime(
     telemetry,
     search,
     scheduleMove: dependencies.scheduleMove,
+    executeRoutineAction: routineActions.execute,
     executeExistingAction: dependencies.executeExistingAction,
   });
   const actions = createPersistentWorldActionService({
