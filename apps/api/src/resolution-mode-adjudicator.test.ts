@@ -19,9 +19,7 @@ function frame(
 
 describe("resolution mode adjudicator", () => {
   it("automatically succeeds one ordinary push-up", () => {
-    const decision = adjudicateActionResolution(
-      frame("interact", "Do one push up"),
-    );
+    const decision = adjudicateActionResolution(frame("interact", "Do one push up"));
     expect(decision.mode).toBe("automatic_success");
     expect(decision.meaningfulUncertainty).toBe(false);
     expect(decision.consequenceLevel).toBe(0);
@@ -29,17 +27,13 @@ describe("resolution mode adjudicator", () => {
   });
 
   it("automatically succeeds another trivial unopposed body action", () => {
-    const decision = adjudicateActionResolution(
-      frame("interact", "Stand up"),
-    );
+    const decision = adjudicateActionResolution(frame("interact", "Stand up"));
     expect(decision.mode).toBe("automatic_success");
     expect(decision.difficulty).toBeLessThanOrEqual(2);
   });
 
   it("uses an unopposed check for demanding self-directed effort", () => {
-    const decision = adjudicateActionResolution(
-      frame("interact", "Do 100 push-ups until failure"),
-    );
+    const decision = adjudicateActionResolution(frame("interact", "Do 100 push-ups until failure"));
     expect(decision.mode).toBe("unopposed_check");
     expect(decision.meaningfulUncertainty).toBe(true);
   });
@@ -60,24 +54,18 @@ describe("resolution mode adjudicator", () => {
   });
 
   it("uses timed work for a sustained action", () => {
-    const decision = adjudicateActionResolution(
-      frame("interact", "Exercise for 30 minutes"),
-    );
+    const decision = adjudicateActionResolution(frame("interact", "Exercise for 30 minutes"));
     expect(decision.mode).toBe("timed_task");
   });
 
   it("automatically fails physically impossible actions without established support", () => {
-    const decision = adjudicateActionResolution(
-      frame("interact", "Teleport across town"),
-    );
+    const decision = adjudicateActionResolution(frame("interact", "Teleport across town"));
     expect(decision.mode).toBe("automatic_failure");
     expect(decision.meaningfulUncertainty).toBe(false);
   });
 
   it("routes ordinary dialogue without coercion to conversation", () => {
-    const decision = adjudicateActionResolution(
-      frame("dialogue", "Say hello"),
-    );
+    const decision = adjudicateActionResolution(frame("dialogue", "Say hello"));
     expect(decision.mode).toBe("conversation");
   });
 });
