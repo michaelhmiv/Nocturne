@@ -63,4 +63,6 @@ A dashboard-affecting mechanic is incomplete until tests establish:
 - player-facing dashboard views remain usable on mobile layouts;
 - hidden and operator-only fields do not enter player-safe contracts.
 
+These checks run as part of the required capability and workspace certification gates, not as advisory coverage.
+
 Consumption certification must cover quantity, resource deltas, conditions, and resolved risks. Movement certification must cover scheduled state and authoritative arrival. Commerce, combat, relationships, inventory, legal heat, and other mechanics must add equivalent effect assertions when their authoritative handlers expose those operations.
