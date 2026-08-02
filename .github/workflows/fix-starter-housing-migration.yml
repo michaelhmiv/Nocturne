@@ -1,0 +1,69 @@
+name: Fix Starter Housing Migration
+
+on:
+  push:
+    branches:
+      - fix/starter-housing-append-only-migration
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-and-verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/starter-housing-append-only-migration
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Remove immutable revision update
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('packages/database/migrations/0012_dynamic_starter_housing.sql')
+          text = path.read_text()
+          block = """UPDATE game.definition_revisions r
+          SET payload = jsonb_set(
+            r.payload,
+            '{extensionPayload,capacities}',
+            jsonb_build_object(
+              'space', 1,
+              'power', 1,
+              'concealment', 0,
+              'security', 0,
+              'access', 1,
+              'comfort', 1
+            ),
+            true
+          )
+          FROM game.entity_definitions d
+          WHERE d.definition_id = 'WORLD-ASHDOWN-UNIT-3B'
+            AND d.current_revision_id = r.revision_id;
+
+          """
+          if text.count(block) != 1:
+              raise SystemExit(f'expected immutable revision update once, found {text.count(block)}')
+          path.write_text(text.replace(block, ''))
+          PY
+      - name: Verify migration and repository
+        run: |
+          pnpm check:migrations
+          pnpm typecheck
+          pnpm test
+      - name: Commit hotfix
+        run: |
+          rm .github/workflows/fix-starter-housing-migration.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: preserve append-only definition revisions in starter housing migration"
+          git push origin HEAD:fix/starter-housing-append-only-migration
