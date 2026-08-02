@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 import { adjudicateActionResolution } from "./resolution-mode-adjudicator.js";
 import { deriveSemanticActionFrame } from "./semantic-action-frame.js";
 
-function frame(kind: Parameters<typeof deriveSemanticActionFrame>[0]["kind"], rawText: string, extra = {}) {
+function frame(
+  kind: Parameters<typeof deriveSemanticActionFrame>[0]["kind"],
+  rawText: string,
+  extra = {},
+) {
   const actorId = randomUUID();
   return deriveSemanticActionFrame({
     kind,
@@ -18,6 +22,12 @@ describe("resolution mode adjudicator", () => {
     const decision = adjudicateActionResolution(frame("interact", "Do one push up"));
     expect(decision.mode).toBe("automatic_success");
     expect(decision.meaningfulUncertainty).toBe(false);
+  });
+
+  it("automatically succeeds another trivial unopposed body action", () => {
+    const decision = adjudicateActionResolution(frame("interact", "Stand up"));
+    expect(decision.mode).toBe("automatic_success");
+    expect(decision.difficulty).toBeLessThanOrEqual(2);
   });
 
   it("uses an unopposed check for demanding self-directed effort", () => {
