@@ -312,9 +312,7 @@ export function createWorldActionHandlerRegistry(dependencies: {
         });
         if (
           dependencies.executeRoutineAction &&
-          ["automatic_success", "automatic_failure"].includes(
-            resolution.mode,
-          )
+          ["automatic_success", "automatic_failure"].includes(resolution.mode)
         ) {
           return dependencies.executeRoutineAction({
             scope,

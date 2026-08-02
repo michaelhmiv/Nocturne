@@ -1,8 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import {
-  ActionResolutionDecisionSchema,
-  SemanticActionFrameSchema,
-} from "@nocturne/contracts";
+import { ActionResolutionDecisionSchema, SemanticActionFrameSchema } from "@nocturne/contracts";
 import type {
   PersistentPlanStore,
   RelationshipStore,
@@ -15,11 +12,7 @@ import type { createDatabase } from "@nocturne/database";
 export class ScheduledWorkServiceError extends Error {
   constructor(
     readonly code:
-      | "unsupported_kind"
-      | "stale_state"
-      | "superseded"
-      | "target_missing"
-      | "domain_rejection",
+      "unsupported_kind" | "stale_state" | "superseded" | "target_missing" | "domain_rejection",
     message: string,
   ) {
     super(message);
@@ -50,11 +43,7 @@ export function createScheduledWorkService(dependencies: {
     };
   }
 
-  async function completePlanStep(
-    claim: ScheduledWorkClaim,
-    eventId: string,
-    receiptId?: string,
-  ) {
+  async function completePlanStep(claim: ScheduledWorkClaim, eventId: string, receiptId?: string) {
     if (!claim.planId || !claim.stepId) return;
     await dependencies.plans.completeStep({
       scope: { worldId: claim.worldId, shardId: claim.shardId },
@@ -67,10 +56,7 @@ export function createScheduledWorkService(dependencies: {
   }
 
   async function resolveMove(claim: ScheduledWorkClaim, scope: WorldScope) {
-    const cohortId =
-      typeof claim.payload.cohortId === "string"
-        ? claim.payload.cohortId
-        : null;
+    const cohortId = typeof claim.payload.cohortId === "string" ? claim.payload.cohortId : null;
     let operations;
     if (cohortId) {
       operations = await dependencies.relationships.travelOperations({
@@ -79,9 +65,7 @@ export function createScheduledWorkService(dependencies: {
         preconditionFactIds: [],
       });
     } else {
-      const actorId = String(
-        claim.payload.actorId || claim.subjectEntityIds[0] || "",
-      );
+      const actorId = String(claim.payload.actorId || claim.subjectEntityIds[0] || "");
       const locationId = String(claim.payload.locationId || "");
       if (!actorId || !locationId) {
         throw new ScheduledWorkServiceError(
@@ -154,18 +138,10 @@ export function createScheduledWorkService(dependencies: {
     return receipt;
   }
 
-  async function resolveJailRelease(
-    claim: ScheduledWorkClaim,
-    scope: WorldScope,
-  ) {
-    const actorId = String(
-      claim.payload.actorId || claim.subjectEntityIds[0] || "",
-    );
+  async function resolveJailRelease(claim: ScheduledWorkClaim, scope: WorldScope) {
+    const actorId = String(claim.payload.actorId || claim.subjectEntityIds[0] || "");
     if (!actorId) {
-      throw new ScheduledWorkServiceError(
-        "target_missing",
-        "Jail release is missing an actor.",
-      );
+      throw new ScheduledWorkServiceError("target_missing", "Jail release is missing an actor.");
     }
     const expectedVersion = claim.expectedVersions[actorId];
     const receipt = await dependencies.executor.execute({
@@ -204,10 +180,7 @@ export function createScheduledWorkService(dependencies: {
   }
 
   async function resolveCraftComplete(claim: ScheduledWorkClaim) {
-    const requestId =
-      typeof claim.payload.requestId === "string"
-        ? claim.payload.requestId
-        : null;
+    const requestId = typeof claim.payload.requestId === "string" ? claim.payload.requestId : null;
     if (!requestId) {
       throw new ScheduledWorkServiceError(
         "target_missing",
@@ -231,10 +204,7 @@ export function createScheduledWorkService(dependencies: {
         FOR UPDATE
       `;
       if (!requests[0]) {
-        throw new ScheduledWorkServiceError(
-          "target_missing",
-          "Craft request not found.",
-        );
+        throw new ScheduledWorkServiceError("target_missing", "Craft request not found.");
       }
       if (!["crafting", "ready"].includes(requests[0].validation_status)) {
         throw new ScheduledWorkServiceError(
@@ -263,13 +233,8 @@ export function createScheduledWorkService(dependencies: {
     return { eventId };
   }
 
-  async function resolveSemanticAction(
-    claim: ScheduledWorkClaim,
-    scope: WorldScope,
-  ) {
-    const actorId = String(
-      claim.payload.actorId || claim.subjectEntityIds[0] || "",
-    );
+  async function resolveSemanticAction(claim: ScheduledWorkClaim, scope: WorldScope) {
+    const actorId = String(claim.payload.actorId || claim.subjectEntityIds[0] || "");
     if (!actorId) {
       throw new ScheduledWorkServiceError(
         "target_missing",
@@ -277,9 +242,7 @@ export function createScheduledWorkService(dependencies: {
       );
     }
     const frame = SemanticActionFrameSchema.parse(claim.payload.frame);
-    const resolution = ActionResolutionDecisionSchema.parse(
-      claim.payload.resolution,
-    );
+    const resolution = ActionResolutionDecisionSchema.parse(claim.payload.resolution);
     if (frame.actorId !== actorId || resolution.mode !== "timed_task") {
       throw new ScheduledWorkServiceError(
         "domain_rejection",
@@ -312,9 +275,7 @@ export function createScheduledWorkService(dependencies: {
           },
         ],
       },
-      playerVisibleFacts: [
-        `You complete the timed action: ${frame.objective}.`,
-      ],
+      playerVisibleFacts: [`You complete the timed action: ${frame.objective}.`],
       hiddenFacts: [],
     });
     await completePlanStep(claim, receipt.eventId, receipt.receiptId);
@@ -325,8 +286,7 @@ export function createScheduledWorkService(dependencies: {
         dependencyType: "after_time",
         eventId: receipt.eventId,
         matches: (parameters) =>
-          parameters.scheduleId === claim.scheduleId ||
-          parameters.stepId === claim.stepId,
+          parameters.scheduleId === claim.scheduleId || parameters.stepId === claim.stepId,
       });
     }
     return receipt;
@@ -355,6 +315,4 @@ export function createScheduledWorkService(dependencies: {
   return { resolve };
 }
 
-export type ScheduledWorkService = ReturnType<
-  typeof createScheduledWorkService
->;
+export type ScheduledWorkService = ReturnType<typeof createScheduledWorkService>;

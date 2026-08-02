@@ -61,7 +61,9 @@ function referenceBucket(key: string) {
   if (/(?:object|item|asset|vehicle|device|equipment|source)/.test(normalized)) {
     return "objects" as const;
   }
-  if (/(?:target|recipient|subject|opponent|person|npc|character|holder|possessor)/.test(normalized)) {
+  if (
+    /(?:target|recipient|subject|opponent|person|npc|character|holder|possessor)/.test(normalized)
+  ) {
     return "targets" as const;
   }
   return "unclassified" as const;

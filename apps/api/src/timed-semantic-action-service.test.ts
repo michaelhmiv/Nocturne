@@ -1,9 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import type {
-  ActionResolutionDecision,
-  SemanticActionFrame,
-} from "@nocturne/contracts";
+import type { ActionResolutionDecision, SemanticActionFrame } from "@nocturne/contracts";
 import { createTimedSemanticActionService } from "./timed-semantic-action-service.js";
 
 const scope = {

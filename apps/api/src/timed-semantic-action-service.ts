@@ -1,15 +1,7 @@
-import type {
-  ActionResolutionDecision,
-  SemanticActionFrame,
-} from "@nocturne/contracts";
-import type {
-  UniversalOperationExecutor,
-  WorldScope,
-} from "@nocturne/database";
+import type { ActionResolutionDecision, SemanticActionFrame } from "@nocturne/contracts";
+import type { UniversalOperationExecutor, WorldScope } from "@nocturne/database";
 
-export function createTimedSemanticActionService(
-  executor: UniversalOperationExecutor,
-) {
+export function createTimedSemanticActionService(executor: UniversalOperationExecutor) {
   async function schedule(input: {
     scope: WorldScope;
     actorId: string;
@@ -21,14 +13,11 @@ export function createTimedSemanticActionService(
     expectedVersions: Record<string, number>;
   }) {
     if (input.resolution.mode !== "timed_task") {
-      throw new Error(
-        `Timed semantic action service cannot schedule ${input.resolution.mode}.`,
-      );
+      throw new Error(`Timed semantic action service cannot schedule ${input.resolution.mode}.`);
     }
     const durationSeconds = Math.max(
       1,
-      input.frame.durationSeconds ??
-        Math.max(30, input.resolution.difficulty * 30),
+      input.frame.durationSeconds ?? Math.max(30, input.resolution.difficulty * 30),
     );
     const symbol = "semantic_schedule";
     const receipt = await executor.execute({
@@ -88,6 +77,4 @@ export function createTimedSemanticActionService(
   return { schedule };
 }
 
-export type TimedSemanticActionService = ReturnType<
-  typeof createTimedSemanticActionService
->;
+export type TimedSemanticActionService = ReturnType<typeof createTimedSemanticActionService>;

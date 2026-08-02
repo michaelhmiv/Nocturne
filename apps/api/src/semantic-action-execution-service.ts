@@ -5,10 +5,7 @@ import type {
   SemanticActionFrame,
   UniversalWorldOperation,
 } from "@nocturne/contracts";
-import type {
-  UniversalOperationExecutor,
-  WorldScope,
-} from "@nocturne/database";
+import type { UniversalOperationExecutor, WorldScope } from "@nocturne/database";
 
 function deterministicRoll(secret: string | Buffer, idempotencyKey: string) {
   const digest = createHmac("sha256", secret).update(idempotencyKey).digest();
@@ -16,10 +13,7 @@ function deterministicRoll(secret: string | Buffer, idempotencyKey: string) {
 }
 
 function actorCondition(context: RelevanceCompiledContext, actorId: string) {
-  return (
-    (context.entities ?? []).find(({ entityId }) => entityId === actorId)
-      ?.condition ?? 100
-  );
+  return (context.entities ?? []).find(({ entityId }) => entityId === actorId)?.condition ?? 100;
 }
 
 function successFor(
@@ -68,8 +62,7 @@ function operations(input: {
         objective: input.frame.objective,
         resolutionMode: input.resolution.mode,
         succeeded: input.succeeded,
-        needsClarification:
-          input.resolution.mode === "clarification_required",
+        needsClarification: input.resolution.mode === "clarification_required",
         rationale: input.resolution.rationale,
         roll: input.roll,
         occurredAt: new Date().toISOString(),
@@ -87,11 +80,7 @@ function operations(input: {
       preconditionFactIds: [],
     });
   }
-  if (
-    input.succeeded &&
-    input.frame.kind === "relationship" &&
-    targetId
-  ) {
+  if (input.succeeded && input.frame.kind === "relationship" && targetId) {
     result.push({
       type: "set_relation",
       sourceRef: { kind: "existing", entityId: input.frame.actorId },
@@ -105,12 +94,7 @@ function operations(input: {
     });
   }
   const objectId = input.frame.objectIds[0];
-  if (
-    input.succeeded &&
-    input.frame.kind === "transfer" &&
-    objectId &&
-    targetId
-  ) {
+  if (input.succeeded && input.frame.kind === "transfer" && objectId && targetId) {
     result.push({
       type: "transfer_possession",
       entityRef: { kind: "existing", entityId: objectId },
@@ -122,9 +106,7 @@ function operations(input: {
     result.push({
       type: "create_information_asset",
       holderRef: { kind: "existing", entityId: input.frame.actorId },
-      ...(targetId
-        ? { subjectRef: { kind: "existing" as const, entityId: targetId } }
-        : {}),
+      ...(targetId ? { subjectRef: { kind: "existing" as const, entityId: targetId } } : {}),
       content: `The actor asked: ${input.frame.objective}`,
       confidenceBasisPoints: 5_000,
       truthStatus: "observation",
@@ -159,20 +141,14 @@ export function createSemanticActionExecutionService(input: {
         "conversation",
       ].includes(request.resolution.mode)
     ) {
-      throw new Error(
-        `Semantic executor cannot execute ${request.resolution.mode}.`,
-      );
+      throw new Error(`Semantic executor cannot execute ${request.resolution.mode}.`);
     }
     const roll = deterministicRoll(input.rollSecret, request.idempotencyKey);
     const succeeded =
       request.resolution.mode !== "automatic_failure" &&
       request.resolution.mode !== "clarification_required" &&
       successFor(request.frame, request.resolution, request.context, roll);
-    const playerNarration = narration(
-      request.frame,
-      request.resolution,
-      succeeded,
-    );
+    const playerNarration = narration(request.frame, request.resolution, succeeded);
     const receipt = await input.executor.execute({
       scope: request.scope,
       authority: "player",
