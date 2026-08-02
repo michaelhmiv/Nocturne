@@ -36,7 +36,8 @@ const text = (value: unknown): string | null =>
 
 const uuid = (value: unknown): string | null => {
   const candidate = text(value);
-  return candidate && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidate)
+  return candidate &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidate)
     ? candidate
     : null;
 };
@@ -57,11 +58,7 @@ const semanticKey = (value: unknown, fallback: string) => {
   return /^[a-z][a-z0-9_]{0,63}$/.test(normalized) ? normalized : fallback;
 };
 
-function addEffect(
-  output: PlayerVisibleEffect[],
-  fingerprints: Set<string>,
-  candidate: unknown,
-) {
+function addEffect(output: PlayerVisibleEffect[], fingerprints: Set<string>, candidate: unknown) {
   const parsed = PlayerVisibleEffectSchema.safeParse(candidate);
   if (!parsed.success) return;
   const fingerprint = JSON.stringify(parsed.data);
@@ -70,11 +67,7 @@ function addEffect(
   output.push(parsed.data);
 }
 
-function resourceEffects(
-  output: PlayerVisibleEffect[],
-  fingerprints: Set<string>,
-  value: unknown,
-) {
+function resourceEffects(output: PlayerVisibleEffect[], fingerprints: Set<string>, value: unknown) {
   for (const delta of records(value)) {
     const amount = numeric(delta.delta ?? delta.amount ?? delta.change);
     if (amount === null || amount === 0) continue;
@@ -114,11 +107,7 @@ function conditionEffects(
   }
 }
 
-function riskEffects(
-  output: PlayerVisibleEffect[],
-  fingerprints: Set<string>,
-  value: unknown,
-) {
+function riskEffects(output: PlayerVisibleEffect[], fingerprints: Set<string>, value: unknown) {
   for (const risk of records(value)) {
     const description = text(risk.description ?? risk.name);
     if (!description) continue;
@@ -162,7 +151,9 @@ function operationEffects(
         type: "location_changed",
         entityId: uuid(operation.entityId ?? operation.instanceId),
         fromLocationId: uuid(operation.fromLocationId ?? operation.previousLocationId),
-        toLocationId: uuid(operation.toLocationId ?? operation.destinationId ?? operation.locationId),
+        toLocationId: uuid(
+          operation.toLocationId ?? operation.destinationId ?? operation.locationId,
+        ),
         toLocationName: text(operation.toLocationName ?? operation.destinationName),
       });
       continue;
@@ -178,8 +169,13 @@ function operationEffects(
       });
       continue;
     }
-    if (["transfer_possession", "transfer_ownership", "create_instance", "retire_entity"].includes(type)) {
-      const name = text(operation.name ?? operation.entityName ?? operation.description) || "Entity";
+    if (
+      ["transfer_possession", "transfer_ownership", "create_instance", "retire_entity"].includes(
+        type,
+      )
+    ) {
+      const name =
+        text(operation.name ?? operation.entityName ?? operation.description) || "Entity";
       addEffect(output, fingerprints, {
         type: "quantity_changed",
         entityId: uuid(operation.entityId ?? operation.instanceId ?? operation.createdEntityId),
@@ -216,11 +212,7 @@ export function normalizePlayerEffectEvent(input: {
       fingerprints,
       consumed.resourceDeltas ?? consumed.appliedResourceDeltas,
     );
-    conditionEffects(
-      effects,
-      fingerprints,
-      consumed.conditions ?? consumed.appliedConditions,
-    );
+    conditionEffects(effects, fingerprints, consumed.conditions ?? consumed.appliedConditions);
     riskEffects(effects, fingerprints, consumed.risks);
     const contamination = object(consumed.contamination);
     if (Object.keys(contamination).length) {
