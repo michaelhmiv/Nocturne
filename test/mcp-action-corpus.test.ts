@@ -13,10 +13,11 @@ describe("MCP semantic action corpus", () => {
   it("forwards every natural-language action exactly once through submit_action", async () => {
     const requests: Array<{ url: string; method: string; body: unknown }> = [];
     const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
       const method = init?.method || (input instanceof Request ? input.method : "GET");
       const rawBody = init?.body;
-      const body = typeof rawBody === "string" ? JSON.parse(rawBody) : rawBody ?? null;
+      const body = typeof rawBody === "string" ? JSON.parse(rawBody) : (rawBody ?? null);
       requests.push({ url, method, body });
       if (url.endsWith("/v1/characters")) {
         return jsonResponse({
@@ -70,7 +71,8 @@ describe("MCP semantic action corpus", () => {
   it("never converts corpus prompts into a fixed catalog command at the MCP boundary", async () => {
     const bodies: Record<string, unknown>[] = [];
     const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
       if (url.includes("/v1/persistent-world/actions") && typeof init?.body === "string") {
         bodies.push(JSON.parse(init.body) as Record<string, unknown>);
       }

@@ -212,10 +212,7 @@ export function adjudicateActionResolution(
     );
   }
 
-  if (
-    isRoutineSelfDirectedAction(frame) ||
-    (demand <= 2 && consequences <= 2)
-  ) {
+  if (isRoutineSelfDirectedAction(frame) || (demand <= 2 && consequences <= 2)) {
     return decision(
       frame,
       {

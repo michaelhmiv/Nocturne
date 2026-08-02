@@ -1,8 +1,12 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 
-const webBaseUrl = (process.env.NOCTURNE_WEB_URL || "https://nocturneweb-production.up.railway.app").replace(/\/$/, "");
-const mcpBaseUrl = (process.env.NOCTURNE_MCP_URL || "https://nocturnemcp-production.up.railway.app").replace(/\/$/, "");
+const webBaseUrl = (
+  process.env.NOCTURNE_WEB_URL || "https://nocturneweb-production.up.railway.app"
+).replace(/\/$/, "");
+const mcpBaseUrl = (
+  process.env.NOCTURNE_MCP_URL || "https://nocturnemcp-production.up.railway.app"
+).replace(/\/$/, "");
 const redirectUri = "http://127.0.0.1/nocturne-certification-callback";
 const runId = `${Date.now()}-${randomBytes(4).toString("hex")}`;
 const email = `mcp-cert-${runId}@example.invalid`;
@@ -31,7 +35,11 @@ async function request(url, options = {}) {
   const headers = new Headers(options.headers || {});
   const cookie = cookieHeader(parsed.origin);
   if (cookie) headers.set("cookie", cookie);
-  const response = await fetch(parsed, { ...options, headers, redirect: options.redirect || "manual" });
+  const response = await fetch(parsed, {
+    ...options,
+    headers,
+    redirect: options.redirect || "manual",
+  });
   rememberCookies(parsed.origin, response);
   return response;
 }
@@ -159,7 +167,12 @@ async function rpc(accessToken, id, method, params) {
       accept: "application/json",
       "content-type": "application/json",
     },
-    body: JSON.stringify({ jsonrpc: "2.0", id, method, ...(params === undefined ? {} : { params }) }),
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id,
+      method,
+      ...(params === undefined ? {} : { params }),
+    }),
   });
   const body = await json(response, `MCP ${method}`);
   assert.equal(body.jsonrpc, "2.0");

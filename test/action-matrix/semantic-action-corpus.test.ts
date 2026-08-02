@@ -1,15 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import type {
-  RelevanceCompiledContext,
-  SemanticActionFrame,
-} from "@nocturne/contracts";
+import type { RelevanceCompiledContext, SemanticActionFrame } from "@nocturne/contracts";
 import { adjudicateActionResolution } from "../../apps/api/src/resolution-mode-adjudicator.js";
 import { deriveSemanticActionFrame } from "../../apps/api/src/semantic-action-frame.js";
-import {
-  SEMANTIC_ACTION_CORPUS,
-  type SemanticActionCorpusCase,
-} from "./semantic-action-corpus.js";
+import { SEMANTIC_ACTION_CORPUS, type SemanticActionCorpusCase } from "./semantic-action-corpus.js";
 
 function entity(input: {
   entityId: string;
@@ -141,7 +135,15 @@ describe("semantic action adversarial corpus", () => {
       const result = adjudicateActionResolution(frame, context);
       expect(result.mode).toBe(testCase.expectedMode);
 
-      if (["automatic_success", "automatic_failure", "conversation", "transaction", "movement"].includes(result.mode)) {
+      if (
+        [
+          "automatic_success",
+          "automatic_failure",
+          "conversation",
+          "transaction",
+          "movement",
+        ].includes(result.mode)
+      ) {
         expect(result.meaningfulUncertainty).toBe(false);
       }
       if (["unopposed_check", "opposed_contest"].includes(result.mode)) {
