@@ -163,10 +163,7 @@ describe("action affordance evaluator", () => {
     );
     expect(evaluation.status).toBe("feasible");
     expect(evaluation.warnings).toEqual(
-      expect.arrayContaining([
-        expect.stringMatching(/damage/i),
-        expect.stringMatching(/danger/i),
-      ]),
+      expect.arrayContaining([expect.stringMatching(/damage/i), expect.stringMatching(/danger/i)]),
     );
   });
 });
