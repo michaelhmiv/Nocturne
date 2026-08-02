@@ -2,7 +2,10 @@ import type {
   ActionResolutionDecision,
   SemanticActionFrame,
 } from "@nocturne/contracts";
-import type { UniversalOperationExecutor, WorldScope } from "@nocturne/database";
+import type {
+  UniversalOperationExecutor,
+  WorldScope,
+} from "@nocturne/database";
 
 function successNarration(frame: SemanticActionFrame) {
   if (frame.actionType === "exercise" && frame.quantity === 1) {
@@ -14,7 +17,10 @@ function successNarration(frame: SemanticActionFrame) {
   return `You complete the routine action: ${frame.objective}.`;
 }
 
-function failureNarration(frame: SemanticActionFrame, resolution: ActionResolutionDecision) {
+function failureNarration(
+  frame: SemanticActionFrame,
+  resolution: ActionResolutionDecision,
+) {
   return `You cannot complete that action: ${resolution.rationale}`;
 }
 
@@ -28,8 +34,14 @@ export function createRoutineActionService(executor: UniversalOperationExecutor)
     frame: SemanticActionFrame;
     resolution: ActionResolutionDecision;
   }) {
-    if (!['automatic_success', 'automatic_failure'].includes(input.resolution.mode)) {
-      throw new Error(`Routine action service cannot execute ${input.resolution.mode}.`);
+    if (
+      !["automatic_success", "automatic_failure"].includes(
+        input.resolution.mode,
+      )
+    ) {
+      throw new Error(
+        `Routine action service cannot execute ${input.resolution.mode}.`,
+      );
     }
     const succeeded = input.resolution.mode === "automatic_success";
     const narration = succeeded
@@ -76,4 +88,6 @@ export function createRoutineActionService(executor: UniversalOperationExecutor)
   return { execute };
 }
 
-export type RoutineActionService = ReturnType<typeof createRoutineActionService>;
+export type RoutineActionService = ReturnType<
+  typeof createRoutineActionService
+>;
