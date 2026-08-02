@@ -1,4 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
+import {
+  ActionResolutionDecisionSchema,
+  SemanticActionFrameSchema,
+} from "@nocturne/contracts";
 import type {
   PersistentPlanStore,
   RelationshipStore,
@@ -11,7 +15,11 @@ import type { createDatabase } from "@nocturne/database";
 export class ScheduledWorkServiceError extends Error {
   constructor(
     readonly code:
-      "unsupported_kind" | "stale_state" | "superseded" | "target_missing" | "domain_rejection",
+      | "unsupported_kind"
+      | "stale_state"
+      | "superseded"
+      | "target_missing"
+      | "domain_rejection",
     message: string,
   ) {
     super(message);
@@ -42,8 +50,27 @@ export function createScheduledWorkService(dependencies: {
     };
   }
 
+  async function completePlanStep(
+    claim: ScheduledWorkClaim,
+    eventId: string,
+    receiptId?: string,
+  ) {
+    if (!claim.planId || !claim.stepId) return;
+    await dependencies.plans.completeStep({
+      scope: { worldId: claim.worldId, shardId: claim.shardId },
+      planId: claim.planId,
+      stepId: claim.stepId,
+      outcomeGrade: "complete_success",
+      resultEventId: eventId,
+      resultReceiptId: receiptId,
+    });
+  }
+
   async function resolveMove(claim: ScheduledWorkClaim, scope: WorldScope) {
-    const cohortId = typeof claim.payload.cohortId === "string" ? claim.payload.cohortId : null;
+    const cohortId =
+      typeof claim.payload.cohortId === "string"
+        ? claim.payload.cohortId
+        : null;
     let operations;
     if (cohortId) {
       operations = await dependencies.relationships.travelOperations({
@@ -52,7 +79,9 @@ export function createScheduledWorkService(dependencies: {
         preconditionFactIds: [],
       });
     } else {
-      const actorId = String(claim.payload.actorId || claim.subjectEntityIds[0] || "");
+      const actorId = String(
+        claim.payload.actorId || claim.subjectEntityIds[0] || "",
+      );
       const locationId = String(claim.payload.locationId || "");
       if (!actorId || !locationId) {
         throw new ScheduledWorkServiceError(
@@ -105,6 +134,7 @@ export function createScheduledWorkService(dependencies: {
         WHERE cohort_id = ${cohortId} AND status = 'included'
       `;
     }
+    await completePlanStep(claim, receipt.eventId, receipt.receiptId);
     if (claim.planId) {
       await dependencies.plans.satisfyExternalDependency({
         scope,
@@ -124,13 +154,21 @@ export function createScheduledWorkService(dependencies: {
     return receipt;
   }
 
-  async function resolveJailRelease(claim: ScheduledWorkClaim, scope: WorldScope) {
-    const actorId = String(claim.payload.actorId || claim.subjectEntityIds[0] || "");
+  async function resolveJailRelease(
+    claim: ScheduledWorkClaim,
+    scope: WorldScope,
+  ) {
+    const actorId = String(
+      claim.payload.actorId || claim.subjectEntityIds[0] || "",
+    );
     if (!actorId) {
-      throw new ScheduledWorkServiceError("target_missing", "Jail release is missing an actor.");
+      throw new ScheduledWorkServiceError(
+        "target_missing",
+        "Jail release is missing an actor.",
+      );
     }
     const expectedVersion = claim.expectedVersions[actorId];
-    return dependencies.executor.execute({
+    const receipt = await dependencies.executor.execute({
       scope,
       authority: "scheduled",
       idempotencyKey: deterministicIdempotency(claim),
@@ -161,10 +199,15 @@ export function createScheduledWorkService(dependencies: {
       playerVisibleFacts: ["The scheduled detention period ended."],
       hiddenFacts: [],
     });
+    await completePlanStep(claim, receipt.eventId, receipt.receiptId);
+    return receipt;
   }
 
   async function resolveCraftComplete(claim: ScheduledWorkClaim) {
-    const requestId = typeof claim.payload.requestId === "string" ? claim.payload.requestId : null;
+    const requestId =
+      typeof claim.payload.requestId === "string"
+        ? claim.payload.requestId
+        : null;
     if (!requestId) {
       throw new ScheduledWorkServiceError(
         "target_missing",
@@ -188,7 +231,10 @@ export function createScheduledWorkService(dependencies: {
         FOR UPDATE
       `;
       if (!requests[0]) {
-        throw new ScheduledWorkServiceError("target_missing", "Craft request not found.");
+        throw new ScheduledWorkServiceError(
+          "target_missing",
+          "Craft request not found.",
+        );
       }
       if (!["crafting", "ready"].includes(requests[0].validation_status)) {
         throw new ScheduledWorkServiceError(
@@ -213,7 +259,77 @@ export function createScheduledWorkService(dependencies: {
         WHERE world_id = ${claim.worldId} AND request_id = ${requestId}
       `;
     });
+    await completePlanStep(claim, eventId);
     return { eventId };
+  }
+
+  async function resolveSemanticAction(
+    claim: ScheduledWorkClaim,
+    scope: WorldScope,
+  ) {
+    const actorId = String(
+      claim.payload.actorId || claim.subjectEntityIds[0] || "",
+    );
+    if (!actorId) {
+      throw new ScheduledWorkServiceError(
+        "target_missing",
+        "Timed semantic action is missing an actor.",
+      );
+    }
+    const frame = SemanticActionFrameSchema.parse(claim.payload.frame);
+    const resolution = ActionResolutionDecisionSchema.parse(
+      claim.payload.resolution,
+    );
+    if (frame.actorId !== actorId || resolution.mode !== "timed_task") {
+      throw new ScheduledWorkServiceError(
+        "domain_rejection",
+        "Timed semantic action payload is inconsistent.",
+      );
+    }
+    const expectedVersion = claim.expectedVersions[actorId];
+    const receipt = await dependencies.executor.execute({
+      scope,
+      authority: "scheduled",
+      actorId,
+      idempotencyKey: deterministicIdempotency(claim),
+      sourcePlanId: claim.planId || undefined,
+      sourceStepId: claim.stepId || undefined,
+      declaredFactIds: resolution.requiredFactIds,
+      branch: {
+        operations: [
+          {
+            type: "set_state_value",
+            entityRef: { kind: "existing", entityId: actorId },
+            path: ["activity", "last_completed_timed_action"],
+            value: {
+              actionType: frame.actionType,
+              objective: frame.objective,
+              resolutionMode: resolution.mode,
+              completedAt: new Date().toISOString(),
+            },
+            ...(expectedVersion === undefined ? {} : { expectedVersion }),
+            preconditionFactIds: resolution.requiredFactIds,
+          },
+        ],
+      },
+      playerVisibleFacts: [
+        `You complete the timed action: ${frame.objective}.`,
+      ],
+      hiddenFacts: [],
+    });
+    await completePlanStep(claim, receipt.eventId, receipt.receiptId);
+    if (claim.planId) {
+      await dependencies.plans.satisfyExternalDependency({
+        scope,
+        planId: claim.planId,
+        dependencyType: "after_time",
+        eventId: receipt.eventId,
+        matches: (parameters) =>
+          parameters.scheduleId === claim.scheduleId ||
+          parameters.stepId === claim.stepId,
+      });
+    }
+    return receipt;
   }
 
   async function resolve(claim: ScheduledWorkClaim) {
@@ -226,6 +342,8 @@ export function createScheduledWorkService(dependencies: {
         return resolveJailRelease(claim, scope);
       case "craft_complete":
         return resolveCraftComplete(claim);
+      case "semantic_action_completion":
+        return resolveSemanticAction(claim, scope);
       default:
         throw new ScheduledWorkServiceError(
           "unsupported_kind",
@@ -237,4 +355,6 @@ export function createScheduledWorkService(dependencies: {
   return { resolve };
 }
 
-export type ScheduledWorkService = ReturnType<typeof createScheduledWorkService>;
+export type ScheduledWorkService = ReturnType<
+  typeof createScheduledWorkService
+>;
