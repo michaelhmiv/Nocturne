@@ -26,24 +26,6 @@ SET state = COALESCE(state, '{}'::jsonb) || jsonb_build_object(
 )
 WHERE instance_id = '10000000-0000-4000-8000-000000000005';
 
-UPDATE game.definition_revisions r
-SET payload = jsonb_set(
-  r.payload,
-  '{extensionPayload,capacities}',
-  jsonb_build_object(
-    'space', 1,
-    'power', 1,
-    'concealment', 0,
-    'security', 0,
-    'access', 1,
-    'comfort', 1
-  ),
-  true
-)
-FROM game.entity_definitions d
-WHERE d.definition_id = 'WORLD-ASHDOWN-UNIT-3B'
-  AND d.current_revision_id = r.revision_id;
-
 CREATE UNIQUE INDEX IF NOT EXISTS entity_instances_starter_unit_label_uq
   ON game.entity_instances(location_id, (state->>'unitLabel'))
   WHERE state->>'housingType' = 'starter_apartment';
