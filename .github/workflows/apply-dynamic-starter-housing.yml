@@ -34,10 +34,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Apply onboarding refactor
         run: node scripts/ci/apply-dynamic-starter-housing.mjs
-      - name: Format changed files
+      - name: Format changed source files
         run: >-
           pnpm exec prettier --write
-          packages/database/migrations/0012_dynamic_starter_housing.sql
           packages/database/src/game-store.ts
           packages/contracts/src/character.ts
           apps/api/test/persistent-world.test.ts
