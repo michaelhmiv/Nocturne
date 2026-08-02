@@ -1,0 +1,57 @@
+name: Apply Timed Semantic Stack Clean
+
+on:
+  push:
+    branches:
+      - feat/timed-semantic-actions-clean
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/timed-semantic-actions-clean
+          fetch-depth: 0
+      - name: Import reviewed action-stack files
+        run: |
+          git fetch origin feat/timed-semantic-plans
+          git checkout origin/feat/timed-semantic-plans -- \
+            .github/workflows/mcp-production-certification.yml \
+            apps/api/src/persistent-world-runtime.ts \
+            apps/api/src/resolution-mode-adjudicator.ts \
+            apps/api/src/scheduled-semantic-action.test.ts \
+            apps/api/src/scheduled-work-service.ts \
+            apps/api/src/semantic-action-execution-service.test.ts \
+            apps/api/src/semantic-action-execution-service.ts \
+            apps/api/src/timed-semantic-action-service.test.ts \
+            apps/api/src/timed-semantic-action-service.ts \
+            apps/api/src/world-action-handler-registry.ts \
+            scripts/ci/mcp-production-certification.mjs \
+            test/action-matrix/semantic-action-corpus.test.ts \
+            test/action-matrix/semantic-action-corpus.ts \
+            test/mcp-action-corpus.test.ts
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Format imported changes
+        run: pnpm exec prettier --write .
+      - name: Verify complete workspace
+        run: pnpm verify
+      - name: Commit verified stack
+        run: |
+          rm .github/workflows/apply-timed-semantic-stack-clean.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: complete timed semantic action stack"
+          git push origin HEAD:feat/timed-semantic-actions-clean
