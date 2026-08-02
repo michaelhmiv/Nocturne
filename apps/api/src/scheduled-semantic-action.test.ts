@@ -1,9 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import type {
-  ScheduledWorkClaim,
-  UniversalOperationExecutionInput,
-} from "@nocturne/database";
+import type { ScheduledWorkClaim, UniversalOperationExecutionInput } from "@nocturne/database";
 import { createScheduledWorkService } from "./scheduled-work-service.js";
 
 function claim(actorId: string): ScheduledWorkClaim {
