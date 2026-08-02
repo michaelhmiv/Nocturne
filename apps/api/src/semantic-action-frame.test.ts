@@ -98,4 +98,17 @@ describe("semantic action frame", () => {
     expect(frame.demands.physicalEffort).toBeGreaterThan(2);
     expect(isRoutineSelfDirectedAction(frame)).toBe(false);
   });
+
+  it("accepts minimal legacy test context without an entity collection", () => {
+    const actorId = randomUUID();
+    const frame = deriveSemanticActionFrame({
+      kind: "consume",
+      actorId,
+      rawText: "Drink water",
+      payload: { rawText: "Drink water" },
+      context: {} as never,
+    });
+    expect(frame.actorId).toBe(actorId);
+    expect(frame.targetIds).toEqual([]);
+  });
 });
