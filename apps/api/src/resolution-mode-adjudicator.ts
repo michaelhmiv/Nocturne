@@ -4,6 +4,7 @@ import {
   type RelevanceCompiledContext,
   type SemanticActionFrame,
 } from "@nocturne/contracts";
+import { evaluateActionAffordance } from "./action-affordance-evaluator.js";
 import { isRoutineSelfDirectedAction } from "./semantic-action-frame.js";
 
 const impossibleWithoutSupport = [
@@ -72,6 +73,32 @@ export function adjudicateActionResolution(
   const opposition = frame.properties.opposed
     ? Math.min(10, Math.max(3, frame.targetIds.length + 2))
     : 0;
+
+  if (context?.entities) {
+    const affordance = evaluateActionAffordance(frame, context);
+    if (affordance.status === "blocked") {
+      return ActionResolutionDecisionSchema.parse({
+        mode: "automatic_failure",
+        rationale: affordance.rationale,
+        meaningfulUncertainty: false,
+        difficulty: demand,
+        opposition: 0,
+        consequenceLevel: consequences,
+        requiredFactIds: affordance.relevantFactIds,
+      });
+    }
+    if (affordance.status === "clarification_required") {
+      return ActionResolutionDecisionSchema.parse({
+        mode: "clarification_required",
+        rationale: affordance.rationale,
+        meaningfulUncertainty: false,
+        difficulty: demand,
+        opposition,
+        consequenceLevel: consequences,
+        requiredFactIds: affordance.relevantFactIds,
+      });
+    }
+  }
 
   if (frame.ambiguities.length > 0) {
     return decision(
