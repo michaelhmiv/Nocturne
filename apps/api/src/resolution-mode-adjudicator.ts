@@ -212,13 +212,16 @@ export function adjudicateActionResolution(
     );
   }
 
-  if (isRoutineSelfDirectedAction(frame) || demand <= 2) {
+  if (
+    isRoutineSelfDirectedAction(frame) ||
+    (demand <= 2 && consequences <= 2)
+  ) {
     return decision(
       frame,
       {
         mode: "automatic_success",
         rationale:
-          "The action is feasible, routine, unopposed, and carries no meaningful uncertainty.",
+          "The action is feasible, routine, unopposed, and carries no meaningful uncertainty or material consequence.",
         meaningfulUncertainty: false,
         difficulty: demand,
         opposition: 0,
@@ -233,9 +236,9 @@ export function adjudicateActionResolution(
     {
       mode: "unopposed_check",
       rationale:
-        "The action is possible but demanding enough that skill, condition, or environment can materially change the result.",
+        "The action is possible but demanding or consequential enough that skill, condition, or environment can materially change the result.",
       meaningfulUncertainty: true,
-      difficulty: demand,
+      difficulty: Math.max(demand, consequences),
       opposition: 0,
       consequenceLevel: consequences,
     },
