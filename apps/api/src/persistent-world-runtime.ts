@@ -4,6 +4,7 @@ import type { AiProviderClient } from "@nocturne/ai-gm";
 import {
   createMaterializationStore,
   createNarrativeMemoryStore,
+  createOperatorDashboardStore,
   createPersistentPlanStore,
   createPersistentSceneStore,
   createPlayerDashboardStore,
@@ -25,6 +26,7 @@ import {
   instrumentReferenceStore,
   instrumentStepStore,
 } from "./persistent-world-instrumentation.js";
+import { registerOperatorDashboardRoutes } from "./operator-dashboard-routes.js";
 import { registerPlayerDashboardRoutes } from "./player-dashboard-routes.js";
 import { registerPlayerEffectRoutes } from "./player-effect-routes.js";
 import { createPersistentWorldActionService } from "./persistent-world-action-service.js";
@@ -135,6 +137,7 @@ export async function registerPersistentWorldRuntime(
   const scene = createPersistentSceneStore(dependencies.database);
   const effects = createPlayerEffectStore(dependencies.database);
   const dashboard = createPlayerDashboardStore(dependencies.database, { scene, effects });
+  const operatorDashboard = createOperatorDashboardStore(dependencies.database);
   const inspector = createWorldInspectorStore(dependencies.database, executor, plans);
 
   await registerPersistentWorldRoutes(app, {
@@ -159,6 +162,10 @@ export async function registerPersistentWorldRuntime(
   });
   await registerPlayerDashboardRoutes(app, {
     dashboard,
+    resolveScope: dependencies.resolveScope,
+  });
+  await registerOperatorDashboardRoutes(app, {
+    dashboard: operatorDashboard,
     resolveScope: dependencies.resolveScope,
   });
 }

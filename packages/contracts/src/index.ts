@@ -9,6 +9,7 @@ export * from "./event.js";
 export * from "./game-master-context.js";
 export * from "./materialization.js";
 export * from "./normalization.js";
+export * from "./operator-dashboard.js";
 export * from "./persistent-scene.js";
 export * from "./player-dashboard.js";
 export * from "./player-effects.js";

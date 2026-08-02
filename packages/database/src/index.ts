@@ -33,6 +33,7 @@ export * from "./location-store.js";
 export * from "./market-store.js";
 export * from "./materialization-store.js";
 export * from "./narrative-memory-store.js";
+export * from "./operator-dashboard-store.js";
 export * from "./persistent-plan-store.js";
 export * from "./persistent-scene-store.js";
 export * from "./player-dashboard-store.js";
