@@ -8,6 +8,9 @@ on:
       - "scripts/ci/apply-dynamic-starter-housing.mjs"
       - "packages/database/migrations/0012_dynamic_starter_housing.sql"
       - ".github/workflows/apply-dynamic-starter-housing.yml"
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
