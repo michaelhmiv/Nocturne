@@ -49,6 +49,7 @@ const stableErrorCode = (error: unknown) =>
 const semanticExecutionModes = new Set<ActionResolutionDecision["mode"]>([
   "automatic_success",
   "automatic_failure",
+  "clarification_required",
   "unopposed_check",
   "opposed_contest",
   "transaction",
@@ -172,6 +173,16 @@ export function createWorldActionHandlerRegistry(dependencies: {
     expectedVersions: Record<string, number>;
     idempotencyKey: string;
   }): Promise<{ scheduleId: string; narration: string }>;
+  scheduleTimedAction?(input: {
+    scope: Parameters<WorldActionStepHandler>[0]["scope"];
+    actorId: string;
+    planId: string;
+    stepId: string;
+    idempotencyKey: string;
+    frame: SemanticActionFrame;
+    resolution: ActionResolutionDecision;
+    expectedVersions: Record<string, number>;
+  }): Promise<WorldActionStepHandlerResult>;
   executeRoutineAction?(input: {
     scope: Parameters<WorldActionStepHandler>[0]["scope"];
     actorId: string;
@@ -301,7 +312,9 @@ export function createWorldActionHandlerRegistry(dependencies: {
         });
         if (
           dependencies.executeRoutineAction &&
-          ["automatic_success", "automatic_failure"].includes(resolution.mode)
+          ["automatic_success", "automatic_failure"].includes(
+            resolution.mode,
+          )
         ) {
           return dependencies.executeRoutineAction({
             scope,
@@ -311,6 +324,22 @@ export function createWorldActionHandlerRegistry(dependencies: {
             idempotencyKey: step.idempotencyKey,
             frame,
             resolution,
+          });
+        }
+        if (
+          kind !== "consume" &&
+          resolution.mode === "timed_task" &&
+          dependencies.scheduleTimedAction
+        ) {
+          return dependencies.scheduleTimedAction({
+            scope,
+            actorId,
+            planId,
+            stepId: step.stepId,
+            idempotencyKey: step.idempotencyKey,
+            frame,
+            resolution,
+            expectedVersions: step.expectedVersions,
           });
         }
         if (
