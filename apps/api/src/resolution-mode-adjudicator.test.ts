@@ -19,13 +19,17 @@ function frame(
 
 describe("resolution mode adjudicator", () => {
   it("automatically succeeds one ordinary push-up", () => {
-    const decision = adjudicateActionResolution(frame("interact", "Do one push up"));
+    const decision = adjudicateActionResolution(
+      frame("interact", "Do one push up"),
+    );
     expect(decision.mode).toBe("automatic_success");
     expect(decision.meaningfulUncertainty).toBe(false);
   });
 
   it("automatically succeeds another trivial unopposed body action", () => {
-    const decision = adjudicateActionResolution(frame("interact", "Stand up"));
+    const decision = adjudicateActionResolution(
+      frame("interact", "Stand up"),
+    );
     expect(decision.mode).toBe("automatic_success");
     expect(decision.difficulty).toBeLessThanOrEqual(2);
   });
@@ -69,7 +73,9 @@ describe("resolution mode adjudicator", () => {
   });
 
   it("routes ordinary dialogue without coercion to conversation", () => {
-    const decision = adjudicateActionResolution(frame("dialogue", "Say hello"));
+    const decision = adjudicateActionResolution(
+      frame("dialogue", "Say hello"),
+    );
     expect(decision.mode).toBe("conversation");
   });
 });
