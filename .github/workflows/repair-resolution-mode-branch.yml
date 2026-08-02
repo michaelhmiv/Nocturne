@@ -1,0 +1,60 @@
+name: Repair Resolution Mode Branch
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/repair-resolution-mode-branch.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/resolution-mode-adjudicator
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Fix and verify branch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('apps/api/src/resolution-mode-adjudicator.ts')
+          text = path.read_text()
+          old = '''  return context.playerKnownFacts
+    .filter((fact) => !fact.entityId || entities.has(fact.entityId))'''
+          new = '''  return (context.playerKnownFacts ?? [])
+    .filter((fact) => !fact.entityId || entities.has(fact.entityId))'''
+          if old in text:
+              path.write_text(text.replace(old, new, 1))
+          elif '(context.playerKnownFacts ?? [])' not in text:
+              raise SystemExit('expected relevantFactIds block was not found')
+          PY
+          pnpm exec prettier --write \
+            apps/api/src/resolution-mode-adjudicator.test.ts \
+            apps/api/src/resolution-mode-adjudicator.ts \
+            apps/api/src/routine-action-service.ts \
+            apps/api/src/semantic-action-frame.test.ts \
+            packages/contracts/src/semantic-action.ts
+          pnpm --filter @nocturne/api test
+          pnpm typecheck
+      - name: Commit branch repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "fix: harden and format resolution mode adjudication"
+          git push origin HEAD:feat/resolution-mode-adjudicator
