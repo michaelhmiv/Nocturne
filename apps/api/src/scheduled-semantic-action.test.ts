@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import type { ScheduledWorkClaim } from "@nocturne/database";
+import type {
+  ScheduledWorkClaim,
+  UniversalOperationExecutionInput,
+} from "@nocturne/database";
 import { createScheduledWorkService } from "./scheduled-work-service.js";
 
 function claim(actorId: string): ScheduledWorkClaim {
@@ -68,7 +71,11 @@ describe("scheduled semantic action resolution", () => {
     const actorId = randomUUID();
     const eventId = randomUUID();
     const receiptId = randomUUID();
-    const execute = vi.fn(async () => ({ eventId, receiptId, symbolMap: {} }));
+    const execute = vi.fn(async (_input: UniversalOperationExecutionInput) => ({
+      eventId,
+      receiptId,
+      symbolMap: {},
+    }));
     const completeStep = vi.fn(async () => undefined);
     const satisfyExternalDependency = vi.fn(async () => undefined);
     const service = createScheduledWorkService({
@@ -80,9 +87,11 @@ describe("scheduled semantic action resolution", () => {
     const work = claim(actorId);
 
     const result = await service.resolve(work);
+    const execution = execute.mock.calls[0]![0];
+    const branch = execution.branch as { operations: unknown[] };
 
     expect(result).toMatchObject({ eventId, receiptId });
-    expect(execute.mock.calls[0]![0].branch.operations).toEqual([
+    expect(branch.operations).toEqual([
       expect.objectContaining({
         type: "set_state_value",
         path: ["activity", "last_completed_timed_action"],
