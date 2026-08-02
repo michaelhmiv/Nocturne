@@ -8,6 +8,7 @@ on:
       - "scripts/ci/apply-dynamic-starter-housing.mjs"
       - "packages/database/migrations/0012_dynamic_starter_housing.sql"
       - ".github/workflows/apply-dynamic-starter-housing.yml"
+  workflow_dispatch:
 
 permissions:
   contents: write
