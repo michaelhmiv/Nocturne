@@ -49,8 +49,7 @@
   color: #f6f1e8;
   background:
     radial-gradient(circle at top right, rgba(104, 36, 58, 0.2), transparent 34rem),
-    radial-gradient(circle at bottom left, rgba(41, 70, 93, 0.18), transparent 34rem),
-    #090b10;
+    radial-gradient(circle at bottom left, rgba(41, 70, 93, 0.18), transparent 34rem), #090b10;
 }
 
 .player-dashboard--loading {
