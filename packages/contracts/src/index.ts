@@ -10,6 +10,7 @@ export * from "./game-master-context.js";
 export * from "./materialization.js";
 export * from "./normalization.js";
 export * from "./persistent-scene.js";
+export * from "./player-effects.js";
 export * from "./reference-resolution.js";
 export * from "./relationships.js";
 export * from "./relevance-context.js";

@@ -24,12 +24,18 @@ function truncate(value: string, maximum = MAX_DIAGNOSTIC_TEXT) {
 
 function safeDiagnosticValue(value: unknown, depth = 0): unknown {
   if (depth > 5) return "[depth-limited]";
-  if (value === null || value === undefined || typeof value === "boolean" || typeof value === "number") {
+  if (
+    value === null ||
+    value === undefined ||
+    typeof value === "boolean" ||
+    typeof value === "number"
+  ) {
     return value;
   }
   if (typeof value === "string") return truncate(value);
   if (value instanceof Error) return errorDiagnostics(value, depth + 1);
-  if (Array.isArray(value)) return value.slice(0, 25).map((item) => safeDiagnosticValue(item, depth + 1));
+  if (Array.isArray(value))
+    return value.slice(0, 25).map((item) => safeDiagnosticValue(item, depth + 1));
   if (typeof value === "object") {
     const output: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value as Record<string, unknown>).slice(0, 50)) {
@@ -52,7 +58,10 @@ function errorDiagnostics(error: unknown, depth = 0): Record<string, unknown> {
     message: truncate(error.message),
     code: typeof enriched.code === "string" ? enriched.code : undefined,
     stack: error.stack ? truncate(error.stack, 8_000) : undefined,
-    cause: enriched.cause === error ? "[self-referential]" : safeDiagnosticValue(enriched.cause, depth + 1),
+    cause:
+      enriched.cause === error
+        ? "[self-referential]"
+        : safeDiagnosticValue(enriched.cause, depth + 1),
   };
 }
 

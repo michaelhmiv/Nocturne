@@ -6,6 +6,7 @@ import {
   createNarrativeMemoryStore,
   createPersistentPlanStore,
   createPersistentSceneStore,
+  createPlayerEffectStore,
   createReferenceResolutionStore,
   createRelevanceContextStore,
   createUniversalOperationExecutor,
@@ -23,6 +24,7 @@ import {
   instrumentReferenceStore,
   instrumentStepStore,
 } from "./persistent-world-instrumentation.js";
+import { registerPlayerEffectRoutes } from "./player-effect-routes.js";
 import { createPersistentWorldActionService } from "./persistent-world-action-service.js";
 import { registerPersistentWorldRoutes } from "./persistent-world-routes.js";
 import { createSearchDiscoveryService } from "./search-discovery-service.js";
@@ -129,6 +131,7 @@ export async function registerPersistentWorldRuntime(
     simulateReferencedEntity: dependencies.simulateReferencedEntity,
   });
   const scene = createPersistentSceneStore(dependencies.database);
+  const effects = createPlayerEffectStore(dependencies.database);
   const inspector = createWorldInspectorStore(dependencies.database, executor, plans);
 
   await registerPersistentWorldRoutes(app, {
@@ -146,5 +149,9 @@ export async function registerPersistentWorldRuntime(
       `;
       return rows[0]?.enabled === true;
     },
+  });
+  await registerPlayerEffectRoutes(app, {
+    effects,
+    resolveScope: dependencies.resolveScope,
   });
 }
