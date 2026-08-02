@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { McpConfig } from "./config.js";
+import { signUpstreamApiToken, verifyAccountAssertion } from "./mcp-account-auth.js";
 import { OAuthError, OAuthService, type AuthorizedPrincipal } from "./oauth.js";
 import { createNocturneTools, NocturneApiError, type McpTool } from "./tools.js";
 
@@ -18,11 +19,15 @@ type FailedAuthorization = {
   blockedUntil: number;
 };
 
-const serverInfo = { name: "nocturne-mcp", title: "Nocturne", version: "0.1.0" };
+const serverInfo = { name: "nocturne-mcp", title: "Nocturne", version: "0.2.0" };
 const supportedProtocolVersions = ["2025-06-18", "2025-03-26", "2024-11-05"];
 const authorizationWindowMs = 10 * 60 * 1000;
 const authorizationBlockMs = 15 * 60 * 1000;
 const maximumAuthorizationFailures = 5;
+
+function log(event: string, details: Record<string, unknown> = {}) {
+  console.log(JSON.stringify({ level: "info", service: "nocturne-mcp", event, ...details }));
+}
 
 function setSecurityHeaders(response: ServerResponse) {
   response.setHeader("x-content-type-options", "nosniff");
@@ -145,7 +150,23 @@ function clientAddress(request: IncomingMessage) {
   return forwarded || request.socket.remoteAddress || "unknown";
 }
 
+function configureLinkedAccount(config: McpConfig, userId: string, writable: boolean) {
+  if (!config.accountLinkSecret) {
+    throw new OAuthError("server_error", "MCP account linking is not configured.", 500);
+  }
+  config.linkedUserId = userId;
+  config.apiAuthMode = "bearer";
+  config.apiBearerToken = signUpstreamApiToken({
+    secret: config.accountLinkSecret,
+    userId,
+    writable,
+  });
+}
+
 export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch) {
+  if (config.linkedUserId && config.accountLinkSecret) {
+    configureLinkedAccount(config, config.linkedUserId, true);
+  }
   const oauth = new OAuthService(config);
   const tools = createNocturneTools(config, fetchImpl);
   const byName = new Map(tools.map((tool) => [tool.name, tool]));
@@ -244,6 +265,8 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
           status: "ok",
           service: "nocturne-mcp",
           oauth: "configured",
+          accountAuth: config.webBaseUrl ? "nocturne_account" : "admin_passsword",
+          accountLinked: Boolean(config.apiBearerToken && config.apiAuthMode === "bearer"),
           apiBaseUrl: config.apiBaseUrl,
           toolCount: tools.length,
         });
@@ -263,20 +286,77 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
         return json(response, 200, oauth.protectedResourceMetadata());
       }
       if (method === "POST" && url.pathname === "/oauth/register") {
-        return json(response, 201, oauth.registerClient(await readJson(request)));
+        const registered = oauth.registerClient(await readJson(request));
+        log("oauth_client_registered");
+        return json(response, 201, registered);
       }
       if (method === "GET" && url.pathname === "/oauth/authorize") {
         assertAuthorizationAllowed(request);
+        if (config.webBaseUrl && config.accountLinkSecret) {
+          oauth.renderAuthorizationPage(url.searchParams);
+          const rawRequest = url.searchParams.toString();
+          const target = new URL("/api/mcp/authorize", config.webBaseUrl);
+          target.searchParams.set("oauth_request", Buffer.from(rawRequest).toString("base64url"));
+          target.searchParams.set("callback", `${config.publicBaseUrl}/oauth/account-callback`);
+          log("oauth_account_link_started", { clientAddress: clientAddress(request) });
+          return redirect(response, target.toString());
+        }
         return html(response, 200, oauth.renderAuthorizationPage(url.searchParams));
       }
       if (method === "POST" && url.pathname === "/oauth/authorize") {
         assertAuthorizationAllowed(request);
         const result = oauth.approveAuthorization(await readForm(request));
         recordAuthorizationResult(request, result.ok);
+        log(result.ok ? "oauth_password_approved" : "oauth_password_rejected", {
+          clientAddress: clientAddress(request),
+        });
         return result.ok ? redirect(response, result.redirect) : html(response, 401, result.html);
       }
+      if (method === "GET" && url.pathname === "/oauth/account-callback") {
+        if (!config.accountLinkSecret || !config.webBaseUrl) {
+          throw new OAuthError("server_error", "MCP account linking is not configured.", 500);
+        }
+        const encodedRequest = url.searchParams.get("oauth_request") || "";
+        const assertion = url.searchParams.get("assertion") || "";
+        let rawRequest: string;
+        try {
+          rawRequest = Buffer.from(encodedRequest, "base64url").toString("utf8");
+        } catch {
+          throw new OAuthError("invalid_request", "OAuth account-link request is invalid.");
+        }
+        if (!rawRequest || rawRequest.length > 20_000 || !assertion) {
+          throw new OAuthError("invalid_request", "OAuth account-link request is incomplete.");
+        }
+        let userId: string;
+        try {
+          userId = verifyAccountAssertion({
+            secret: config.accountLinkSecret,
+            assertion,
+            audience: config.publicBaseUrl,
+            rawRequest,
+          }).userId;
+        } catch {
+          throw new OAuthError("access_denied", "Nocturne account authorization was invalid.", 403);
+        }
+        const authorization = new URLSearchParams(rawRequest);
+        const writable = (authorization.get("scope") || "").split(/\s+/).includes("nocturne.write");
+        configureLinkedAccount(config, userId, writable);
+        log("oauth_account_linked", { userId, writable });
+        authorization.set("password", config.adminPassword);
+        const approval = oauth.approveAuthorization(authorization);
+        if (!approval.ok) {
+          throw new OAuthError(
+            "server_error",
+            "Linked account authorization could not be completed.",
+            500,
+          );
+        }
+        return redirect(response, approval.redirect);
+      }
       if (method === "POST" && url.pathname === "/oauth/token") {
-        return json(response, 200, oauth.exchangeToken(await readForm(request)));
+        const tokens = oauth.exchangeToken(await readForm(request));
+        log("oauth_token_issued");
+        return json(response, 200, tokens);
       }
       if (url.pathname === "/mcp" && method === "GET") {
         response.setHeader("allow", "POST, DELETE");
@@ -298,6 +378,13 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
             config,
             response,
             error instanceof Error ? error.message : "Authorization failed.",
+          );
+        }
+        if (config.accountLinkSecret && !config.linkedUserId) {
+          return bearerChallenge(
+            config,
+            response,
+            "The linked Nocturne account session must be authorized again.",
           );
         }
         const raw = await readJson(request);
@@ -325,6 +412,16 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
       return json(response, 404, { error: "not_found" });
     } catch (error) {
       if (error instanceof OAuthError) {
+        console.error(
+          JSON.stringify({
+            level: "warn",
+            service: "nocturne-mcp",
+            event: "oauth_error",
+            code: error.code,
+            status: error.status,
+            message: error.message,
+          }),
+        );
         return json(response, error.status, {
           error: error.code,
           error_description: error.message,

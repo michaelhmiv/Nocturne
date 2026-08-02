@@ -4,11 +4,14 @@ export type McpConfig = {
   host: string;
   port: number;
   publicBaseUrl: string;
+  webBaseUrl?: string;
   apiBaseUrl: string;
   apiAuthMode: ApiAuthMode;
   apiBearerToken?: string;
   oauthSigningSecret: string;
   adminPassword: string;
+  accountLinkSecret?: string;
+  linkedUserId?: string;
   allowedRedirectHosts: Set<string>;
   accessTokenTtlSeconds: number;
   refreshTokenTtlSeconds: number;
@@ -52,8 +55,25 @@ export function loadMcpConfig(env: Record<string, string | undefined> = process.
     throw new Error("NOCTURNE_API_AUTH_MODE must be guest or bearer.");
   }
   const apiBearerToken = env.NOCTURNE_API_TOKEN?.trim();
-  if (apiAuthMode === "bearer" && !apiBearerToken) {
-    throw new Error("NOCTURNE_API_TOKEN is required when NOCTURNE_API_AUTH_MODE=bearer.");
+  const linkedUserId = env.MCP_LINKED_USER_ID?.trim() || undefined;
+  const accountLinkSecret = env.MCP_ACCOUNT_LINK_SECRET?.trim()
+    ? minimumLength(env.MCP_ACCOUNT_LINK_SECRET.trim(), "MCP_ACCOUNT_LINK_SECRET", 32)
+    : undefined;
+  const webBaseUrl = env.NOCTURNE_WEB_URL?.trim()
+    ? normalizedBaseUrl(env.NOCTURNE_WEB_URL.trim(), "NOCTURNE_WEB_URL")
+    : undefined;
+  if (Boolean(accountLinkSecret) !== Boolean(webBaseUrl)) {
+    throw new Error(
+      "MCP_ACCOUNT_LINK_SECRET and NOCTURNE_WEB_URL must either both be configured or both be omitted.",
+    );
+  }
+  if (linkedUserId && !accountLinkSecret) {
+    throw new Error("MCP_LINKED_USER_ID requires MCP_ACCOUNT_LINK_SECRET.");
+  }
+  if (apiAuthMode === "bearer" && !apiBearerToken && !linkedUserId) {
+    throw new Error(
+      "NOCTURNE_API_TOKEN or MCP_LINKED_USER_ID is required when NOCTURNE_API_AUTH_MODE=bearer.",
+    );
   }
 
   const allowedRedirectHosts = new Set(
@@ -77,11 +97,14 @@ export function loadMcpConfig(env: Record<string, string | undefined> = process.
     host: env.HOST?.trim() || "0.0.0.0",
     port: positiveInteger(env.PORT, 3002, "PORT"),
     publicBaseUrl: normalizedBaseUrl(required(env, "MCP_PUBLIC_BASE_URL"), "MCP_PUBLIC_BASE_URL"),
+    webBaseUrl,
     apiBaseUrl: normalizedBaseUrl(required(env, "NOCTURNE_API_URL"), "NOCTURNE_API_URL"),
     apiAuthMode,
     apiBearerToken,
     oauthSigningSecret,
     adminPassword,
+    accountLinkSecret,
+    linkedUserId,
     allowedRedirectHosts,
     accessTokenTtlSeconds: positiveInteger(
       env.MCP_ACCESS_TOKEN_TTL_SECONDS,

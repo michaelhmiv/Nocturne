@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { createDatabase } from "./index.js";
+import { authenticateMcpAgentToken } from "./mcp-agent-token.js";
 
 export class AgentStoreError extends Error {
   constructor(
@@ -64,6 +65,8 @@ export function createAgentStore(database: ReturnType<typeof createDatabase>) {
   async function authenticate(
     authorizationHeader: string | undefined,
   ): Promise<AgentIdentity | null> {
+    const mcpIdentity = authenticateMcpAgentToken(authorizationHeader);
+    if (mcpIdentity) return mcpIdentity;
     if (!authorizationHeader) return null;
     const match = /^Bearer\s+(\S+)/i.exec(authorizationHeader.trim());
     if (!match) return null;
