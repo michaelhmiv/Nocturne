@@ -25,6 +25,7 @@ describe("resolution mode adjudicator", () => {
     expect(decision.mode).toBe("automatic_success");
     expect(decision.meaningfulUncertainty).toBe(false);
     expect(decision.consequenceLevel).toBe(0);
+    expect(decision.requiredFactIds).toEqual([]);
   });
 
   it("automatically succeeds another trivial unopposed body action", () => {
