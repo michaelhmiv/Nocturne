@@ -37,6 +37,7 @@ jobs:
       - name: Format changed source files
         run: >-
           pnpm exec prettier --write
+          scripts/ci/apply-dynamic-starter-housing.mjs
           packages/database/src/game-store.ts
           packages/contracts/src/character.ts
           apps/api/test/persistent-world.test.ts
