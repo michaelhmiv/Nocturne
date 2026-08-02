@@ -1,9 +1,7 @@
 name: Dashboard Hotfix Formatter
 
 on:
-  push:
-    branches:
-      - fix/dashboard-runtime-timestamps
+  pull_request:
 
 permissions:
   contents: read
