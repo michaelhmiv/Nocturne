@@ -14,6 +14,7 @@ export const GameplayTelemetryEventNameSchema = z.enum([
   "provider_call_failed",
   "plan_created",
   "step_claimed",
+  "resolution_mode_selected",
   "handler_started",
   "handler_completed",
   "handler_failed",
@@ -93,6 +94,7 @@ export const GameplayTelemetryEventSchema = z
     if (
       [
         "step_claimed",
+        "resolution_mode_selected",
         "handler_started",
         "handler_completed",
         "handler_failed",

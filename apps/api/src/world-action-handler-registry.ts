@@ -1,4 +1,5 @@
 import type {
+  ActionResolutionDecision,
   GameplayTelemetryWriter,
   SemanticActionFrame,
   WorldActionKind,
@@ -9,7 +10,8 @@ import {
   writeGameplayTelemetry,
 } from "./gameplay-telemetry.js";
 import type { SearchDiscoveryService } from "./search-discovery-service.js";
-import { deriveSemanticActionFrame, isRoutineSelfDirectedAction } from "./semantic-action-frame.js";
+import { adjudicateActionResolution } from "./resolution-mode-adjudicator.js";
+import { deriveSemanticActionFrame } from "./semantic-action-frame.js";
 import type {
   WorldActionStepHandler,
   WorldActionStepHandlerResult,
@@ -167,6 +169,7 @@ export function createWorldActionHandlerRegistry(dependencies: {
     stepId: string;
     idempotencyKey: string;
     frame: SemanticActionFrame;
+    resolution: ActionResolutionDecision;
   }): Promise<WorldActionStepHandlerResult>;
   executeExistingAction?(input: {
     kind: Exclude<WorldActionKind, "search" | "move">;
@@ -237,7 +240,7 @@ export function createWorldActionHandlerRegistry(dependencies: {
       "dialogue",
       "question",
     ] as const) {
-      handlers[kind] = async ({ scope, actorId, planId, step, context }) => {
+      handlers[kind] = async ({ scope, actorId, planId, requestId, step, context }) => {
         const rawText =
           typeof step.intentPayload.rawText === "string"
             ? step.intentPayload.rawText
@@ -250,7 +253,36 @@ export function createWorldActionHandlerRegistry(dependencies: {
           resolvedReferences: step.resolvedReferences,
           context,
         });
-        if (dependencies.executeRoutineAction && isRoutineSelfDirectedAction(frame)) {
+        const resolution = adjudicateActionResolution(frame, context);
+        await writeGameplayTelemetry(dependencies.telemetry, {
+          level: "info",
+          eventName: "resolution_mode_selected",
+          status: "completed",
+          traceId: currentGameplayTraceId(requestId),
+          requestId,
+          planId,
+          stepId: step.stepId,
+          idempotencyKeyHash: hashIdempotencyKey(step.idempotencyKey),
+          worldId: scope.worldId,
+          shardId: scope.shardId,
+          userId: scope.userId,
+          actorId,
+          actionKind: kind,
+          actionType: frame.actionType,
+          committed: false,
+          details: {
+            mode: resolution.mode,
+            meaningfulUncertainty: resolution.meaningfulUncertainty,
+            difficulty: resolution.difficulty,
+            opposition: resolution.opposition,
+            consequenceLevel: resolution.consequenceLevel,
+            rationale: resolution.rationale,
+          },
+        });
+        if (
+          dependencies.executeRoutineAction &&
+          ["automatic_success", "automatic_failure"].includes(resolution.mode)
+        ) {
           return dependencies.executeRoutineAction({
             scope,
             actorId,
@@ -258,6 +290,7 @@ export function createWorldActionHandlerRegistry(dependencies: {
             stepId: step.stepId,
             idempotencyKey: step.idempotencyKey,
             frame,
+            resolution,
           });
         }
         return dependencies.executeExistingAction!({
@@ -266,7 +299,12 @@ export function createWorldActionHandlerRegistry(dependencies: {
           actorId,
           rawText,
           idempotencyKey: step.idempotencyKey,
-          payload: { ...step.intentPayload, actionFrame: frame, actionType: frame.actionType },
+          payload: {
+            ...step.intentPayload,
+            actionFrame: frame,
+            actionType: frame.actionType,
+            resolution,
+          },
         });
       };
     }

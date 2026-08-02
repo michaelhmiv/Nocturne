@@ -57,10 +57,66 @@ export const SemanticActionFrameSchema = z
   });
 export type SemanticActionFrame = z.infer<typeof SemanticActionFrameSchema>;
 
+export const ActionResolutionModeSchema = z.enum([
+  "automatic_success",
+  "automatic_failure",
+  "clarification_required",
+  "unopposed_check",
+  "opposed_contest",
+  "timed_task",
+  "transaction",
+  "movement",
+  "conversation",
+  "composite_plan",
+]);
+export type ActionResolutionMode = z.infer<typeof ActionResolutionModeSchema>;
+
+export const ActionResolutionDecisionSchema = z
+  .object({
+    mode: ActionResolutionModeSchema,
+    rationale: z.string().trim().min(1).max(1_500),
+    meaningfulUncertainty: z.boolean(),
+    difficulty: DemandSchema,
+    opposition: DemandSchema,
+    consequenceLevel: DemandSchema,
+    requiredFactIds: z.array(z.string().trim().min(1).max(200)).max(32),
+  })
+  .strict()
+  .superRefine((decision, context) => {
+    if (
+      [
+        "automatic_success",
+        "automatic_failure",
+        "movement",
+        "conversation",
+        "transaction",
+      ].includes(decision.mode) &&
+      decision.meaningfulUncertainty
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["meaningfulUncertainty"],
+        message: "Deterministic resolution modes cannot claim meaningful uncertainty",
+      });
+    }
+    if (
+      ["unopposed_check", "opposed_contest"].includes(decision.mode) &&
+      !decision.meaningfulUncertainty
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["meaningfulUncertainty"],
+        message: "Checks and contests require meaningful uncertainty",
+      });
+    }
+  });
+export type ActionResolutionDecision = z.infer<typeof ActionResolutionDecisionSchema>;
+
 export const SemanticActionStepPayloadSchema = z
   .object({
     rawText: TextSchema,
     actionFrame: SemanticActionFrameSchema,
+    resolution: ActionResolutionDecisionSchema.optional(),
   })
   .passthrough();
 export type SemanticActionStepPayload = z.infer<typeof SemanticActionStepPayloadSchema>;
