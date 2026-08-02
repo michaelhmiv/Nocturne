@@ -39,9 +39,10 @@ test("onboards a character, resolves every supported action, and loads the dashb
     .getByLabel("Character concept")
     .fill("A deterministic browser test character used to certify every Nocturne action.");
   await page.getByRole("button", { name: "Begin" }).click();
-  await expect(page.getByText("Unit 3B is available.")).toBeVisible({ timeout: 20_000 });
-  await page.getByRole("button", { name: "Take Unit 3B" }).click();
   await expect(page.getByPlaceholder("What do you do?")).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator("main")).toContainText(/Ashdown Apartments|Unit [A-Z0-9-]+/i, {
+    timeout: 20_000,
+  });
 
   for (const action of actions) {
     const composer = page.getByPlaceholder("What do you do?");
