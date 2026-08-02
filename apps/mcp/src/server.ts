@@ -1,9 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { McpConfig } from "./config.js";
-import {
-  signUpstreamApiToken,
-  verifyAccountAssertion,
-} from "./mcp-account-auth.js";
+import { signUpstreamApiToken, verifyAccountAssertion } from "./mcp-account-auth.js";
 import { OAuthError, OAuthService, type AuthorizedPrincipal } from "./oauth.js";
 import { createNocturneTools, NocturneApiError, type McpTool } from "./tools.js";
 
@@ -300,10 +297,7 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
           const rawRequest = url.searchParams.toString();
           const target = new URL("/api/mcp/authorize", config.webBaseUrl);
           target.searchParams.set("oauth_request", Buffer.from(rawRequest).toString("base64url"));
-          target.searchParams.set(
-            "callback",
-            `${config.publicBaseUrl}/oauth/account-callback`,
-          );
+          target.searchParams.set("callback", `${config.publicBaseUrl}/oauth/account-callback`);
           log("oauth_account_link_started", { clientAddress: clientAddress(request) });
           return redirect(response, target.toString());
         }
@@ -327,7 +321,7 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
         let rawRequest: string;
         try {
           rawRequest = Buffer.from(encodedRequest, "base64url").toString("utf8");
-      } catch {
+        } catch {
           throw new OAuthError("invalid_request", "OAuth account-link request is invalid.");
         }
         if (!rawRequest || rawRequest.length > 20_000 || !assertion) {
@@ -351,7 +345,11 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
         authorization.set("password", config.adminPassword);
         const approval = oauth.approveAuthorization(authorization);
         if (!approval.ok) {
-          throw new OAuthError("server_error", "Linked account authorization could not be completed.", 500);
+          throw new OAuthError(
+            "server_error",
+            "Linked account authorization could not be completed.",
+            500,
+          );
         }
         return redirect(response, approval.redirect);
       }

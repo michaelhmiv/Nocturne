@@ -48,9 +48,9 @@ describe("MCP account linking", () => {
   it("creates API tokens for the linked user without exposing credentials", () => {
     const token = signUpstreamApiToken({ secret, userId: "user-123", writable: true });
     expect(token).toMatch(/^noct_mcp_[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
-    expect(Buffer.from(token.slice("noct_mcp_".length).split(".")[0]!, "base64url").toString()).toContain(
-      '"sub":"user-123"',
-    );
+    expect(
+      Buffer.from(token.slice("noct_mcp_".length).split(".")[0]!, "base64url").toString(),
+    ).toContain('"sub":"user-123"');
     expect(oauthRequestHash("abc")).toHaveLength(64);
   });
 });

@@ -91,10 +91,7 @@ export async function GET(request: Request) {
 
     const mcpBaseUrl = new URL(requiredEnv("NOCTURNE_MCP_URL"));
     const callback = new URL(callbackValue);
-    if (
-      callback.origin !== mcpBaseUrl.origin ||
-      callback.pathname !== "/oauth/account-callback"
-    ) {
+    if (callback.origin !== mcpBaseUrl.origin || callback.pathname !== "/oauth/account-callback") {
       return html("<h1>Invalid MCP callback.</h1>", 400);
     }
 
