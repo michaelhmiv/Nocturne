@@ -8,13 +8,14 @@ const webUrl = process.env.NOCTURNE_WEB_URL || "http://127.0.0.1:3000";
 
 test.describe.configure({ mode: "serial" });
 
-test("onboards a character and resolves every supported action through the production UI path", async ({
+test("onboards a character, resolves every supported action, and loads the dashboard through the production UI path", async ({
   page,
 }) => {
   test.setTimeout(15 * 60_000);
   const consoleErrors = [];
   const legacyRequests = [];
   const persistentResponses = [];
+  const dashboardResponses = [];
 
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
@@ -25,6 +26,9 @@ test("onboards a character and resolves every supported action through the produ
   page.on("response", (response) => {
     if (response.url().includes("/api/game/persistent-world/actions")) {
       persistentResponses.push({ url: response.url(), status: response.status() });
+    }
+    if (response.url().includes("/api/game/persistent-world/dashboard")) {
+      dashboardResponses.push({ url: response.url(), status: response.status() });
     }
   });
 
@@ -57,6 +61,13 @@ test("onboards a character and resolves every supported action through the produ
     );
   }
 
+  await page.getByRole("link", { name: "Dashboard" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByRole("heading", { name: "Browser Certification Agent" })).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.locator("main")).not.toContainText(/internal error|dashboard is unavailable/i);
+
   expect(
     legacyRequests,
     "The browser must not submit gameplay to the legacy action endpoint",
@@ -65,6 +76,14 @@ test("onboards a character and resolves every supported action through the produ
   expect(
     persistentResponses.filter((response) => response.status >= 500),
     "No persistent-world browser request may return a server error",
+  ).toEqual([]);
+  expect(
+    dashboardResponses.length,
+    "The browser certification must request the dashboard",
+  ).toBeGreaterThan(0);
+  expect(
+    dashboardResponses.filter((response) => response.status >= 500),
+    "The production dashboard request may not return a server error",
   ).toEqual([]);
   expect(consoleErrors, "The production browser flow must not emit console errors").toEqual([]);
 });

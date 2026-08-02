@@ -5,6 +5,7 @@ import {
 } from "../../contracts/src/persistent-scene.js";
 import { PersistentActionPlanSchema } from "../../contracts/src/action-plans.js";
 import type { createDatabase } from "./index.js";
+import { toIsoTimestamp, toNullableIsoTimestamp } from "./timestamp.js";
 import type { WorldScope } from "./world-store.js";
 
 export class PersistentSceneStoreError extends Error {
@@ -26,7 +27,7 @@ type EntityRow = {
   location_name: string | null;
   relation_types: string[] | null;
   aliases: string[] | null;
-  last_observed_at: Date | null;
+  last_observed_at: Date | string | null;
   presence: PersistentSceneEntity["presence"];
 };
 
@@ -200,7 +201,10 @@ export function createPersistentSceneStore(database: ReturnType<typeof createDat
       relationshipLabels: row.relation_types || [],
       aliases: row.aliases?.length ? row.aliases : [row.name],
       statusSummary: null,
-      lastObservedAt: row.last_observed_at?.toISOString() || null,
+      lastObservedAt: toNullableIsoTimestamp(
+        row.last_observed_at,
+        "entity_relations.last_observed_at",
+      ),
       presence: row.presence,
     };
   }
@@ -213,8 +217,8 @@ export function createPersistentSceneStore(database: ReturnType<typeof createDat
         plan_version: string;
         active_step_id: string | null;
         exclusive_physical: boolean;
-        created_at: Date;
-        updated_at: Date;
+        created_at: Date | string;
+        updated_at: Date | string;
       }[]
     >`
       SELECT plan_id, status, plan_version::text, active_step_id,
@@ -267,8 +271,8 @@ export function createPersistentSceneStore(database: ReturnType<typeof createDat
         waitingReason: step.waiting_reason,
         outcomeGrade: step.outcome_grade,
       })),
-      createdAt: plan.created_at.toISOString(),
-      updatedAt: plan.updated_at.toISOString(),
+      createdAt: toIsoTimestamp(plan.created_at, "action_plans.created_at"),
+      updatedAt: toIsoTimestamp(plan.updated_at, "action_plans.updated_at"),
     });
   }
 
@@ -310,7 +314,7 @@ export function createPersistentSceneStore(database: ReturnType<typeof createDat
         kind: string;
         description: string;
         status: string;
-        resolves_at: Date;
+        resolves_at: Date | string;
         plan_id: string | null;
         step_id: string | null;
       }[]
@@ -327,7 +331,12 @@ export function createPersistentSceneStore(database: ReturnType<typeof createDat
       LIMIT 64
     `;
     const recentEvents = await database.client<
-      { event_id: string; event_type: string; world_time: Date; payload: Record<string, unknown> }[]
+      {
+        event_id: string;
+        event_type: string;
+        world_time: Date | string;
+        payload: Record<string, unknown>;
+      }[]
     >`
       SELECT event_id, event_type, world_time, payload
       FROM game.event_ledger
@@ -366,14 +375,14 @@ export function createPersistentSceneStore(database: ReturnType<typeof createDat
         kind: work.kind,
         description: work.description,
         status: work.status,
-        resolvesAt: work.resolves_at.toISOString(),
+        resolvesAt: toIsoTimestamp(work.resolves_at, "scheduled_actions.resolves_at"),
         planId: work.plan_id,
         stepId: work.step_id,
       })),
       recentEvents: recentEvents.map((event) => ({
         eventId: event.event_id,
         eventType: event.event_type,
-        occurredAt: event.world_time.toISOString(),
+        occurredAt: toIsoTimestamp(event.world_time, "event_ledger.world_time"),
         summary:
           typeof event.payload?.playerSummary === "string"
             ? event.payload.playerSummary
