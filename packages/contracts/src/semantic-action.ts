@@ -47,7 +47,10 @@ export const SemanticActionFrameSchema = z
   })
   .strict()
   .superRefine((frame, context) => {
-    if (frame.properties.selfDirected && frame.targetIds.some((id) => id !== frame.actorId)) {
+    if (
+      frame.properties.selfDirected &&
+      frame.targetIds.some((id) => id !== frame.actorId)
+    ) {
       context.addIssue({
         code: "custom",
         path: ["properties", "selfDirected"],
@@ -84,15 +87,20 @@ export const ActionResolutionDecisionSchema = z
   .strict()
   .superRefine((decision, context) => {
     if (
-      ["automatic_success", "automatic_failure", "movement", "conversation", "transaction"].includes(
-        decision.mode,
-      ) &&
+      [
+        "automatic_success",
+        "automatic_failure",
+        "movement",
+        "conversation",
+        "transaction",
+      ].includes(decision.mode) &&
       decision.meaningfulUncertainty
     ) {
       context.addIssue({
         code: "custom",
         path: ["meaningfulUncertainty"],
-        message: "Deterministic resolution modes cannot claim meaningful uncertainty",
+        message:
+          "Deterministic resolution modes cannot claim meaningful uncertainty",
       });
     }
     if (
@@ -106,7 +114,9 @@ export const ActionResolutionDecisionSchema = z
       });
     }
   });
-export type ActionResolutionDecision = z.infer<typeof ActionResolutionDecisionSchema>;
+export type ActionResolutionDecision = z.infer<
+  typeof ActionResolutionDecisionSchema
+>;
 
 export const SemanticActionStepPayloadSchema = z
   .object({
@@ -115,4 +125,6 @@ export const SemanticActionStepPayloadSchema = z
     resolution: ActionResolutionDecisionSchema.optional(),
   })
   .passthrough();
-export type SemanticActionStepPayload = z.infer<typeof SemanticActionStepPayloadSchema>;
+export type SemanticActionStepPayload = z.infer<
+  typeof SemanticActionStepPayloadSchema
+>;
