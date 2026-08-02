@@ -33,6 +33,7 @@ import { createPersistentWorldActionService } from "./persistent-world-action-se
 import { registerPersistentWorldRoutes } from "./persistent-world-routes.js";
 import { createRoutineActionService } from "./routine-action-service.js";
 import { createSearchDiscoveryService } from "./search-discovery-service.js";
+import { createSemanticActionExecutionService } from "./semantic-action-execution-service.js";
 import { createWorldActionHandlerRegistry } from "./world-action-handler-registry.js";
 
 export async function registerPersistentWorldRuntime(
@@ -94,6 +95,10 @@ export async function registerPersistentWorldRuntime(
 ) {
   const executor = createUniversalOperationExecutor(dependencies.database);
   const routineActions = createRoutineActionService(executor);
+  const semanticActions = createSemanticActionExecutionService({
+    executor,
+    rollSecret: dependencies.rollSecret,
+  });
   const telemetry = createGameplayTelemetryWriter(app.log);
   const client = instrumentAiClient(dependencies.client, telemetry);
   const context = instrumentContextStore(
@@ -123,6 +128,7 @@ export async function registerPersistentWorldRuntime(
     search,
     scheduleMove: dependencies.scheduleMove,
     executeRoutineAction: routineActions.execute,
+    executeSemanticAction: semanticActions.execute,
     executeExistingAction: dependencies.executeExistingAction,
   });
   const actions = createPersistentWorldActionService({
