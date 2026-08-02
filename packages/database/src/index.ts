@@ -35,6 +35,7 @@ export * from "./materialization-store.js";
 export * from "./narrative-memory-store.js";
 export * from "./persistent-plan-store.js";
 export * from "./persistent-scene-store.js";
+export * from "./player-effect-store.js";
 export * from "./reference-resolution-store.js";
 export * from "./relationship-store.js";
 export * from "./relevance-context-store.js";
