@@ -88,3 +88,7 @@ After a write:
 5. Use `inspect_world_entity` for any actor, destination, target, item, or vehicle involved.
 
 This makes narration-to-state contradictions visible while preserving the normal gameplay path.
+
+## Starter housing behavior
+
+Character creation atomically provisions a unique bare-bones unit inside Ashdown Apartments in Foundry Row. The building is shared geography, while every apartment is a distinct persistent residence instance. The legacy rent tool is retained as an idempotent repair operation and can no longer fail because another character occupies a different unit.

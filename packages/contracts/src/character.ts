@@ -16,6 +16,7 @@ export const CharacterSummarySchema = z.object({
   selected: z.boolean(),
   locationId: z.string().uuid().nullable(),
   residenceId: z.string().uuid().nullable(),
+  residenceName: z.string().nullable().default(null),
   createdAt: z.string().datetime(),
   // Phase UI/cash
   cashOnPerson: z.number().int().nonnegative().default(0),

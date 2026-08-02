@@ -15,6 +15,7 @@ type Character = {
   conceptSummary: string;
   selected: boolean;
   residenceId: string | null;
+  residenceName: string | null;
   cashOnPerson?: number;
   heat?: number;
   warrant?: boolean;
@@ -144,7 +145,6 @@ export default function SceneGameClient() {
   const [pendingTurns, setPendingTurns] = useState<PendingTurn[]>([]);
   const [showCharacter, setShowCharacter] = useState(false);
   const [creatingCharacter, setCreatingCharacter] = useState(false);
-  const [renting, setRenting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [installingId, setInstallingId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -383,28 +383,10 @@ export default function SceneGameClient() {
     }
   }
 
-  async function rentResidence() {
-    if (!selected) return;
-    setRenting(true);
-    setError("");
-    try {
-      await gameFetch("residences/starter/rent", {
-        method: "POST",
-        headers: { "idempotency-key": crypto.randomUUID() },
-        body: JSON.stringify({ characterId: selected.characterId }),
-      });
-      await refresh();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not secure the residence.");
-    } finally {
-      setRenting(false);
-    }
-  }
-
   async function submitMessage(event: FormEvent) {
     event.preventDefault();
     const text = message.trim();
-    if (!selected?.residenceId || !text || submitting) return;
+    if (!selected || !text || submitting) return;
     const localId = crypto.randomUUID();
     const idempotencyKey = crypto.randomUUID();
     const kind = inferJobKind(text);
@@ -505,10 +487,10 @@ export default function SceneGameClient() {
         <section className="scene-main">
           <header className="scene-location">
             <p className="scene-kicker">CURRENT SCENE</p>
-            <h1>{selected?.residenceId ? world?.residence.name || "Unit 3B" : "Foundry Row"}</h1>
+            <h1>{selected?.residenceName || (selected ? "Ashdown Apartments" : "Foundry Row")}</h1>
             <p>
-              {selected?.residenceId
-                ? `The apartment overlooks ${world?.alley.name || "the rear alley"}. The city moves beyond the walls.`
+              {selected
+                ? `Your unit is cramped, the locks are weak, and the empty floor space is limited. ${world?.alley.name || "The rear alley"} runs behind the building; Calder City offers much better places if you can earn them.`
                 : "Rain shines on old brick and machine shops. You have no base and no history here yet."}
             </p>
           </header>
@@ -543,18 +525,7 @@ export default function SceneGameClient() {
               </article>
             )}
 
-            {selected && !selected.residenceId && (
-              <article className="scene-event scene-event-world">
-                <p className="scene-kicker">AN OPEN DOOR</p>
-                <h2>Unit 3B is available.</h2>
-                <p>Ashdown Apartments is cheap, private enough, and close to the service alleys.</p>
-                <button disabled={renting} onClick={() => void rentResidence()}>
-                  {renting ? "Signing the lease…" : "Take Unit 3B"}
-                </button>
-              </article>
-            )}
-
-            {selected?.residenceId &&
+            {selected &&
               timeline.length === 0 &&
               pendingTurns.length === 0 &&
               resolvedPlans.length === 0 && (
@@ -591,7 +562,7 @@ export default function SceneGameClient() {
                           >
                             {installingId === invention.requestId
                               ? "Installing…"
-                              : "Install in Unit 3B"}
+                              : `Install in ${selected?.residenceName || "your apartment"}`}
                           </button>
                         )}
                       {invention.installedInstanceId && (
@@ -710,7 +681,7 @@ export default function SceneGameClient() {
               </div>
               <div>
                 <dt>Location</dt>
-                <dd>{selected.residenceId ? world?.residence.name || "Unit 3B" : "Foundry Row"}</dd>
+                <dd>{selected.residenceName || "Foundry Row"}</dd>
               </div>
             </dl>
             {selected.inventory?.length ? (
@@ -740,7 +711,7 @@ export default function SceneGameClient() {
         )}
       </div>
 
-      {selected?.residenceId && (
+      {selected && (
         <form className="scene-composer" onSubmit={submitMessage}>
           <label className="sr-only" htmlFor="scene-message">
             Your action

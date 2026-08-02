@@ -313,6 +313,31 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
         UPDATE game.entity_instances SET created_event_id = ${eventId} WHERE instance_id = ${characterId}
       `;
 
+      const starterResidenceRows = await sql`
+        SELECT residence_id, event_id, already_rented
+        FROM game.provision_starter_residence(
+          ${userId},
+          ${characterId},
+          ${`starter-residence:${characterId}`}
+        )
+      `;
+      const starterResidence = starterResidenceRows[0];
+      if (!starterResidence?.residence_id) {
+        throw new PersistentWorldError(
+          "conflict",
+          "Starter housing could not be provisioned for the new character.",
+        );
+      }
+      const residenceId = String(starterResidence.residence_id);
+      const residenceRows = await sql`
+        SELECT d.name
+        FROM game.entity_instances i
+        JOIN game.entity_definitions d ON d.definition_id = i.definition_id
+        WHERE i.instance_id = ${residenceId}
+        LIMIT 1
+      `;
+      const residenceName = residenceRows[0]?.name ? String(residenceRows[0].name) : null;
+
       return {
         characterId,
         definitionId,
@@ -320,8 +345,9 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
         conceptSummary: input.conceptSummary,
         originSource: input.originSource,
         selected: hasSelected.length === 0,
-        locationId: STARTER_WORLD_IDS.neighborhood,
-        residenceId: null,
+        locationId: residenceId,
+        residenceId,
+        residenceName,
         createdAt,
         cashOnPerson: 50_000,
         heat: 0,
@@ -338,12 +364,14 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
     const rows = await database.client`
       SELECT pc.character_instance_id, pc.selected, pc.created_at,
              d.definition_id, d.name, d.concept_summary, d.origin_source,
-             i.location_id, i.state, o.residence_instance_id
+             i.location_id, i.state, o.residence_instance_id, rd.name AS residence_name
       FROM game.player_characters pc
       JOIN game.entity_instances i ON i.instance_id = pc.character_instance_id
       JOIN game.entity_definitions d ON d.definition_id = i.definition_id
       LEFT JOIN game.residence_occupancies o
         ON o.character_instance_id = i.instance_id AND o.status = 'active'
+      LEFT JOIN game.entity_instances ri ON ri.instance_id = o.residence_instance_id
+      LEFT JOIN game.entity_definitions rd ON rd.definition_id = ri.definition_id
       WHERE pc.user_id = ${userId}
       ORDER BY pc.created_at ASC
     `;
@@ -360,6 +388,7 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
         selected: Boolean(row.selected),
         locationId: row.location_id ? String(row.location_id) : null,
         residenceId: row.residence_instance_id ? String(row.residence_instance_id) : null,
+        residenceName: row.residence_name ? String(row.residence_name) : null,
         createdAt: asIso(row.created_at as Date),
         cashOnPerson: Number(state.cashOnPerson ?? 0),
         heat: Number(state.heat ?? 0),
@@ -405,87 +434,30 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
     idempotencyKey: string,
   ): Promise<RentResidenceResult> {
     return database.client.begin(async (sql) => {
-      const prior =
-        await sql`SELECT payload FROM game.event_ledger WHERE idempotency_key = ${idempotencyKey}`;
-      if (prior[0]?.payload) {
-        const payload = prior[0].payload as Record<string, unknown>;
-        return {
-          characterId: String(payload.characterId),
-          residenceId: String(payload.residenceId),
-          eventId: String(payload.eventId),
-          alreadyRented: true,
-        };
-      }
-
       const controlled = await sql`
         SELECT 1 FROM game.player_characters
         WHERE user_id = ${userId} AND character_instance_id = ${characterId}
       `;
-      if (controlled.length === 0)
+      if (controlled.length === 0) {
         throw new PersistentWorldError("forbidden", "Character is not controlled by this account.");
-
-      const occupancy = await sql`
-        SELECT character_instance_id FROM game.residence_occupancies
-        WHERE residence_instance_id = ${STARTER_WORLD_IDS.residence} AND status = 'active'
-        FOR UPDATE
-      `;
-      const occupiedCharacterId = occupancy[0]?.character_instance_id;
-      if (occupiedCharacterId && String(occupiedCharacterId) !== characterId) {
-        throw new PersistentWorldError(
-          "residence_unavailable",
-          "The starter apartment is already occupied.",
-        );
-      }
-      if (occupancy.length > 0) {
-        const events = await sql`
-          SELECT event_id FROM game.event_ledger
-          WHERE event_type = 'residence_rented' AND payload->>'characterId' = ${characterId}
-          ORDER BY created_at DESC LIMIT 1
-        `;
-        return {
-          characterId,
-          residenceId: STARTER_WORLD_IDS.residence,
-          eventId: events[0] ? String(events[0].event_id) : randomUUID(),
-          alreadyRented: true,
-        };
       }
 
-      const eventId = randomUUID();
-      await sql`
-        INSERT INTO game.residence_occupancies (
-          residence_instance_id, character_instance_id, user_id
-        ) VALUES (${STARTER_WORLD_IDS.residence}, ${characterId}, ${userId})
+      const provisioningKey = idempotencyKey.startsWith("starter-residence:")
+        ? idempotencyKey
+        : `starter-residence:${characterId}`;
+      const rows = await sql`
+        SELECT residence_id, event_id, already_rented
+        FROM game.provision_starter_residence(${userId}, ${characterId}, ${provisioningKey})
       `;
-      await sql`
-        UPDATE game.entity_instances
-        SET location_id = ${STARTER_WORLD_IDS.residence}, updated_at = now()
-        WHERE instance_id = ${characterId}
-      `;
-      await sql`
-        INSERT INTO game.entity_relations (
-          source_instance_id, target_instance_id, relation_type, parameters
-        ) VALUES (${characterId}, ${STARTER_WORLD_IDS.residence}, 'occupies', ${json({ role: "tenant" })})
-        ON CONFLICT (source_instance_id, target_instance_id, relation_type) DO NOTHING
-      `;
-      const eventPayload = {
-        eventId,
-        characterId,
-        residenceId: STARTER_WORLD_IDS.residence,
-        userId,
-      };
-      await sql`
-        INSERT INTO game.event_ledger (
-          event_id, idempotency_key, world_time, event_type, involved_entity_ids, payload
-        ) VALUES (
-          ${eventId}, ${idempotencyKey}, now(), 'residence_rented',
-          ${json([characterId, STARTER_WORLD_IDS.residence])}, ${json(eventPayload)}
-        )
-      `;
+      const row = rows[0];
+      if (!row?.residence_id || !row?.event_id) {
+        throw new PersistentWorldError("conflict", "Starter housing could not be provisioned.");
+      }
       return {
         characterId,
-        residenceId: STARTER_WORLD_IDS.residence,
-        eventId,
-        alreadyRented: false,
+        residenceId: String(row.residence_id),
+        eventId: String(row.event_id),
+        alreadyRented: Boolean(row.already_rented),
       };
     });
   }

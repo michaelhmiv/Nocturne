@@ -10,7 +10,8 @@ function fakeStore() {
     originSource: "human",
     selected: true,
     locationId: null,
-    residenceId: null,
+    residenceId: "10000000-0000-4000-8000-000000000099",
+    residenceName: "Ashdown Apartments, Unit 2A",
     createdAt: new Date(0).toISOString(),
   };
   return {
@@ -43,5 +44,6 @@ describe("persistent world service", () => {
       originSource: "human",
     });
     expect(result.name).toBe("Night Engineer");
+    expect(result.residenceName).toBe("Ashdown Apartments, Unit 2A");
   });
 });
