@@ -10,5 +10,7 @@ export function toNullableIsoTimestamp(
   value: unknown,
   fieldName = "timestamp",
 ): string | null {
-  return value === null || value === undefined ? null : toIsoTimestamp(value, fieldName);
+  return value === null || value === undefined
+    ? null
+    : toIsoTimestamp(value, fieldName);
 }
