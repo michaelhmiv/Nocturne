@@ -1,0 +1,28 @@
+name: MCP Production Certification
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 8 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mcp-production-certification
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run OAuth and MCP production certification
+        env:
+          NOCTURNE_WEB_URL: https://nocturneweb-production.up.railway.app
+          NOCTURNE_MCP_URL: https://nocturnemcp-production.up.railway.app
+        run: node scripts/ci/mcp-production-certification.mjs

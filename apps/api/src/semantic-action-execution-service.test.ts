@@ -5,7 +5,7 @@ import type {
   RelevanceCompiledContext,
   SemanticActionFrame,
 } from "@nocturne/contracts";
-import type { UniversalOperationExecutor } from "@nocturne/database";
+import type { UniversalOperationExecutionInput } from "@nocturne/database";
 import { createSemanticActionExecutionService } from "./semantic-action-execution-service.js";
 
 const scope = {
@@ -15,9 +15,6 @@ const scope = {
   role: "player" as const,
   selectedCharacterId: randomUUID(),
 };
-
-type ExecutionInput = Parameters<UniversalOperationExecutor["execute"]>[0];
-type SemanticResultState = { value: { roll: number; succeeded: boolean } };
 
 function context(actorId: string, targetId?: string): RelevanceCompiledContext {
   const locationId = randomUUID();
@@ -113,10 +110,17 @@ function resolution(mode: ActionResolutionDecision["mode"]): ActionResolutionDec
   };
 }
 
+function operationValues(input: UniversalOperationExecutionInput) {
+  const branch = input.branch as {
+    operations: Array<{ value?: unknown }>;
+  };
+  return branch.operations;
+}
+
 describe("semantic action execution service", () => {
   it("commits ordinary conversation through the universal executor", async () => {
     const actorId = randomUUID();
-    const execute = vi.fn(async (_input: ExecutionInput) => ({
+    const execute = vi.fn(async (_input: UniversalOperationExecutionInput) => ({
       eventId: randomUUID(),
       receiptId: randomUUID(),
       symbolMap: {},
@@ -139,7 +143,7 @@ describe("semantic action execution service", () => {
 
     expect(result.outcomeGrade).toBe("complete_success");
     expect(execute).toHaveBeenCalledOnce();
-    expect(execute.mock.calls[0]![0].branch.operations).toEqual(
+    expect(operationValues(execute.mock.calls[0]![0])).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           type: "set_state_value",
@@ -152,7 +156,7 @@ describe("semantic action execution service", () => {
   it("commits successful combat damage as an authoritative condition operation", async () => {
     const actorId = randomUUID();
     const targetId = randomUUID();
-    const execute = vi.fn(async (_input: ExecutionInput) => ({
+    const execute = vi.fn(async (_input: UniversalOperationExecutionInput) => ({
       eventId: randomUUID(),
       receiptId: randomUUID(),
       symbolMap: {},
@@ -173,7 +177,7 @@ describe("semantic action execution service", () => {
       context: context(actorId, targetId),
     });
 
-    expect(execute.mock.calls[0]![0].branch.operations).toEqual(
+    expect(operationValues(execute.mock.calls[0]![0])).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           type: "adjust_condition",
@@ -185,15 +189,11 @@ describe("semantic action execution service", () => {
 
   it("uses the same deterministic roll for the same idempotency key", async () => {
     const actorId = randomUUID();
-    const calls: ExecutionInput[] = [];
-    const execute = vi.fn(async (input: ExecutionInput) => {
-      calls.push(input);
-      return {
-        eventId: randomUUID(),
-        receiptId: randomUUID(),
-        symbolMap: {},
-      };
-    });
+    const execute = vi.fn(async (_input: UniversalOperationExecutionInput) => ({
+      eventId: randomUUID(),
+      receiptId: randomUUID(),
+      symbolMap: {},
+    }));
     const service = createSemanticActionExecutionService({
       executor: { execute } as never,
       rollSecret: "semantic-test-secret",
@@ -212,8 +212,14 @@ describe("semantic action execution service", () => {
     await service.execute(request);
     await service.execute(request);
 
-    const firstValue = (calls[0]!.branch.operations[0] as SemanticResultState).value;
-    const secondValue = (calls[1]!.branch.operations[0] as SemanticResultState).value;
+    const firstValue = operationValues(execute.mock.calls[0]![0])[0]!.value as {
+      roll: number;
+      succeeded: boolean;
+    };
+    const secondValue = operationValues(execute.mock.calls[1]![0])[0]!.value as {
+      roll: number;
+      succeeded: boolean;
+    };
     expect(firstValue.roll).toBe(secondValue.roll);
     expect(firstValue.succeeded).toBe(secondValue.succeeded);
   });
