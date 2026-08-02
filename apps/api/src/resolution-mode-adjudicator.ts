@@ -14,10 +14,7 @@ const impossibleWithoutSupport = [
   /\blift\b.*\b(?:building|skyscraper|mountain)\b/i,
 ];
 
-function relevantFactIds(
-  frame: SemanticActionFrame,
-  context?: RelevanceCompiledContext,
-) {
+function relevantFactIds(frame: SemanticActionFrame, context?: RelevanceCompiledContext) {
   if (!context) return [];
   const entities = new Set([
     frame.actorId,
@@ -31,10 +28,7 @@ function relevantFactIds(
     .slice(0, 32);
 }
 
-function hasExtraordinarySupport(
-  frame: SemanticActionFrame,
-  context?: RelevanceCompiledContext,
-) {
+function hasExtraordinarySupport(frame: SemanticActionFrame, context?: RelevanceCompiledContext) {
   if (!context) return false;
   const text = JSON.stringify([
     frame.assumptions,
@@ -99,8 +93,7 @@ export function adjudicateActionResolution(
       frame,
       {
         mode: "movement",
-        rationale:
-          "Authoritative location change must use the movement and routing subsystem.",
+        rationale: "Authoritative location change must use the movement and routing subsystem.",
         meaningfulUncertainty: false,
         difficulty: demand,
         opposition: 0,
@@ -182,8 +175,7 @@ export function adjudicateActionResolution(
       frame,
       {
         mode: "opposed_contest",
-        rationale:
-          "Another entity actively resists or materially determines the outcome.",
+        rationale: "Another entity actively resists or materially determines the outcome.",
         meaningfulUncertainty: true,
         difficulty: demand,
         opposition,
