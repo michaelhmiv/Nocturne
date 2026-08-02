@@ -8,12 +8,52 @@ import type {
 } from "@nocturne/database";
 import { currentGameplayTraceId, writeGameplayTelemetry } from "./gameplay-telemetry.js";
 
+const MAX_DIAGNOSTIC_TEXT = 4_000;
+
 function stableErrorCode(error: unknown, fallback: string) {
   return error instanceof Error &&
     "code" in error &&
     typeof (error as { code?: unknown }).code === "string"
     ? String((error as { code: string }).code)
     : fallback;
+}
+
+function truncate(value: string, maximum = MAX_DIAGNOSTIC_TEXT) {
+  return value.length <= maximum ? value : `${value.slice(0, maximum)}…[truncated]`;
+}
+
+function safeDiagnosticValue(value: unknown, depth = 0): unknown {
+  if (depth > 5) return "[depth-limited]";
+  if (value === null || value === undefined || typeof value === "boolean" || typeof value === "number") {
+    return value;
+  }
+  if (typeof value === "string") return truncate(value);
+  if (value instanceof Error) return errorDiagnostics(value, depth + 1);
+  if (Array.isArray(value)) return value.slice(0, 25).map((item) => safeDiagnosticValue(item, depth + 1));
+  if (typeof value === "object") {
+    const output: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value as Record<string, unknown>).slice(0, 50)) {
+      if (/api[-_]?key|authorization|cookie|secret|token/i.test(key)) {
+        output[key] = "[redacted]";
+      } else {
+        output[key] = safeDiagnosticValue(item, depth + 1);
+      }
+    }
+    return output;
+  }
+  return truncate(String(value));
+}
+
+function errorDiagnostics(error: unknown, depth = 0): Record<string, unknown> {
+  if (!(error instanceof Error)) return { thrown: safeDiagnosticValue(error, depth + 1) };
+  const enriched = error as Error & { code?: unknown; cause?: unknown };
+  return {
+    name: error.name,
+    message: truncate(error.message),
+    code: typeof enriched.code === "string" ? enriched.code : undefined,
+    stack: error.stack ? truncate(error.stack, 8_000) : undefined,
+    cause: enriched.cause === error ? "[self-referential]" : safeDiagnosticValue(enriched.cause, depth + 1),
+  };
 }
 
 export function instrumentAiClient(
@@ -24,9 +64,21 @@ export function instrumentAiClient(
     get(target, property, receiver) {
       if (property !== "generateStructured") return Reflect.get(target, property, receiver);
       return async (...args: any[]) => {
-        const request = args[0] as { task?: string; requestedModel?: string };
+        const request = args[0] as {
+          task?: string;
+          requestedModel?: string;
+          prompt?: string;
+          system?: string;
+          jsonSchema?: { name?: string; description?: string };
+        };
         const startedAt = Date.now();
         const traceId = currentGameplayTraceId(`provider-${request.task || "unknown"}`);
+        const requestDetails = {
+          schemaName: request.jsonSchema?.name,
+          promptCharacters: request.prompt?.length || 0,
+          systemCharacters: request.system?.length || 0,
+          retryBudget: typeof args[1] === "number" ? args[1] : 1,
+        };
         await writeGameplayTelemetry(telemetry, {
           timestamp: new Date().toISOString(),
           level: "info",
@@ -36,6 +88,7 @@ export function instrumentAiClient(
           actionType: request.task,
           model: request.requestedModel,
           committed: false,
+          details: requestDetails,
         });
         try {
           const result = await (target.generateStructured as (...values: any[]) => Promise<any>)(
@@ -54,9 +107,11 @@ export function instrumentAiClient(
             attempt: result.attempts,
             durationMs: Date.now() - startedAt,
             committed: false,
+            details: requestDetails,
           });
           return result;
         } catch (error) {
+          const diagnostics = errorDiagnostics(error);
           await writeGameplayTelemetry(telemetry, {
             timestamp: new Date().toISOString(),
             level: "error",
@@ -68,6 +123,10 @@ export function instrumentAiClient(
             errorCode: stableErrorCode(error, "provider_failure"),
             durationMs: Date.now() - startedAt,
             committed: false,
+            details: {
+              ...requestDetails,
+              error: diagnostics,
+            },
           });
           throw error;
         }
