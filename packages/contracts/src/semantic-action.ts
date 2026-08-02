@@ -54,13 +54,6 @@ export const SemanticActionFrameSchema = z
         message: "Self-directed actions cannot target another entity",
       });
     }
-    if (frame.properties.opposed && frame.targetIds.length === 0) {
-      context.addIssue({
-        code: "custom",
-        path: ["targetIds"],
-        message: "Opposed actions require a target",
-      });
-    }
   });
 export type SemanticActionFrame = z.infer<typeof SemanticActionFrameSchema>;
 
@@ -102,7 +95,10 @@ export const ActionResolutionDecisionSchema = z
         message: "Deterministic resolution modes cannot claim meaningful uncertainty",
       });
     }
-    if (["unopposed_check", "opposed_contest"].includes(decision.mode) && !decision.meaningfulUncertainty) {
+    if (
+      ["unopposed_check", "opposed_contest"].includes(decision.mode) &&
+      !decision.meaningfulUncertainty
+    ) {
       context.addIssue({
         code: "custom",
         path: ["meaningfulUncertainty"],
