@@ -1,0 +1,46 @@
+name: Format MCP Personal Account
+
+on:
+  push:
+    branches:
+      - fix/mcp-personal-account-auth
+    paths:
+      - "apps/mcp/src/**"
+      - "apps/web/app/api/mcp/**"
+      - "packages/database/src/mcp-agent-token*"
+      - ".github/workflows/format-mcp-personal-account.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/mcp-personal-account-auth
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Format changed files
+        run: >-
+          pnpm exec prettier --write
+          apps/mcp/src/mcp-account-auth.test.ts
+          apps/mcp/src/server.ts
+          apps/web/app/api/mcp/authorize/route.ts
+      - name: Commit formatting
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/mcp/src/mcp-account-auth.test.ts apps/mcp/src/server.ts apps/web/app/api/mcp/authorize/route.ts
+          git commit -m "style: format MCP personal account authorization"
+          git push origin HEAD:fix/mcp-personal-account-auth
