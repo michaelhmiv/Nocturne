@@ -1,7 +1,10 @@
-import type { SemanticActionFrame } from "@nocturne/contracts";
+import type {
+  ActionResolutionDecision,
+  SemanticActionFrame,
+} from "@nocturne/contracts";
 import type { UniversalOperationExecutor, WorldScope } from "@nocturne/database";
 
-function narrationFor(frame: SemanticActionFrame) {
+function successNarration(frame: SemanticActionFrame) {
   if (frame.actionType === "exercise" && frame.quantity === 1) {
     return "You complete one push-up.";
   }
@@ -9,6 +12,10 @@ function narrationFor(frame: SemanticActionFrame) {
     return `You complete ${frame.quantity} push-ups.`;
   }
   return `You complete the routine action: ${frame.objective}.`;
+}
+
+function failureNarration(frame: SemanticActionFrame, resolution: ActionResolutionDecision) {
+  return `You cannot complete that action: ${resolution.rationale}`;
 }
 
 export function createRoutineActionService(executor: UniversalOperationExecutor) {
@@ -19,8 +26,15 @@ export function createRoutineActionService(executor: UniversalOperationExecutor)
     stepId: string;
     idempotencyKey: string;
     frame: SemanticActionFrame;
+    resolution: ActionResolutionDecision;
   }) {
-    const narration = narrationFor(input.frame);
+    if (!['automatic_success', 'automatic_failure'].includes(input.resolution.mode)) {
+      throw new Error(`Routine action service cannot execute ${input.resolution.mode}.`);
+    }
+    const succeeded = input.resolution.mode === "automatic_success";
+    const narration = succeeded
+      ? successNarration(input.frame)
+      : failureNarration(input.frame, input.resolution);
     const receipt = await executor.execute({
       scope: input.scope,
       authority: "player",
@@ -28,17 +42,19 @@ export function createRoutineActionService(executor: UniversalOperationExecutor)
       sourcePlanId: input.planId,
       sourceStepId: input.stepId,
       idempotencyKey: input.idempotencyKey,
-      declaredFactIds: [],
+      declaredFactIds: input.resolution.requiredFactIds,
       branch: {
         operations: [
           {
             type: "set_state_value",
             entityRef: { kind: "existing", entityId: input.actorId },
-            path: ["activity", "last_routine_action"],
+            path: ["activity", "last_deterministic_action"],
             value: {
               actionType: input.frame.actionType,
               objective: input.frame.objective,
               quantity: input.frame.quantity ?? null,
+              resolutionMode: input.resolution.mode,
+              rationale: input.resolution.rationale,
               occurredAt: new Date().toISOString(),
             },
             preconditionFactIds: [],
@@ -50,7 +66,7 @@ export function createRoutineActionService(executor: UniversalOperationExecutor)
     });
     return {
       state: "completed" as const,
-      outcomeGrade: "complete_success",
+      outcomeGrade: succeeded ? "complete_success" : "failure",
       eventId: receipt.eventId,
       receiptId: receipt.receiptId,
       narration,
