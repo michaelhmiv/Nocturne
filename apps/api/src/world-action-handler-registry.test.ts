@@ -54,7 +54,7 @@ function collector() {
 }
 
 describe("world action handler telemetry", () => {
-  it("logs start, completion, and committed event for every synchronous handler", async () => {
+  it("logs resolution selection, completion, and committed event for every synchronous handler", async () => {
     const { events, writer } = collector();
     const handlers = createWorldActionHandlerRegistry({
       telemetry: writer,
@@ -80,12 +80,15 @@ describe("world action handler telemetry", () => {
       const actionEvents = events.filter((event) => event.actionKind === kind);
       expect(actionEvents.map((event) => event.eventName)).toEqual([
         "handler_started",
+        "resolution_mode_selected",
         "handler_completed",
         ...(kind === "consume" ? (["resolution_committed"] as const) : []),
         "event_committed",
         "mutation_receipt_committed",
       ]);
       expect(actionEvents.every((event) => event.traceId === `trace-${kind}`)).toBe(true);
+      expect(actionEvents.find((event) => event.eventName === "resolution_mode_selected")?.details)
+        .toMatchObject({ meaningfulUncertainty: expect.any(Boolean) });
     }
   });
 
