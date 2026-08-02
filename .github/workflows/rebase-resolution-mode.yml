@@ -1,0 +1,40 @@
+name: Reconcile Resolution Mode Branch
+
+on:
+  push:
+    branches:
+      - feat/resolution-mode-adjudicator
+    paths:
+      - ".github/workflows/rebase-resolution-mode.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/resolution-mode-adjudicator
+          fetch-depth: 0
+      - name: Merge current main and retain tested resolution implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          if ! git merge origin/main --no-edit; then
+            git checkout --ours \
+              packages/contracts/src/semantic-action.ts \
+              apps/api/src/semantic-action-frame.ts \
+              apps/api/src/semantic-action-frame.test.ts \
+              apps/api/src/routine-action-service.ts \
+              apps/api/src/world-action-handler-registry.ts \
+              test/browser/gameplay.spec.mjs
+            git add -A
+            git commit -m "merge: reconcile resolution mode adjudicator with main"
+          fi
+          rm .github/workflows/rebase-resolution-mode.yml
+          git add .github/workflows/rebase-resolution-mode.yml
+          git commit -m "ci: remove one-time resolution branch reconciler"
+          git push origin HEAD:feat/resolution-mode-adjudicator
