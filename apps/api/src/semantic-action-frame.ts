@@ -23,13 +23,17 @@ const routineSelfDirectedPatterns = [
 ];
 
 const destructivePattern = /\b(?:break|destroy|smash|rip|tear|burn|cut|damage|wreck|demolish)\b/i;
-const illegalPattern = /\b(?:steal|rob|break in|trespass|bribe|forge|hack|assault|murder|kidnap)\b/i;
+const illegalPattern =
+  /\b(?:steal|rob|break in|trespass|bribe|forge|hack|assault|murder|kidnap)\b/i;
 const continuousPattern = /\b(?:for|over)\s+\d+\s*(?:seconds?|minutes?|hours?|days?)\b/i;
-const highEffortPattern = /\b(?:one[- ]arm|hundred|100|marathon|maximum|until failure|exhausted|heavy)\b/i;
+const highEffortPattern =
+  /\b(?:one[- ]arm|hundred|100|marathon|maximum|until failure|exhausted|heavy)\b/i;
 const technicalPattern = /\b(?:hack|repair|build|craft|wire|program|forge|pick the lock|disarm)\b/i;
-const precisionPattern = /\b(?:carefully|precisely|surgically|without spilling|without being seen|bullseye)\b/i;
+const precisionPattern =
+  /\b(?:carefully|precisely|surgically|without spilling|without being seen|bullseye)\b/i;
 const dangerPattern = /\b(?:fire|explosive|live wire|gun|weapon|poison|traffic|roof|ledge)\b/i;
-const pressurePattern = /\b(?:before|within|in less than|quickly|immediately|right now|countdown)\b/i;
+const pressurePattern =
+  /\b(?:before|within|in less than|quickly|immediately|right now|countdown)\b/i;
 
 function firstString(payload: Record<string, unknown>, keys: string[]) {
   for (const key of keys) {
@@ -129,12 +133,8 @@ export function deriveSemanticActionFrame(input: {
   const referencedIds = collectUuidValues(input.resolvedReferences || {});
   for (const id of collectUuidValues(payload)) referencedIds.add(id);
   referencedIds.delete(input.actorId);
-  const visibleIds = new Set(
-    (input.context?.entities ?? []).map(({ entityId }) => entityId),
-  );
-  const targetIds = [...referencedIds].filter(
-    (id) => visibleIds.size === 0 || visibleIds.has(id),
-  );
+  const visibleIds = new Set((input.context?.entities ?? []).map(({ entityId }) => entityId));
+  const targetIds = [...referencedIds].filter((id) => visibleIds.size === 0 || visibleIds.has(id));
   const routineSelfDirected = routineSelfDirectedPatterns.some((pattern) =>
     pattern.test(input.rawText),
   );
@@ -157,8 +157,7 @@ export function deriveSemanticActionFrame(input: {
     kind: input.kind,
     actionType: normalizedActionType(input.kind, input.rawText, payload),
     objective:
-      firstString(payload, ["objective", "desiredOutcome"]) ||
-      objectiveFromRawText(input.rawText),
+      firstString(payload, ["objective", "desiredOutcome"]) || objectiveFromRawText(input.rawText),
     actorId: input.actorId,
     targetIds,
     objectIds: [],

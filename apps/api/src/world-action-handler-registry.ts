@@ -9,10 +9,7 @@ import {
   writeGameplayTelemetry,
 } from "./gameplay-telemetry.js";
 import type { SearchDiscoveryService } from "./search-discovery-service.js";
-import {
-  deriveSemanticActionFrame,
-  isRoutineSelfDirectedAction,
-} from "./semantic-action-frame.js";
+import { deriveSemanticActionFrame, isRoutineSelfDirectedAction } from "./semantic-action-frame.js";
 import type {
   WorldActionStepHandler,
   WorldActionStepHandlerResult,
