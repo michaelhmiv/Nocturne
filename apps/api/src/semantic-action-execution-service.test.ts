@@ -5,6 +5,7 @@ import type {
   RelevanceCompiledContext,
   SemanticActionFrame,
 } from "@nocturne/contracts";
+import type { UniversalOperationExecutor } from "@nocturne/database";
 import { createSemanticActionExecutionService } from "./semantic-action-execution-service.js";
 
 const scope = {
@@ -14,6 +15,8 @@ const scope = {
   role: "player" as const,
   selectedCharacterId: randomUUID(),
 };
+
+type ExecutionInput = Parameters<UniversalOperationExecutor["execute"]>[0];
 
 function context(actorId: string, targetId?: string): RelevanceCompiledContext {
   const locationId = randomUUID();
@@ -97,11 +100,15 @@ function frame(
   };
 }
 
-function resolution(mode: ActionResolutionDecision["mode"]): ActionResolutionDecision {
+function resolution(
+  mode: ActionResolutionDecision["mode"],
+): ActionResolutionDecision {
   return {
     mode,
     rationale: "Test resolution",
-    meaningfulUncertainty: ["unopposed_check", "opposed_contest"].includes(mode),
+    meaningfulUncertainty: ["unopposed_check", "opposed_contest"].includes(
+      mode,
+    ),
     difficulty: 0,
     opposition: 0,
     consequenceLevel: 0,
@@ -112,7 +119,7 @@ function resolution(mode: ActionResolutionDecision["mode"]): ActionResolutionDec
 describe("semantic action execution service", () => {
   it("commits ordinary conversation through the universal executor", async () => {
     const actorId = randomUUID();
-    const execute = vi.fn(async () => ({
+    const execute = vi.fn(async (_input: ExecutionInput) => ({
       eventId: randomUUID(),
       receiptId: randomUUID(),
       symbolMap: {},
@@ -148,7 +155,7 @@ describe("semantic action execution service", () => {
   it("commits successful combat damage as an authoritative condition operation", async () => {
     const actorId = randomUUID();
     const targetId = randomUUID();
-    const execute = vi.fn(async () => ({
+    const execute = vi.fn(async (_input: ExecutionInput) => ({
       eventId: randomUUID(),
       receiptId: randomUUID(),
       symbolMap: {},
@@ -181,10 +188,14 @@ describe("semantic action execution service", () => {
 
   it("uses the same deterministic roll for the same idempotency key", async () => {
     const actorId = randomUUID();
-    const calls: unknown[] = [];
-    const execute = vi.fn(async (input) => {
+    const calls: ExecutionInput[] = [];
+    const execute = vi.fn(async (input: ExecutionInput) => {
       calls.push(input);
-      return { eventId: randomUUID(), receiptId: randomUUID(), symbolMap: {} };
+      return {
+        eventId: randomUUID(),
+        receiptId: randomUUID(),
+        symbolMap: {},
+      };
     });
     const service = createSemanticActionExecutionService({
       executor: { execute } as never,
@@ -204,10 +215,14 @@ describe("semantic action execution service", () => {
     await service.execute(request);
     await service.execute(request);
 
-    const firstValue = (calls[0] as { branch: { operations: { value?: unknown }[] } }).branch
-      .operations[0]!.value as { roll: number; succeeded: boolean };
-    const secondValue = (calls[1] as { branch: { operations: { value?: unknown }[] } }).branch
-      .operations[0]!.value as { roll: number; succeeded: boolean };
+    const firstValue = calls[0]!.branch.operations[0]!.value as {
+      roll: number;
+      succeeded: boolean;
+    };
+    const secondValue = calls[1]!.branch.operations[0]!.value as {
+      roll: number;
+      succeeded: boolean;
+    };
     expect(firstValue.roll).toBe(secondValue.roll);
     expect(firstValue.succeeded).toBe(secondValue.succeeded);
   });
