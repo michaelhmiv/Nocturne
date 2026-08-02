@@ -1,0 +1,71 @@
+name: Patch Timed Plans Once
+
+on:
+  push:
+    branches:
+      - feat/timed-semantic-plans
+    paths:
+      - ".github/workflows/patch-timed-plans-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/timed-semantic-plans
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Patch waiting step completion
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('packages/database/src/persistent-plan-store.ts')
+          text = path.read_text()
+          replacements = [
+            (
+              'const steps = await sql<{ step_order: number; status: string }[]>`\n        SELECT step_order, status',
+              'const steps = await sql<{ step_order: number; status: string; result_event_id: string | null }[]>`\n        SELECT step_order, status, result_event_id'
+            ),
+            (
+              'if (!steps[0]) throw new PersistentPlanStoreError("step_not_found", "Plan step not found.");\n      if (steps[0].status !== "running") {\n        throw new PersistentPlanStoreError(\n          "invalid_transition",\n          "Only running steps can complete.",\n        );\n      }',
+              'if (!steps[0]) throw new PersistentPlanStoreError("step_not_found", "Plan step not found.");\n      if (steps[0].status === "completed" && steps[0].result_event_id === input.resultEventId) {\n        return;\n      }\n      if (!["running", "waiting"].includes(steps[0].status)) {\n        throw new PersistentPlanStoreError(\n          "invalid_transition",\n          "Only running or waiting steps can complete.",\n        );\n      }'
+            ),
+            (
+              "UPDATE game.action_plans\n          SET active_step_id = NULL, plan_version = plan_version + 1, updated_at = now()",
+              "UPDATE game.action_plans\n          SET status = CASE\n                WHEN status IN ('waiting_for_time', 'waiting_for_world_event', 'blocked') THEN 'running'\n                ELSE status\n              END,\n              active_step_id = NULL, plan_version = plan_version + 1, updated_at = now()"
+            ),
+          ]
+          for old, new in replacements:
+            count = text.count(old)
+            if count != 1:
+              raise SystemExit(f'Expected one match, found {count}: {old[:80]}')
+            text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+          pnpm exec prettier --write \
+            packages/database/src/persistent-plan-store.ts \
+            apps/api/src/timed-semantic-action-service.ts \
+            apps/api/src/scheduled-work-service.ts \
+            apps/api/src/semantic-action-execution-service.ts \
+            apps/api/src/world-action-handler-registry.ts \
+            apps/api/src/persistent-world-runtime.ts
+          rm .github/workflows/patch-timed-plans-once.yml
+          pnpm typecheck
+          pnpm --filter @nocturne/api test
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: resume persistent plans after scheduled completion"
+          git push origin HEAD:feat/timed-semantic-plans
