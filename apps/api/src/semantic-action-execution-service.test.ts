@@ -17,6 +17,7 @@ const scope = {
 };
 
 type ExecutionInput = Parameters<UniversalOperationExecutor["execute"]>[0];
+type SemanticResultState = { value: { roll: number; succeeded: boolean } };
 
 function context(actorId: string, targetId?: string): RelevanceCompiledContext {
   const locationId = randomUUID();
@@ -215,14 +216,10 @@ describe("semantic action execution service", () => {
     await service.execute(request);
     await service.execute(request);
 
-    const firstValue = calls[0]!.branch.operations[0]!.value as {
-      roll: number;
-      succeeded: boolean;
-    };
-    const secondValue = calls[1]!.branch.operations[0]!.value as {
-      roll: number;
-      succeeded: boolean;
-    };
+    const firstValue = (calls[0]!.branch.operations[0] as SemanticResultState)
+      .value;
+    const secondValue = (calls[1]!.branch.operations[0] as SemanticResultState)
+      .value;
     expect(firstValue.roll).toBe(secondValue.roll);
     expect(firstValue.succeeded).toBe(secondValue.succeeded);
   });
