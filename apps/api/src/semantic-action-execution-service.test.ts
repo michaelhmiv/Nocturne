@@ -101,15 +101,11 @@ function frame(
   };
 }
 
-function resolution(
-  mode: ActionResolutionDecision["mode"],
-): ActionResolutionDecision {
+function resolution(mode: ActionResolutionDecision["mode"]): ActionResolutionDecision {
   return {
     mode,
     rationale: "Test resolution",
-    meaningfulUncertainty: ["unopposed_check", "opposed_contest"].includes(
-      mode,
-    ),
+    meaningfulUncertainty: ["unopposed_check", "opposed_contest"].includes(mode),
     difficulty: 0,
     opposition: 0,
     consequenceLevel: 0,
@@ -216,10 +212,8 @@ describe("semantic action execution service", () => {
     await service.execute(request);
     await service.execute(request);
 
-    const firstValue = (calls[0]!.branch.operations[0] as SemanticResultState)
-      .value;
-    const secondValue = (calls[1]!.branch.operations[0] as SemanticResultState)
-      .value;
+    const firstValue = (calls[0]!.branch.operations[0] as SemanticResultState).value;
+    const secondValue = (calls[1]!.branch.operations[0] as SemanticResultState).value;
     expect(firstValue.roll).toBe(secondValue.roll);
     expect(firstValue.succeeded).toBe(secondValue.succeeded);
   });

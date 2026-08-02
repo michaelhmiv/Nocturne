@@ -12,12 +12,7 @@ function factText(context: RelevanceCompiledContext) {
 }
 
 function relevantFactIds(frame: SemanticActionFrame, context: RelevanceCompiledContext) {
-  const ids = new Set([
-    frame.actorId,
-    ...frame.targetIds,
-    ...frame.objectIds,
-    ...frame.toolIds,
-  ]);
+  const ids = new Set([frame.actorId, ...frame.targetIds, ...frame.objectIds, ...frame.toolIds]);
   return [...(context.playerKnownFacts ?? []), ...(context.authoritativeHiddenFacts ?? [])]
     .filter((fact) => !fact.entityId || ids.has(fact.entityId))
     .sort((a, b) => b.relevanceScore - a.relevanceScore)
@@ -129,16 +124,13 @@ export function evaluateActionAffordance(
     const tool = entityById.get(id);
     return (
       !tool ||
-      !tool.inclusionReasons.some((reason) =>
-        ["owned", "controlled", "possessed"].includes(reason),
-      )
+      !tool.inclusionReasons.some((reason) => ["owned", "controlled", "possessed"].includes(reason))
     );
   });
   if (missingTools.length > 0) {
     return result(frame, context, {
       status: "blocked",
-      rationale:
-        "A required tool is not authoritatively possessed or controlled by the actor.",
+      rationale: "A required tool is not authoritatively possessed or controlled by the actor.",
       missingRequirements: missingTools.map((id) => `possess tool ${id}`),
       warnings: [],
     });
@@ -150,15 +142,11 @@ export function evaluateActionAffordance(
       "The actor, relevant entities, location, and required controlled tools satisfy current affordance checks.",
     missingRequirements: [],
     warnings: [
-      ...(frame.properties.destructive
-        ? ["The action may permanently damage world state."]
-        : []),
+      ...(frame.properties.destructive ? ["The action may permanently damage world state."] : []),
       ...(frame.properties.illegal
         ? ["The action may create legal, heat, or reputation consequences."]
         : []),
-      ...(frame.demands.danger >= 5
-        ? ["The action presents substantial physical danger."]
-        : []),
+      ...(frame.demands.danger >= 5 ? ["The action presents substantial physical danger."] : []),
     ],
   });
 }

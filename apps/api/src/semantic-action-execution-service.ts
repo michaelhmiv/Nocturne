@@ -97,9 +97,7 @@ function operations(input: {
     result.push({
       type: "create_information_asset",
       holderRef: { kind: "existing", entityId: input.frame.actorId },
-      ...(targetId
-        ? { subjectRef: { kind: "existing" as const, entityId: targetId } }
-        : {}),
+      ...(targetId ? { subjectRef: { kind: "existing" as const, entityId: targetId } } : {}),
       content: `The actor asked: ${input.frame.objective}`,
       confidenceBasisPoints: 5_000,
       truthStatus: "observation",
