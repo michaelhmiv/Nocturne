@@ -6,11 +6,6 @@ export function toIsoTimestamp(value: unknown, fieldName = "timestamp"): string 
   return date.toISOString();
 }
 
-export function toNullableIsoTimestamp(
-  value: unknown,
-  fieldName = "timestamp",
-): string | null {
-  return value === null || value === undefined
-    ? null
-    : toIsoTimestamp(value, fieldName);
+export function toNullableIsoTimestamp(value: unknown, fieldName = "timestamp"): string | null {
+  return value === null || value === undefined ? null : toIsoTimestamp(value, fieldName);
 }

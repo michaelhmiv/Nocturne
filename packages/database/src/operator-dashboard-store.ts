@@ -107,14 +107,8 @@ export function createOperatorDashboardStore(database: ReturnType<typeof createD
         contextCompilationId: request.context_compilation_id,
         authoritativeResult: objectOrNull(request.authoritative_result),
         playerSafeResult: objectOrNull(request.player_safe_result),
-        createdAt: toIsoTimestamp(
-          request.created_at,
-          "world_action_requests.created_at",
-        ),
-        updatedAt: toIsoTimestamp(
-          request.updated_at,
-          "world_action_requests.updated_at",
-        ),
+        createdAt: toIsoTimestamp(request.created_at, "world_action_requests.created_at"),
+        updatedAt: toIsoTimestamp(request.updated_at, "world_action_requests.updated_at"),
         completedAt: toNullableIsoTimestamp(
           request.completed_at,
           "world_action_requests.completed_at",
@@ -126,10 +120,7 @@ export function createOperatorDashboardStore(database: ReturnType<typeof createD
           status: stage.status,
           inputSummary: objectOrNull(stage.input_summary) || {},
           outputSummary: objectOrNull(stage.output_summary) || {},
-          startedAt: toIsoTimestamp(
-            stage.started_at,
-            "world_action_execution_stages.started_at",
-          ),
+          startedAt: toIsoTimestamp(stage.started_at, "world_action_execution_stages.started_at"),
           completedAt: toNullableIsoTimestamp(
             stage.completed_at,
             "world_action_execution_stages.completed_at",
