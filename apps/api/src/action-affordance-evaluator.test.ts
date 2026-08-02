@@ -149,4 +149,24 @@ describe("action affordance evaluator", () => {
     );
     expect(evaluation.status).toBe("clarification_required");
   });
+
+  it("surfaces deterministic warnings for destructive and dangerous actions", () => {
+    const actorId = randomUUID();
+    const base = frame(actorId);
+    const evaluation = evaluateActionAffordance(
+      frame(actorId, {
+        objective: "Smash the window beside the live wire",
+        properties: { ...base.properties, destructive: true },
+        demands: { ...base.demands, danger: 6 },
+      }),
+      context({ actorId }),
+    );
+    expect(evaluation.status).toBe("feasible");
+    expect(evaluation.warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/damage/i),
+        expect.stringMatching(/danger/i),
+      ]),
+    );
+  });
 });
