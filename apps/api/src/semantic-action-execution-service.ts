@@ -5,7 +5,10 @@ import type {
   SemanticActionFrame,
   UniversalWorldOperation,
 } from "@nocturne/contracts";
-import type { UniversalOperationExecutor, WorldScope } from "@nocturne/database";
+import type {
+  UniversalOperationExecutor,
+  WorldScope,
+} from "@nocturne/database";
 
 function deterministicRoll(secret: string | Buffer, idempotencyKey: string) {
   const digest = createHmac("sha256", secret).update(idempotencyKey).digest();
@@ -13,7 +16,10 @@ function deterministicRoll(secret: string | Buffer, idempotencyKey: string) {
 }
 
 function actorCondition(context: RelevanceCompiledContext, actorId: string) {
-  return context.entities.find(({ entityId }) => entityId === actorId)?.condition ?? 100;
+  return (
+    (context.entities ?? []).find(({ entityId }) => entityId === actorId)
+      ?.condition ?? 100
+  );
 }
 
 function successFor(
@@ -34,7 +40,14 @@ function successFor(
   return resolution.mode === "automatic_success";
 }
 
-function narration(frame: SemanticActionFrame, succeeded: boolean) {
+function narration(
+  frame: SemanticActionFrame,
+  resolution: ActionResolutionDecision,
+  succeeded: boolean,
+) {
+  if (resolution.mode === "clarification_required") {
+    return `Clarification required before acting: ${resolution.rationale}`;
+  }
   if (succeeded) return `You accomplish your objective: ${frame.objective}.`;
   return `You attempt the action but do not accomplish the objective: ${frame.objective}.`;
 }
@@ -55,6 +68,9 @@ function operations(input: {
         objective: input.frame.objective,
         resolutionMode: input.resolution.mode,
         succeeded: input.succeeded,
+        needsClarification:
+          input.resolution.mode === "clarification_required",
+        rationale: input.resolution.rationale,
         roll: input.roll,
         occurredAt: new Date().toISOString(),
       },
@@ -71,7 +87,11 @@ function operations(input: {
       preconditionFactIds: [],
     });
   }
-  if (input.succeeded && input.frame.kind === "relationship" && targetId) {
+  if (
+    input.succeeded &&
+    input.frame.kind === "relationship" &&
+    targetId
+  ) {
     result.push({
       type: "set_relation",
       sourceRef: { kind: "existing", entityId: input.frame.actorId },
@@ -85,7 +105,12 @@ function operations(input: {
     });
   }
   const objectId = input.frame.objectIds[0];
-  if (input.succeeded && input.frame.kind === "transfer" && objectId && targetId) {
+  if (
+    input.succeeded &&
+    input.frame.kind === "transfer" &&
+    objectId &&
+    targetId
+  ) {
     result.push({
       type: "transfer_possession",
       entityRef: { kind: "existing", entityId: objectId },
@@ -127,19 +152,27 @@ export function createSemanticActionExecutionService(input: {
       ![
         "automatic_success",
         "automatic_failure",
+        "clarification_required",
         "unopposed_check",
         "opposed_contest",
         "transaction",
         "conversation",
       ].includes(request.resolution.mode)
     ) {
-      throw new Error(`Semantic executor cannot execute ${request.resolution.mode}.`);
+      throw new Error(
+        `Semantic executor cannot execute ${request.resolution.mode}.`,
+      );
     }
     const roll = deterministicRoll(input.rollSecret, request.idempotencyKey);
     const succeeded =
       request.resolution.mode !== "automatic_failure" &&
+      request.resolution.mode !== "clarification_required" &&
       successFor(request.frame, request.resolution, request.context, roll);
-    const playerNarration = narration(request.frame, succeeded);
+    const playerNarration = narration(
+      request.frame,
+      request.resolution,
+      succeeded,
+    );
     const receipt = await input.executor.execute({
       scope: request.scope,
       authority: "player",
