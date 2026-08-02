@@ -1,3 +1,4 @@
+export * from "./action-affordance.js";
 export * from "./action-plans.js";
 export * from "./action.js";
 export * from "./affordance.js";
