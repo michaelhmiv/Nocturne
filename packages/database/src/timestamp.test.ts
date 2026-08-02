@@ -3,9 +3,9 @@ import { toIsoTimestamp, toNullableIsoTimestamp } from "./timestamp.js";
 
 describe("database timestamp normalization", () => {
   it("accepts postgres timestamp strings", () => {
-    expect(toIsoTimestamp("2026-08-02 15:13:59.033+00", "event.world_time")).toBe(
-      "2026-08-02T15:13:59.033Z",
-    );
+    expect(
+      toIsoTimestamp("2026-08-02 15:13:59.033+00", "event.world_time"),
+    ).toBe("2026-08-02T15:13:59.033Z");
   });
 
   it("accepts Date instances", () => {
