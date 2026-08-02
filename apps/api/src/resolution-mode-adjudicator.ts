@@ -14,22 +14,35 @@ const impossibleWithoutSupport = [
   /\blift\b.*\b(?:building|skyscraper|mountain)\b/i,
 ];
 
-function relevantFactIds(frame: SemanticActionFrame, context?: RelevanceCompiledContext) {
+function relevantFactIds(
+  frame: SemanticActionFrame,
+  context?: RelevanceCompiledContext,
+) {
   if (!context) return [];
-  const entities = new Set([frame.actorId, ...frame.targetIds, ...frame.objectIds, ...frame.toolIds]);
-  return context.playerKnownFacts
+  const entities = new Set([
+    frame.actorId,
+    ...frame.targetIds,
+    ...frame.objectIds,
+    ...frame.toolIds,
+  ]);
+  return (context.playerKnownFacts ?? [])
     .filter((fact) => !fact.entityId || entities.has(fact.entityId))
     .map(({ factId }) => factId)
     .slice(0, 32);
 }
 
-function hasExtraordinarySupport(frame: SemanticActionFrame, context?: RelevanceCompiledContext) {
+function hasExtraordinarySupport(
+  frame: SemanticActionFrame,
+  context?: RelevanceCompiledContext,
+) {
   if (!context) return false;
   const text = JSON.stringify([
     frame.assumptions,
-    ...context.playerKnownFacts.map(({ claim, value }) => [claim, value]),
+    ...(context.playerKnownFacts ?? []).map(({ claim, value }) => [claim, value]),
   ]).toLowerCase();
-  return /\b(?:power|superhuman|flight|teleportation|phasing|gills|exoskeleton|powered armor)\b/.test(text);
+  return /\b(?:power|superhuman|flight|teleportation|phasing|gills|exoskeleton|powered armor)\b/.test(
+    text,
+  );
 }
 
 function decision(
@@ -56,9 +69,15 @@ export function adjudicateActionResolution(
   );
   const consequences = Math.min(
     10,
-    Math.max(frame.demands.danger, frame.properties.destructive ? 5 : 0, frame.properties.illegal ? 4 : 0),
+    Math.max(
+      frame.demands.danger,
+      frame.properties.destructive ? 5 : 0,
+      frame.properties.illegal ? 4 : 0,
+    ),
   );
-  const opposition = frame.properties.opposed ? Math.min(10, Math.max(3, frame.targetIds.length + 2)) : 0;
+  const opposition = frame.properties.opposed
+    ? Math.min(10, Math.max(3, frame.targetIds.length + 2))
+    : 0;
 
   if (frame.ambiguities.length > 0) {
     return decision(
@@ -80,7 +99,8 @@ export function adjudicateActionResolution(
       frame,
       {
         mode: "movement",
-        rationale: "Authoritative location change must use the movement and routing subsystem.",
+        rationale:
+          "Authoritative location change must use the movement and routing subsystem.",
         meaningfulUncertainty: false,
         difficulty: demand,
         opposition: 0,
@@ -95,7 +115,8 @@ export function adjudicateActionResolution(
       frame,
       {
         mode: "conversation",
-        rationale: "The action is communicative and does not itself compel a resisted state change.",
+        rationale:
+          "The action is communicative and does not itself compel a resisted state change.",
         meaningfulUncertainty: false,
         difficulty: demand,
         opposition: 0,
@@ -110,7 +131,8 @@ export function adjudicateActionResolution(
       frame,
       {
         mode: "transaction",
-        rationale: "A consensual transfer should validate ownership, price, and atomic exchange without a random roll.",
+        rationale:
+          "A consensual transfer should validate ownership, price, and atomic exchange without a random roll.",
         meaningfulUncertainty: false,
         difficulty: demand,
         opposition: 0,
@@ -128,7 +150,8 @@ export function adjudicateActionResolution(
       frame,
       {
         mode: "automatic_failure",
-        rationale: "The requested action contradicts ordinary physical constraints and no supporting capability is established.",
+        rationale:
+          "The requested action contradicts ordinary physical constraints and no supporting capability is established.",
         meaningfulUncertainty: false,
         difficulty: 10,
         opposition: 0,
@@ -143,7 +166,8 @@ export function adjudicateActionResolution(
       frame,
       {
         mode: "timed_task",
-        rationale: "The action consumes meaningful world time and must be represented as interruptible scheduled work.",
+        rationale:
+          "The action consumes meaningful world time and must be represented as interruptible scheduled work.",
         meaningfulUncertainty: demand > 2,
         difficulty: demand,
         opposition,
@@ -158,7 +182,8 @@ export function adjudicateActionResolution(
       frame,
       {
         mode: "opposed_contest",
-        rationale: "Another entity actively resists or materially determines the outcome.",
+        rationale:
+          "Another entity actively resists or materially determines the outcome.",
         meaningfulUncertainty: true,
         difficulty: demand,
         opposition,
@@ -173,7 +198,8 @@ export function adjudicateActionResolution(
       frame,
       {
         mode: "automatic_success",
-        rationale: "The action is feasible, routine, unopposed, and carries no meaningful uncertainty.",
+        rationale:
+          "The action is feasible, routine, unopposed, and carries no meaningful uncertainty.",
         meaningfulUncertainty: false,
         difficulty: demand,
         opposition: 0,
@@ -187,7 +213,8 @@ export function adjudicateActionResolution(
     frame,
     {
       mode: "unopposed_check",
-      rationale: "The action is possible but demanding enough that skill, condition, or environment can materially change the result.",
+      rationale:
+        "The action is possible but demanding enough that skill, condition, or environment can materially change the result.",
       meaningfulUncertainty: true,
       difficulty: demand,
       opposition: 0,
