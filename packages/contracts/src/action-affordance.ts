@@ -7,7 +7,7 @@ export const ActionAffordanceStatusSchema = z.enum([
 ]);
 export type ActionAffordanceStatus = z.infer<typeof ActionAffordanceStatusSchema>;
 
-/** Backend-authoritative feasibility result evaluated before difficulty and randomness. */
+/** Backend-authoritative feasibility result evaluated before resolution difficulty or randomness. */
 export const ActionAffordanceEvaluationSchema = z
   .object({
     status: ActionAffordanceStatusSchema,
