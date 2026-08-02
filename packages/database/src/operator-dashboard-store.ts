@@ -1,14 +1,12 @@
 import { OperatorDashboardSchema, type OperatorDashboard } from "@nocturne/contracts";
 import type { createDatabase } from "./index.js";
+import { toIsoTimestamp, toNullableIsoTimestamp } from "./timestamp.js";
 import type { WorldScope } from "./world-store.js";
 
 const objectOrNull = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
-
-const iso = (value: Date | string | null) =>
-  value ? (value instanceof Date ? value : new Date(value)).toISOString() : null;
 
 type OperatorStageRow = {
   stage_id: string;
@@ -18,8 +16,8 @@ type OperatorStageRow = {
   status: "started" | "completed" | "failed" | "waiting" | "skipped";
   input_summary: Record<string, unknown>;
   output_summary: Record<string, unknown>;
-  started_at: Date;
-  completed_at: Date | null;
+  started_at: Date | string;
+  completed_at: Date | string | null;
 };
 
 export function createOperatorDashboardStore(database: ReturnType<typeof createDatabase>) {
@@ -49,9 +47,9 @@ export function createOperatorDashboardStore(database: ReturnType<typeof createD
         context_compilation_id: string | null;
         authoritative_result: Record<string, unknown> | null;
         player_safe_result: Record<string, unknown> | null;
-        created_at: Date;
-        updated_at: Date;
-        completed_at: Date | null;
+        created_at: Date | string;
+        updated_at: Date | string;
+        completed_at: Date | string | null;
       }[]
     >`
       SELECT request_id, command, status, error_code, plan_id,
@@ -109,9 +107,12 @@ export function createOperatorDashboardStore(database: ReturnType<typeof createD
         contextCompilationId: request.context_compilation_id,
         authoritativeResult: objectOrNull(request.authoritative_result),
         playerSafeResult: objectOrNull(request.player_safe_result),
-        createdAt: request.created_at.toISOString(),
-        updatedAt: request.updated_at.toISOString(),
-        completedAt: iso(request.completed_at),
+        createdAt: toIsoTimestamp(request.created_at, "world_action_requests.created_at"),
+        updatedAt: toIsoTimestamp(request.updated_at, "world_action_requests.updated_at"),
+        completedAt: toNullableIsoTimestamp(
+          request.completed_at,
+          "world_action_requests.completed_at",
+        ),
         stages: (stagesByRequest.get(request.request_id) || []).map((stage) => ({
           stageId: stage.stage_id,
           order: stage.stage_order,
@@ -119,8 +120,14 @@ export function createOperatorDashboardStore(database: ReturnType<typeof createD
           status: stage.status,
           inputSummary: objectOrNull(stage.input_summary) || {},
           outputSummary: objectOrNull(stage.output_summary) || {},
-          startedAt: stage.started_at.toISOString(),
-          completedAt: iso(stage.completed_at),
+          startedAt: toIsoTimestamp(
+            stage.started_at,
+            "world_action_execution_stages.started_at",
+          ),
+          completedAt: toNullableIsoTimestamp(
+            stage.completed_at,
+            "world_action_execution_stages.completed_at",
+          ),
         })),
       })),
       handlers: handlers.map((handler) => ({
