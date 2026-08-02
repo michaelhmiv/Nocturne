@@ -19,6 +19,7 @@ export * from "./relevance-context.js";
 export * from "./resolution.js";
 export * from "./scene.js";
 export * from "./search-discovery.js";
+export * from "./semantic-action.js";
 export * from "./simulation.js";
 export * from "./telemetry.js";
 export * from "./world-action.js";

@@ -1,10 +1,15 @@
-import type { GameplayTelemetryWriter, WorldActionKind } from "@nocturne/contracts";
+import type {
+  GameplayTelemetryWriter,
+  SemanticActionFrame,
+  WorldActionKind,
+} from "@nocturne/contracts";
 import {
   currentGameplayTraceId,
   hashIdempotencyKey,
   writeGameplayTelemetry,
 } from "./gameplay-telemetry.js";
 import type { SearchDiscoveryService } from "./search-discovery-service.js";
+import { deriveSemanticActionFrame, isRoutineSelfDirectedAction } from "./semantic-action-frame.js";
 import type {
   WorldActionStepHandler,
   WorldActionStepHandlerResult,
@@ -155,6 +160,14 @@ export function createWorldActionHandlerRegistry(dependencies: {
     expectedVersions: Record<string, number>;
     idempotencyKey: string;
   }): Promise<{ scheduleId: string; narration: string }>;
+  executeRoutineAction?(input: {
+    scope: Parameters<WorldActionStepHandler>[0]["scope"];
+    actorId: string;
+    planId: string;
+    stepId: string;
+    idempotencyKey: string;
+    frame: SemanticActionFrame;
+  }): Promise<WorldActionStepHandlerResult>;
   executeExistingAction?(input: {
     kind: Exclude<WorldActionKind, "search" | "move">;
     scope: Parameters<WorldActionStepHandler>[0]["scope"];
@@ -224,18 +237,38 @@ export function createWorldActionHandlerRegistry(dependencies: {
       "dialogue",
       "question",
     ] as const) {
-      handlers[kind] = async ({ scope, actorId, step }) =>
-        dependencies.executeExistingAction!({
+      handlers[kind] = async ({ scope, actorId, planId, step, context }) => {
+        const rawText =
+          typeof step.intentPayload.rawText === "string"
+            ? step.intentPayload.rawText
+            : step.description;
+        const frame = deriveSemanticActionFrame({
+          kind,
+          actorId,
+          rawText,
+          payload: step.intentPayload,
+          resolvedReferences: step.resolvedReferences,
+          context,
+        });
+        if (dependencies.executeRoutineAction && isRoutineSelfDirectedAction(frame)) {
+          return dependencies.executeRoutineAction({
+            scope,
+            actorId,
+            planId,
+            stepId: step.stepId,
+            idempotencyKey: step.idempotencyKey,
+            frame,
+          });
+        }
+        return dependencies.executeExistingAction!({
           kind,
           scope,
           actorId,
-          rawText:
-            typeof step.intentPayload.rawText === "string"
-              ? step.intentPayload.rawText
-              : step.description,
+          rawText,
           idempotencyKey: step.idempotencyKey,
-          payload: step.intentPayload,
+          payload: { ...step.intentPayload, actionFrame: frame, actionType: frame.actionType },
         });
+      };
     }
   }
 
