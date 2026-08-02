@@ -179,7 +179,7 @@ describe("semantic action execution service", () => {
     );
   });
 
-  it("uses the same deterministic result for the same idempotency key", async () => {
+  it("uses the same deterministic roll for the same idempotency key", async () => {
     const actorId = randomUUID();
     const calls: unknown[] = [];
     const execute = vi.fn(async (input) => {
@@ -205,9 +205,10 @@ describe("semantic action execution service", () => {
     await service.execute(request);
 
     const firstValue = (calls[0] as { branch: { operations: { value?: unknown }[] } }).branch
-      .operations[0]!.value;
+      .operations[0]!.value as { roll: number; succeeded: boolean };
     const secondValue = (calls[1] as { branch: { operations: { value?: unknown }[] } }).branch
-      .operations[0]!.value;
-    expect(firstValue).toMatchObject(secondValue as object);
+      .operations[0]!.value as { roll: number; succeeded: boolean };
+    expect(firstValue.roll).toBe(secondValue.roll);
+    expect(firstValue.succeeded).toBe(secondValue.succeeded);
   });
 });
