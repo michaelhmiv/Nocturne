@@ -107,8 +107,14 @@ export function createOperatorDashboardStore(database: ReturnType<typeof createD
         contextCompilationId: request.context_compilation_id,
         authoritativeResult: objectOrNull(request.authoritative_result),
         playerSafeResult: objectOrNull(request.player_safe_result),
-        createdAt: toIsoTimestamp(request.created_at, "world_action_requests.created_at"),
-        updatedAt: toIsoTimestamp(request.updated_at, "world_action_requests.updated_at"),
+        createdAt: toIsoTimestamp(
+          request.created_at,
+          "world_action_requests.created_at",
+        ),
+        updatedAt: toIsoTimestamp(
+          request.updated_at,
+          "world_action_requests.updated_at",
+        ),
         completedAt: toNullableIsoTimestamp(
           request.completed_at,
           "world_action_requests.completed_at",
