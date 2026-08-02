@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import AppNavigation from "./app-navigation";
 import "./styles.css";
 import "./scene-styles.css";
 import "./action-plan-styles.css";
+import "./dashboard-styles.css";
 
 export const metadata: Metadata = {
   title: "Nocturne",
@@ -12,7 +14,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <AppNavigation />
+        {children}
+      </body>
     </html>
   );
 }
