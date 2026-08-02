@@ -59,14 +59,20 @@ function collectUuidValues(value: unknown, values = new Set<string>()) {
   return values;
 }
 
-function normalizedActionType(kind: WorldActionKind, rawText: string, payload: Record<string, unknown>) {
+function normalizedActionType(
+  kind: WorldActionKind,
+  rawText: string,
+  payload: Record<string, unknown>,
+) {
   const supplied = firstString(payload, ["actionType", "verb", "intent"]);
   if (supplied && /^[a-z][a-z0-9_]{0,63}$/.test(supplied)) return supplied;
   if (/\bpush[ -]?ups?\b/i.test(rawText)) return "exercise";
   if (/\b(?:sit|stand|stretch|blink|breathe|clap|wave|smile|nod|kneel|lie down)\b/i.test(rawText)) {
     return "routine_body_action";
   }
-  if (/\b(?:open|close|turn on|turn off|pick up|put down|use)\b/i.test(rawText)) return "interact";
+  if (/\b(?:open|close|turn on|turn off|pick up|put down|use)\b/i.test(rawText)) {
+    return "interact";
+  }
   if (kind === "combat") return /\barrest|restrain\b/i.test(rawText) ? "arrest" : "attack";
   if (kind === "dialogue") return "talk";
   if (kind === "question") return "ask";
@@ -76,8 +82,8 @@ function normalizedActionType(kind: WorldActionKind, rawText: string, payload: R
 function durationFromText(rawText: string) {
   const match = /\b(?:for|over)\s+(\d+)\s*(seconds?|minutes?|hours?|days?)\b/i.exec(rawText);
   if (!match) return undefined;
-  const amount = Number(match[1]);
-  const unit = match[2].toLowerCase();
+  const amount = Number(match[1]!);
+  const unit = match[2]!.toLowerCase();
   const multiplier = unit.startsWith("second")
     ? 1
     : unit.startsWith("minute")
@@ -91,8 +97,9 @@ function durationFromText(rawText: string) {
 function quantityFromText(rawText: string) {
   const pushup = /\b(?:do\s+)?(one|a|an|\d+)\s+push[ -]?ups?\b/i.exec(rawText);
   if (!pushup) return undefined;
-  if (["one", "a", "an"].includes(pushup[1].toLowerCase())) return 1;
-  const quantity = Number(pushup[1]);
+  const quantityText = pushup[1]!;
+  if (["one", "a", "an"].includes(quantityText.toLowerCase())) return 1;
+  const quantity = Number(quantityText);
   return Number.isFinite(quantity) && quantity > 0 ? quantity : undefined;
 }
 
@@ -111,20 +118,31 @@ export function deriveSemanticActionFrame(input: {
 }): SemanticActionFrame {
   const payload = input.payload || {};
   const supplied = SemanticActionFrameSchema.safeParse(payload.actionFrame);
-  if (supplied.success && supplied.data.actorId === input.actorId && supplied.data.kind === input.kind) {
+  if (
+    supplied.success &&
+    supplied.data.actorId === input.actorId &&
+    supplied.data.kind === input.kind
+  ) {
     return supplied.data;
   }
 
   const referencedIds = collectUuidValues(input.resolvedReferences || {});
   for (const id of collectUuidValues(payload)) referencedIds.add(id);
   referencedIds.delete(input.actorId);
-  const visibleIds = new Set(input.context?.entities.map(({ entityId }) => entityId) || []);
-  const targetIds = [...referencedIds].filter((id) => visibleIds.size === 0 || visibleIds.has(id));
-  const routineSelfDirected = routineSelfDirectedPatterns.some((pattern) => pattern.test(input.rawText));
+  const visibleIds = new Set(
+    (input.context?.entities ?? []).map(({ entityId }) => entityId),
+  );
+  const targetIds = [...referencedIds].filter(
+    (id) => visibleIds.size === 0 || visibleIds.has(id),
+  );
+  const routineSelfDirected = routineSelfDirectedPatterns.some((pattern) =>
+    pattern.test(input.rawText),
+  );
   const kindImpliesOpposition = ["combat", "relationship", "transfer"].includes(input.kind);
   const opposed = Boolean(payload.opposed) || kindImpliesOpposition || targetIds.length > 0;
   const selfDirected = routineSelfDirected && targetIds.length === 0;
-  const durationSeconds = numberValue(payload, "durationSeconds") || durationFromText(input.rawText);
+  const durationSeconds =
+    numberValue(payload, "durationSeconds") || durationFromText(input.rawText);
   const quantity = numberValue(payload, "quantity") || quantityFromText(input.rawText);
   const physicalEffort = highEffortPattern.test(input.rawText)
     ? 7
@@ -133,16 +151,19 @@ export function deriveSemanticActionFrame(input: {
         ? 5
         : 2
       : 1;
+  const locationId = firstString(payload, ["locationId"]);
 
   return SemanticActionFrameSchema.parse({
     kind: input.kind,
     actionType: normalizedActionType(input.kind, input.rawText, payload),
-    objective: firstString(payload, ["objective", "desiredOutcome"]) || objectiveFromRawText(input.rawText),
+    objective:
+      firstString(payload, ["objective", "desiredOutcome"]) ||
+      objectiveFromRawText(input.rawText),
     actorId: input.actorId,
     targetIds,
     objectIds: [],
     toolIds: [],
-    ...(firstString(payload, ["locationId"]) ? { locationId: firstString(payload, ["locationId"]) } : {}),
+    ...(locationId ? { locationId } : {}),
     ...(quantity ? { quantity } : {}),
     ...(durationSeconds ? { durationSeconds } : {}),
     properties: {
