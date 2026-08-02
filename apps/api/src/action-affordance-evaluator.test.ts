@@ -1,9 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import type {
-  RelevanceCompiledContext,
-  SemanticActionFrame,
-} from "@nocturne/contracts";
+import type { RelevanceCompiledContext, SemanticActionFrame } from "@nocturne/contracts";
 import { evaluateActionAffordance } from "./action-affordance-evaluator.js";
 
 function context(input: {
@@ -43,8 +40,7 @@ function context(input: {
               definitionId: "target",
               name: "Cabinet",
               definitionType: "object",
-              locationId:
-                input.targetLocation === undefined ? actorLocation : input.targetLocation,
+              locationId: input.targetLocation === undefined ? actorLocation : input.targetLocation,
               condition: 100,
               lifecycleStatus: "active",
               version: 1,
@@ -71,10 +67,7 @@ function context(input: {
   };
 }
 
-function frame(
-  actorId: string,
-  overrides: Partial<SemanticActionFrame> = {},
-): SemanticActionFrame {
+function frame(actorId: string, overrides: Partial<SemanticActionFrame> = {}): SemanticActionFrame {
   return {
     kind: "interact",
     actionType: "exercise",
@@ -108,9 +101,7 @@ function frame(
 describe("action affordance evaluator", () => {
   it("allows an ordinary self-directed action", () => {
     const actorId = randomUUID();
-    expect(evaluateActionAffordance(frame(actorId), context({ actorId })).status).toBe(
-      "feasible",
-    );
+    expect(evaluateActionAffordance(frame(actorId), context({ actorId })).status).toBe("feasible");
   });
 
   it("blocks an incapacitated actor", () => {
