@@ -1,0 +1,42 @@
+name: Dashboard Hotfix Formatter
+
+on:
+  push:
+    branches:
+      - fix/dashboard-runtime-timestamps
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Format and emit files
+        run: |
+          pnpm exec prettier --write \
+            packages/database/src/operator-dashboard-store.ts \
+            packages/database/src/timestamp.test.ts \
+            packages/database/src/timestamp.ts \
+            test/browser/gameplay.spec.mjs
+          for file in \
+            packages/database/src/operator-dashboard-store.ts \
+            packages/database/src/timestamp.test.ts \
+            packages/database/src/timestamp.ts \
+            test/browser/gameplay.spec.mjs; do
+            echo "FORMATTED_FILE_BEGIN:${file}"
+            base64 -w0 "${file}"
+            echo
+            echo "FORMATTED_FILE_END:${file}"
+          done
