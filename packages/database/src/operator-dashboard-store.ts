@@ -10,6 +10,18 @@ const objectOrNull = (value: unknown): Record<string, unknown> | null =>
 const iso = (value: Date | string | null) =>
   value ? (value instanceof Date ? value : new Date(value)).toISOString() : null;
 
+type OperatorStageRow = {
+  stage_id: string;
+  request_id: string;
+  stage_order: number;
+  stage_type: string;
+  status: "started" | "completed" | "failed" | "waiting" | "skipped";
+  input_summary: Record<string, unknown>;
+  output_summary: Record<string, unknown>;
+  started_at: Date;
+  completed_at: Date | null;
+};
+
 export function createOperatorDashboardStore(database: ReturnType<typeof createDatabase>) {
   async function build(input: {
     scope: WorldScope;
@@ -54,20 +66,8 @@ export function createOperatorDashboardStore(database: ReturnType<typeof createD
     `;
 
     const requestIds = requests.map((request) => request.request_id);
-    const stages = requestIds.length
-      ? await database.client<
-          {
-            stage_id: string;
-            request_id: string;
-            stage_order: number;
-            stage_type: string;
-            status: "started" | "completed" | "failed" | "waiting" | "skipped";
-            input_summary: Record<string, unknown>;
-            output_summary: Record<string, unknown>;
-            started_at: Date;
-            completed_at: Date | null;
-          }[]
-        >`
+    const stages: OperatorStageRow[] = requestIds.length
+      ? await database.client<OperatorStageRow[]>`
           SELECT stage_id, request_id, stage_order, stage_type, status,
                  input_summary, output_summary, started_at, completed_at
           FROM game.world_action_execution_stages
@@ -75,7 +75,7 @@ export function createOperatorDashboardStore(database: ReturnType<typeof createD
           ORDER BY request_id, stage_order
         `
       : [];
-    const stagesByRequest = new Map<string, typeof stages>();
+    const stagesByRequest = new Map<string, OperatorStageRow[]>();
     for (const stage of stages) {
       const current = stagesByRequest.get(stage.request_id) || [];
       current.push(stage);
