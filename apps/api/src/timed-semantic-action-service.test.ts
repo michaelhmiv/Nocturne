@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import type { ActionResolutionDecision, SemanticActionFrame } from "@nocturne/contracts";
+import type { UniversalOperationExecutionInput } from "@nocturne/database";
 import { createTimedSemanticActionService } from "./timed-semantic-action-service.js";
 
 const scope = {
@@ -56,7 +57,7 @@ describe("timed semantic action service", () => {
   it("creates a resumable schedule containing the authoritative frame", async () => {
     const actorId = randomUUID();
     const scheduleId = randomUUID();
-    const execute = vi.fn(async () => ({
+    const execute = vi.fn(async (_input: UniversalOperationExecutionInput) => ({
       eventId: randomUUID(),
       receiptId: randomUUID(),
       symbolMap: { semantic_schedule: scheduleId },
@@ -73,10 +74,12 @@ describe("timed semantic action service", () => {
       resolution,
       expectedVersions: { [actorId]: 3 },
     });
+    const execution = execute.mock.calls[0]![0];
+    const branch = execution.branch as { operations: unknown[] };
 
     expect(result.state).toBe("waiting");
     expect(result.scheduleId).toBe(scheduleId);
-    expect(execute.mock.calls[0]![0].branch.operations).toEqual([
+    expect(branch.operations).toEqual([
       expect.objectContaining({
         type: "schedule_timed_work",
         kind: "semantic_action_completion",
