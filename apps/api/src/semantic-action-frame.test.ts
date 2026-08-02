@@ -1,9 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import {
-  deriveSemanticActionFrame,
-  isRoutineSelfDirectedAction,
-} from "./semantic-action-frame.js";
+import { deriveSemanticActionFrame, isRoutineSelfDirectedAction } from "./semantic-action-frame.js";
 
 function context(actorId: string, targetId?: string) {
   return {
