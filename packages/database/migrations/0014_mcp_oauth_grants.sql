@@ -49,3 +49,15 @@ CREATE INDEX IF NOT EXISTS mcp_oauth_refresh_tokens_grant_idx
 CREATE INDEX IF NOT EXISTS mcp_oauth_refresh_tokens_active_idx
   ON auth.mcp_oauth_refresh_tokens (grant_id, expires_at)
   WHERE rotated_at IS NULL AND revoked_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS auth.admin_audit_log (
+  audit_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  actor text NOT NULL,
+  action text NOT NULL,
+  target_user_id text,
+  details jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS admin_audit_log_created_idx
+  ON auth.admin_audit_log (created_at DESC);
