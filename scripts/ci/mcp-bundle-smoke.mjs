@@ -9,6 +9,10 @@ function startServer(signingSecret) {
     env: {
       ...process.env,
       DATABASE_URL: "",
+      MCP_ACCOUNT_LINK_SECRET: "",
+      MCP_LINKED_USER_ID: "",
+      NOCTURNE_WEB_URL: "",
+      NOCTURNE_API_TOKEN: "",
       HOST: "127.0.0.1",
       PORT: String(port),
       MCP_PUBLIC_BASE_URL: baseUrl,
