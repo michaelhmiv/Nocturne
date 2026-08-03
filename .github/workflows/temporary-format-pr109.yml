@@ -1,15 +1,13 @@
 name: Temporary PR 109 Formatter
 
 on:
-  push:
-    branches:
-      - fix/authoritative-action-guards
+  pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: temporary-format-pr109
+  group: temporary-format-pr109-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -18,8 +16,6 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: fix/authoritative-action-guards
       - uses: pnpm/action-setup@v4
         with:
           version: 11.17.0
@@ -35,15 +31,11 @@ jobs:
           apps/api/src/action-affordance-evaluator.ts
           apps/api/src/semantic-action-execution-service.ts
           apps/api/src/semantic-action-frame.ts
-      - name: Commit formatting
-        run: |
-          if git diff --quiet; then
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/api/src/action-affordance-evaluator.ts \
-                  apps/api/src/semantic-action-execution-service.ts \
-                  apps/api/src/semantic-action-frame.ts
-          git commit -m "style: format authoritative action guards"
-          git push origin HEAD:fix/authoritative-action-guards
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr109-formatted-source
+          path: |
+            apps/api/src/action-affordance-evaluator.ts
+            apps/api/src/semantic-action-execution-service.ts
+            apps/api/src/semantic-action-frame.ts
+          retention-days: 1
