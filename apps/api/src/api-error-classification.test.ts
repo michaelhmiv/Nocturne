@@ -14,7 +14,7 @@ describe("classifyUnhandledApiError", () => {
     );
   });
 
-  it("classifies PostgreSQL SQLSTATE errors as persistence failures", () => {
+  it("classifies PostgreSQL SQLSTATE codes as persistence failures", () => {
     const error = Object.assign(new Error("duplicate key value violates unique constraint"), {
       code: "23505",
     });
