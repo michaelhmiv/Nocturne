@@ -24,6 +24,7 @@
     "ci:static": "pnpm format:check && pnpm typecheck && pnpm test && pnpm test:certification && pnpm build",
     "db:migrate": "pnpm --filter @nocturne/database db:migrate",
     "db:check": "pnpm --filter @nocturne/database db:check",
+    "world:grant-role": "pnpm --filter @nocturne/database world:grant-role --",
     "auth:generate": "pnpm --filter @nocturne/auth auth:generate",
     "auth:migrate": "pnpm --filter @nocturne/auth auth:migrate",
     "nocturne:cli": "tsx scripts/nocturne-cli.ts",
