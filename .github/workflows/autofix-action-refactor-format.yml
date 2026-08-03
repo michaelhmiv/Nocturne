@@ -24,7 +24,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref }}
-          fetch-depth: 0
       - uses: pnpm/action-setup@v4
         with:
           version: 11.17.0
@@ -32,18 +31,10 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - name: Install and update importer lockfile
-        if: github.head_ref == 'feat/nyc-geospatial-importer'
-        run: pnpm install --no-frozen-lockfile
-      - name: Install from existing lockfile
-        if: github.head_ref != 'feat/nyc-geospatial-importer'
-        run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
       - name: Apply repository formatting
         run: pnpm exec prettier --write .
-      - name: Restore trusted workflow definition
-        if: github.head_ref == 'feat/nyc-geospatial-importer'
-        run: git checkout origin/main -- .github/workflows/autofix-action-refactor-format.yml
-      - name: Commit generated files
+      - name: Commit formatting
         run: |
           if git diff --quiet; then
             exit 0
@@ -51,5 +42,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "chore: generate importer workspace lockfile"
+          git commit -m "style: apply repository formatting"
           git push origin "HEAD:${HEAD_REF}"

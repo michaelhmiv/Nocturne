@@ -1,8 +1,5 @@
 import { createHash } from "node:crypto";
-import {
-  GeospatialSourceFeatureSchema,
-  type GeospatialSourceFeature,
-} from "@nocturne/contracts";
+import { GeospatialSourceFeatureSchema, type GeospatialSourceFeature } from "@nocturne/contracts";
 
 export type ArcGisLayerMetadata = {
   objectIdField?: string;

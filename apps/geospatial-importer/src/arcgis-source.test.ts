@@ -30,7 +30,12 @@ describe("ArcGIS source importer", () => {
       timeoutMs: 60_000,
     });
     const url = new URL(
-      buildArcGisPageUrl({ configuration, objectIdField: "OBJECTID", offset: 4_000, pageSize: 2_000 }),
+      buildArcGisPageUrl({
+        configuration,
+        objectIdField: "OBJECTID",
+        offset: 4_000,
+        pageSize: 2_000,
+      }),
     );
     expect(url.pathname).toBe("/FeatureServer/0/query");
     expect(url.searchParams.get("f")).toBe("geojson");

@@ -1,8 +1,5 @@
 import { createDatabase, createGeospatialStore } from "@nocturne/database";
-import {
-  importArcGisSource,
-  normalizeArcGisConfiguration,
-} from "./arcgis-source.js";
+import { importArcGisSource, normalizeArcGisConfiguration } from "./arcgis-source.js";
 
 const DEFAULT_MAPPLUTO_FIELDS = [
   "OBJECTID",
