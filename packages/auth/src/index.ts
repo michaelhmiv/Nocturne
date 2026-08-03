@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { fromNodeHeaders } from "better-auth/node";
 import { Pool } from "pg";
 
-export * from "./mcp-oauth-store.js";
+export * from "./mcp-oauth-store";
 
 export interface NocturneAuthConfig {
   databaseUrl: string;
