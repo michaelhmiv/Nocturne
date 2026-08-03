@@ -68,6 +68,15 @@ importers:
         specifier: ^4.0.0
         version: 4.4.3
 
+  apps/geospatial-importer:
+    dependencies:
+      "@nocturne/contracts":
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      "@nocturne/database":
+        specifier: workspace:*
+        version: link:../../packages/database
+
   apps/web:
     dependencies:
       "@nocturne/auth":
