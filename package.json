@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "turbo run build --concurrency=1 && pnpm build:mcp",
-    "build:mcp": "tsup apps/mcp/src/index.ts --format esm --clean --out-dir apps/mcp/dist --external pg && node scripts/ci/mcp-bundle-smoke.mjs",
+    "build:mcp": "tsup apps/mcp/src/index.ts --format cjs --clean --out-dir apps/mcp/dist && node scripts/ci/mcp-bundle-smoke.mjs",
     "dev": "turbo run dev --parallel",
     "dev:mcp": "tsx watch apps/mcp/src/index.ts",
     "format": "prettier --write .",
@@ -30,7 +30,7 @@
     "nocturne:cli": "tsx scripts/nocturne-cli.ts",
     "nocturne:agent": "tsx scripts/nocturne-agent.ts",
     "nocturne:scenario": "tsx scripts/nocturne-scenario.ts",
-    "start:mcp": "node apps/mcp/dist/index.js",
+    "start:mcp": "node apps/mcp/dist/index.cjs",
     "test:cli": "vitest run test/cli.test.ts"
   },
   "devDependencies": {
