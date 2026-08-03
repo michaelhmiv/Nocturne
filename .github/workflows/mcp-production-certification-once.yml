@@ -17,25 +17,38 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Wait for Railway deployment and certify production
-        env:
-          NOCTURNE_WEB_URL: https://nocturneweb-production.up.railway.app
-          NOCTURNE_MCP_URL: https://nocturnemcp-production.up.railway.app
+      - name: Wait for production service health
         run: |
-          for attempt in $(seq 1 10); do
-            echo "Production certification attempt ${attempt}/10"
-            if curl --fail --silent --show-error --max-time 20 \
-                https://nocturneapi-production.up.railway.app/health >/tmp/api-health.json && \
-               curl --fail --silent --show-error --max-time 20 \
-                https://nocturnemcp-production.up.railway.app/health >/tmp/mcp-health.json && \
-               curl --fail --silent --show-error --max-time 20 \
-                https://nocturneweb-production.up.railway.app >/tmp/web-health.html && \
-               node scripts/ci/mcp-production-certification.mjs; then
+          for attempt in $(seq 1 20); do
+            echo "Health attempt ${attempt}/20"
+            api_status=$(curl --silent --show-error --max-time 15 \
+              --output /tmp/api-health.json --write-out '%{http_code}' \
+              https://nocturneapi-production.up.railway.app/health || true)
+            mcp_status=$(curl --silent --show-error --max-time 15 \
+              --output /tmp/mcp-health.json --write-out '%{http_code}' \
+              https://nocturnemcp-production.up.railway.app/health || true)
+            web_status=$(curl --silent --show-error --max-time 15 \
+              --output /tmp/web-health.html --write-out '%{http_code}' \
+              https://nocturneweb-production.up.railway.app || true)
+            echo "api=${api_status} mcp=${mcp_status} web=${web_status}"
+            if [ "$api_status" = "200" ] && [ "$mcp_status" = "200" ] && [ "$web_status" = "200" ]; then
               echo "API health: $(cat /tmp/api-health.json)"
               echo "MCP health: $(cat /tmp/mcp-health.json)"
               exit 0
             fi
-            sleep 45
+            sleep 15
           done
-          echo "Production did not pass certification after ten attempts."
+          exit 1
+      - name: Run live OAuth and MCP action certification
+        env:
+          NOCTURNE_WEB_URL: https://nocturneweb-production.up.railway.app
+          NOCTURNE_MCP_URL: https://nocturnemcp-production.up.railway.app
+        run: |
+          for attempt in $(seq 1 5); do
+            echo "MCP certification attempt ${attempt}/5"
+            if timeout 180 node scripts/ci/mcp-production-certification.mjs; then
+              exit 0
+            fi
+            sleep 30
+          done
           exit 1
