@@ -48,18 +48,18 @@ async function main() {
             updated_at = now()
       `;
       await transaction`
-        INSERT INTO game.world_audit_log
-          (world_id, user_id, action, details)
+        INSERT INTO auth.admin_audit_log
+          (actor, action, target_user_id, details)
         VALUES (
-          ${DEFAULT_WORLD_ID},
-          ${user.id},
+          'grant-world-role-script',
           'world_role_changed',
+          ${user.id},
           ${transaction.json({
+            worldId: DEFAULT_WORLD_ID,
             email: user.email,
             previousRole: previous[0]?.role || null,
             previousStatus: previous[0]?.status || null,
             newRole: role,
-            source: "grant-world-role-script",
           })}
         )
       `;
