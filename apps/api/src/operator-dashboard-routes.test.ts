@@ -3,18 +3,13 @@ import Fastify from "fastify";
 import { describe, expect, it, vi } from "vitest";
 import { registerOperatorDashboardRoutes } from "./operator-dashboard-routes.js";
 
-async function appFor(input: {
-  role: "player" | "operator";
-  selectedCharacterId: string;
-}) {
+async function appFor(input: { role: "player" | "operator"; selectedCharacterId: string }) {
   const app = Fastify();
-  const build = vi.fn(
-    async ({ actorId, limit }: { actorId: string; limit: number }) => ({
-      actorId,
-      limit,
-      requests: [],
-    }),
-  );
+  const build = vi.fn(async ({ actorId, limit }: { actorId: string; limit: number }) => ({
+    actorId,
+    limit,
+    requests: [],
+  }));
   await registerOperatorDashboardRoutes(app, {
     dashboard: { build } as never,
     resolveScope: async () => ({
