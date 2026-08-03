@@ -8,6 +8,7 @@ function startServer(signingSecret) {
   const child = spawn(process.execPath, ["apps/mcp/dist/index.cjs"], {
     env: {
       ...process.env,
+      DATABASE_URL: "",
       HOST: "127.0.0.1",
       PORT: String(port),
       MCP_PUBLIC_BASE_URL: baseUrl,
