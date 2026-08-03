@@ -1,6 +1,6 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import { getSessionFromNodeHeaders } from "@nocturne/auth";
-import { isValidMcpAuthorizationOrigin } from "../../../../lib/mcp-authorization-origin";
+import { createMcpConsentToken, verifyMcpConsentToken } from "../../../../lib/mcp-consent-token";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -104,6 +104,7 @@ const next=new URL('/api/mcp/authorize',location.origin);next.searchParams.set('
 function confirmationPage(input: {
   oauthRequest: string;
   callback: string;
+  consentToken: string;
   email: string;
   name: string;
 }) {
@@ -115,6 +116,7 @@ function confirmationPage(input: {
 <form method="post" action="/api/mcp/authorize">
 <input type="hidden" name="oauth_request" value="${escapeHtml(input.oauthRequest)}">
 <input type="hidden" name="callback" value="${escapeHtml(input.callback)}">
+<input type="hidden" name="consent_token" value="${escapeHtml(input.consentToken)}">
 <button type="submit">Authorize this account</button></form>
 <button id="switch-account" type="button" class="secondary">Use a different account</button>
 <p id="error" class="error" role="alert"></p>
@@ -161,10 +163,17 @@ export async function GET(request: Request) {
     const session = await sessionFor(request);
     if (!session) return html(loginPage(parsed.encodedRequest, parsed.callback.toString()));
 
+    const secret = requiredEnv("MCP_ACCOUNT_LINK_SECRET");
     return html(
       confirmationPage({
         oauthRequest: parsed.encodedRequest,
         callback: parsed.callback.toString(),
+        consentToken: createMcpConsentToken({
+          secret,
+          userId: session.user.id,
+          rawRequest: parsed.rawRequest,
+          callback: parsed.callback.toString(),
+        }),
         email: session.user.email,
         name: session.user.name || session.user.email,
       }),
@@ -192,16 +201,6 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const requestOrigin = request.headers.get("origin");
-    if (
-      !isValidMcpAuthorizationOrigin({
-        requestOrigin,
-        requestUrl: request.url,
-        configuredPublicUrl: process.env.BETTER_AUTH_URL,
-      })
-    ) {
-      return html(shell("<h1>Invalid authorization origin.</h1>"), 403);
-    }
     const form = await request.formData();
     const target = new URL(request.url);
     target.searchParams.set("oauth_request", String(form.get("oauth_request") || ""));
@@ -210,8 +209,31 @@ export async function POST(request: Request) {
     const session = await sessionFor(request);
     if (!session) return html(loginPage(parsed.encodedRequest, parsed.callback.toString()), 401);
 
+    const secret = requiredEnv("MCP_ACCOUNT_LINK_SECRET");
+    const consentToken = String(form.get("consent_token") || "");
+    if (
+      !verifyMcpConsentToken({
+        token: consentToken,
+        secret,
+        userId: session.user.id,
+        rawRequest: parsed.rawRequest,
+        callback: parsed.callback.toString(),
+      })
+    ) {
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          service: "nocturne-web",
+          event: "mcp_account_consent_rejected",
+          origin: request.headers.get("origin"),
+          secFetchSite: request.headers.get("sec-fetch-site"),
+        }),
+      );
+      return html(shell("<h1>Invalid or expired authorization consent.</h1>"), 403);
+    }
+
     const assertion = signAccountAssertion({
-      secret: requiredEnv("MCP_ACCOUNT_LINK_SECRET"),
+      secret,
       userId: session.user.id,
       audience: parsed.mcpBaseUrl.toString().replace(/\/$/, ""),
       rawRequest: parsed.rawRequest,
