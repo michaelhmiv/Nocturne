@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const destinations = [
   { href: "/", label: "Play" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/account", label: "Account" },
 ] as const;
 
 export default function AppNavigation() {
