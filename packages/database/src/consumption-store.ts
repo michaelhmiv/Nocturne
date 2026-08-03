@@ -455,7 +455,7 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
         operations: [],
         informationGained: [],
         costs: consumption
-          ? [{ resource: "consumable_units", amount: consumption.unitsConsumed }]
+          ? [{ resource: "quantity" as const, amount: consumption.unitsConsumed }]
           : [],
         consumption,
         consumableAnalysis: input.analysis,
