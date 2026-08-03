@@ -1,7 +1,10 @@
 -- Canonical authoritative event semantics.
--- Existing historical ledger rows remain immutable. New universal mutation
--- callers retain compatibility while non-mutating action events use explicit
--- types and do not change entity versions.
+-- Existing universal mutation callers retain compatibility while new non-mutating
+-- action events use explicit types and do not change entity versions.
+
+UPDATE game.event_ledger
+SET event_type = 'world_state_mutated'
+WHERE event_type = 'world_mutation';
 
 CREATE OR REPLACE FUNCTION game.canonicalize_event_type()
 RETURNS trigger
@@ -17,7 +20,7 @@ $$;
 
 DROP TRIGGER IF EXISTS event_ledger_canonicalize_type ON game.event_ledger;
 CREATE TRIGGER event_ledger_canonicalize_type
-BEFORE INSERT ON game.event_ledger
+BEFORE INSERT OR UPDATE OF event_type ON game.event_ledger
 FOR EACH ROW
 EXECUTE FUNCTION game.canonicalize_event_type();
 
