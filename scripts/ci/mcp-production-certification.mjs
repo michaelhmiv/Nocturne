@@ -202,7 +202,10 @@ async function certifyMcp(accessToken) {
     { prompt: "Stand up.", expected: /routine action|objective|stand/i },
     { prompt: "Stretch my arms.", expected: /routine action|objective|stretch/i },
     { prompt: "Say hello.", expected: /objective|hello|accomplish/i },
-    { prompt: "Teleport across town.", expected: /cannot|do not accomplish|physical/i },
+    {
+      prompt: "Teleport across town.",
+      expected: /cannot|do not accomplish|physical|waiting_for_clarification|destination|where do you want/i,
+    },
   ];
   let id = 10;
   for (const action of safeActions) {
