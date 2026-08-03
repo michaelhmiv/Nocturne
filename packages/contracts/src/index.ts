@@ -8,6 +8,7 @@ export * from "./content.js";
 export * from "./conversation.js";
 export * from "./event.js";
 export * from "./game-master-context.js";
+export * from "./geospatial.js";
 export * from "./grounded-estimate.js";
 export * from "./materialization.js";
 export * from "./normalization.js";
