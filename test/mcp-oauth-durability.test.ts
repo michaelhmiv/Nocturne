@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { MemoryMcpOAuthStore } from "../packages/auth/src/mcp-oauth-store.js";
 import type { McpConfig } from "../apps/mcp/src/config.js";
@@ -62,6 +63,15 @@ async function issueGrant(service: OAuthService) {
 }
 
 describe("durable MCP OAuth state", () => {
+  it("uses PostgreSQL-safe aliases in token-consumption queries", () => {
+    const source = readFileSync(
+      new URL("../packages/auth/src/mcp-oauth-store.ts", import.meta.url),
+      "utf8",
+    );
+    expect(source).not.toMatch(/\bAS\s+grant\b/i);
+    expect(source.match(/\bAS\s+oauth_grant\b/g)).toHaveLength(2);
+  });
+
   it("preserves replay prevention and revocation across service instances", async () => {
     const store = new MemoryMcpOAuthStore();
     const first = new OAuthService(config, store);
