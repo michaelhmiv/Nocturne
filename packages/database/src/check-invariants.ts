@@ -59,6 +59,18 @@ try {
   );
 
   await requireZero(
+    "terminal interrupted plans have only terminal steps",
+    database.client`
+      SELECT plan.plan_id, plan.status, step.step_id, step.status AS step_status
+      FROM game.action_plans plan
+      JOIN game.action_plan_steps step ON step.plan_id = plan.plan_id
+      WHERE plan.status IN ('cancelled', 'superseded')
+        AND step.status NOT IN ('completed', 'failed', 'cancelled', 'superseded')
+      LIMIT 20
+    `,
+  );
+
+  await requireZero(
     "completed plans have only terminal steps",
     database.client`
       SELECT plan.plan_id
@@ -67,6 +79,30 @@ try {
       WHERE plan.status = 'completed'
       GROUP BY plan.plan_id
       HAVING bool_or(step.status NOT IN ('completed', 'failed', 'cancelled', 'superseded'))
+    `,
+  );
+
+  await requireZero(
+    "terminal interrupted plans have no active schedules",
+    database.client`
+      SELECT plan.plan_id, plan.status, action.schedule_id, action.status AS schedule_status
+      FROM game.action_plans plan
+      JOIN game.scheduled_actions action ON action.plan_id = plan.plan_id
+      WHERE plan.status IN ('cancelled', 'superseded')
+        AND action.status IN ('pending', 'retrying', 'resolving')
+      LIMIT 20
+    `,
+  );
+
+  await requireZero(
+    "terminal interrupted plans have no nonterminal requests",
+    database.client`
+      SELECT plan.plan_id, plan.status, request.request_id, request.status AS request_status
+      FROM game.action_plans plan
+      JOIN game.world_action_requests request ON request.plan_id = plan.plan_id
+      WHERE plan.status IN ('cancelled', 'superseded')
+        AND request.status NOT IN ('completed', 'failed', 'cancelled', 'superseded')
+      LIMIT 20
     `,
   );
 
