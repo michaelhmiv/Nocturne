@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { deriveSemanticActionFrame, isRoutineSelfDirectedAction } from "./semantic-action-frame.js";
 
-function context(actorId: string, targetId?: string) {
+function context(actorId: string, targetId?: string, actorLocation: string | null = null) {
   return {
     compilationId: randomUUID(),
     policyVersion: "test-v1",
@@ -16,7 +16,7 @@ function context(actorId: string, targetId?: string) {
         definitionId: "actor",
         name: "Tester",
         definitionType: "character",
-        locationId: null,
+        locationId: actorLocation,
         condition: 100,
         lifecycleStatus: "active",
         version: 1,
@@ -31,7 +31,7 @@ function context(actorId: string, targetId?: string) {
               definitionId: "target",
               name: "Target",
               definitionType: "npc",
-              locationId: null,
+              locationId: actorLocation,
               condition: 100,
               lifecycleStatus: "active",
               version: 1,
@@ -80,6 +80,15 @@ describe("semantic action frame", () => {
       context: context(actorId, targetId),
     });
     expect(frame.targetIds).toEqual([targetId]);
+    expect(frame.references).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: "target",
+          resolution: "resolved_entity",
+          resolvedEntityId: targetId,
+        }),
+      ]),
+    );
     expect(frame.properties.opposed).toBe(true);
     expect(frame.properties.selfDirected).toBe(false);
     expect(isRoutineSelfDirectedAction(frame)).toBe(false);
@@ -116,8 +125,58 @@ describe("semantic action frame", () => {
       context: context(actorId),
     });
     expect(armed.assumptions).toContain("requires_possession:knives");
+    expect(armed.claims).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          claimType: "possession",
+          normalizedValue: "knives",
+          required: true,
+        }),
+      ]),
+    );
+    expect(armed.references).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: "tool",
+          relationship: "possessed",
+          resolution: "unresolved",
+          allowClarification: false,
+        }),
+      ]),
+    );
     expect(armed.demands.danger).toBeGreaterThanOrEqual(5);
     expect(inventory.assumptions).toContain("requires_possession:sandwich");
+    expect(inventory.claims).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ claimType: "possession", normalizedValue: "sandwich" }),
+      ]),
+    );
+  });
+
+  it("classifies actor anatomy as intrinsic rather than inventory", () => {
+    const actorId = randomUUID();
+    const frame = deriveSemanticActionFrame({
+      kind: "combat",
+      actorId,
+      rawText: "I strike the wall with my bare fist.",
+      payload: {},
+      context: context(actorId),
+    });
+    expect(frame.claims).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ claimType: "anatomy", normalizedValue: "fist" }),
+      ]),
+    );
+    expect(frame.references).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: "anatomy",
+          relationship: "intrinsic",
+          resolution: "resolved_intrinsic",
+        }),
+      ]),
+    );
+    expect(frame.claims?.some((claim) => claim.claimType === "possession")).toBe(false);
   });
 
   it("classifies deliberate harmful contact with the actor's body as dangerous", () => {
@@ -131,7 +190,53 @@ describe("semantic action frame", () => {
     });
     expect(frame.properties.selfDirected).toBe(true);
     expect(frame.demands.danger).toBeGreaterThanOrEqual(5);
+    expect(frame.claims).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ claimType: "anatomy", normalizedValue: "forehead" }),
+      ]),
+    );
     expect(isRoutineSelfDirectedAction(frame)).toBe(false);
+  });
+
+  it("preserves explicit real-time duration as a typed claim", () => {
+    const actorId = randomUUID();
+    const frame = deriveSemanticActionFrame({
+      kind: "interact",
+      actorId,
+      rawText: "Exercise for two minutes",
+      payload: { durationSeconds: 120 },
+      context: context(actorId),
+    });
+    expect(frame.durationSeconds).toBe(120);
+    expect(frame.claims).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ claimType: "duration", durationSeconds: 120 }),
+      ]),
+    );
+  });
+
+  it("resolves current-location deixis to the actor's authoritative location", () => {
+    const actorId = randomUUID();
+    const locationId = randomUUID();
+    const frame = deriveSemanticActionFrame({
+      kind: "question",
+      actorId,
+      rawText: "What is in this apartment?",
+      payload: {},
+      context: context(actorId, undefined, locationId),
+    });
+    expect(frame.locationId).toBe(locationId);
+    expect(frame.references).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          referenceKey: "current_location",
+          role: "location",
+          relationship: "current_location",
+          resolution: "resolved_entity",
+          resolvedEntityId: locationId,
+        }),
+      ]),
+    );
   });
 
   it("accepts minimal legacy test context without an entity collection", () => {
