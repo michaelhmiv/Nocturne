@@ -208,7 +208,7 @@ async function certifyMcp(accessToken) {
   for (const action of safeActions) {
     const result = await rpc(accessToken, id++, "tools/call", {
       name: "submit_action",
-      arguments: { command: action.prompt },
+      arguments: { text: action.prompt },
     });
     assert.equal(result.isError, undefined, `${action.prompt} returned an MCP tool error`);
     const text = (result.content || [])
