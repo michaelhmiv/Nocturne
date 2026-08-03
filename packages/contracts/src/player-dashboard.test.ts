@@ -23,7 +23,7 @@ describe("player dashboard contract", () => {
         heat: 1,
         warrant: false,
         status: "active",
-        resources: [{ key: "satiety", label: "Satiety", value: 12 }],
+        resources: [{ key: "nutrition", label: "Nutrition", value: 12 }],
         activeConditions: [],
         skills: { investigation: 2 },
         factionStanding: {},
@@ -53,7 +53,7 @@ describe("player dashboard contract", () => {
       },
       resourceHistory: [
         {
-          resource: "satiety",
+          resource: "nutrition",
           label: "Satiety",
           points: [
             {
@@ -69,7 +69,7 @@ describe("player dashboard contract", () => {
       generatedAt: "2026-08-02T14:30:00.000Z",
     });
 
-    expect(dashboard.character.resources[0]).toMatchObject({ key: "satiety", value: 12 });
+    expect(dashboard.character.resources[0]).toMatchObject({ key: "nutrition", value: 12 });
     expect(dashboard.resourceHistory[0]?.points[0]?.delta).toBe(3);
   });
 });
