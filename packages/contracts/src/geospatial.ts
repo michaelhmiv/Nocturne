@@ -63,7 +63,11 @@ function coordinateList(value: unknown, minimum = 1): value is Coordinate[] {
 }
 
 function lineList(value: unknown, minimumPoints = 2): value is Coordinate[][] {
-  return Array.isArray(value) && value.length > 0 && value.every((line) => coordinateList(line, minimumPoints));
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((line) => coordinateList(line, minimumPoints))
+  );
 }
 
 function polygonList(value: unknown): value is Coordinate[][] {
@@ -173,10 +177,18 @@ export const SpatialBoundsSchema = z
   .strict()
   .superRefine((bounds, context) => {
     if (bounds.minLongitude > bounds.maxLongitude) {
-      context.addIssue({ code: "custom", path: ["minLongitude"], message: "Longitude bounds are reversed." });
+      context.addIssue({
+        code: "custom",
+        path: ["minLongitude"],
+        message: "Longitude bounds are reversed.",
+      });
     }
     if (bounds.minLatitude > bounds.maxLatitude) {
-      context.addIssue({ code: "custom", path: ["minLatitude"], message: "Latitude bounds are reversed." });
+      context.addIssue({
+        code: "custom",
+        path: ["minLatitude"],
+        message: "Latitude bounds are reversed.",
+      });
     }
     if (
       bounds.centroidLongitude < bounds.minLongitude ||
@@ -184,7 +196,11 @@ export const SpatialBoundsSchema = z
       bounds.centroidLatitude < bounds.minLatitude ||
       bounds.centroidLatitude > bounds.maxLatitude
     ) {
-      context.addIssue({ code: "custom", path: ["centroidLongitude"], message: "Centroid must lie inside the bounds." });
+      context.addIssue({
+        code: "custom",
+        path: ["centroidLongitude"],
+        message: "Centroid must lie inside the bounds.",
+      });
     }
   });
 
@@ -256,7 +272,11 @@ export const SpatialBoundingBoxQuerySchema = z
   .strict()
   .superRefine((query, context) => {
     if (query.minLongitude > query.maxLongitude || query.minLatitude > query.maxLatitude) {
-      context.addIssue({ code: "custom", path: ["minLongitude"], message: "Bounding box is reversed." });
+      context.addIssue({
+        code: "custom",
+        path: ["minLongitude"],
+        message: "Bounding box is reversed.",
+      });
     }
   });
 export type SpatialBoundingBoxQuery = z.infer<typeof SpatialBoundingBoxQuerySchema>;

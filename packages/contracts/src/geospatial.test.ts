@@ -37,7 +37,14 @@ describe("geospatial contracts", () => {
     expect(
       GeoJsonGeometrySchema.safeParse({
         type: "Polygon",
-        coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1]]],
+        coordinates: [
+          [
+            [0, 0],
+            [1, 0],
+            [1, 1],
+            [0, 1],
+          ],
+        ],
       }).success,
     ).toBe(false);
     expect(

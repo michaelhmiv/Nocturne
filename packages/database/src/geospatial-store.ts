@@ -27,7 +27,9 @@ function canonicalize(value: unknown): unknown {
 
 export function geospatialSourceHash(feature: GeospatialSourceFeature) {
   const parsed = GeospatialSourceFeatureSchema.parse(feature);
-  return createHash("sha256").update(JSON.stringify(canonicalize(parsed))).digest("hex");
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalize(parsed)))
+    .digest("hex");
 }
 
 export class GeospatialStoreError extends Error {
