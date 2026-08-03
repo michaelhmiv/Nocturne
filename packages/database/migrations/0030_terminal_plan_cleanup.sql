@@ -1,5 +1,11 @@
 -- Keep action-plan interruption atomic across plans, steps, schedules, and requests.
 
+ALTER TABLE game.scheduled_actions
+  DROP CONSTRAINT IF EXISTS scheduled_actions_status_check;
+ALTER TABLE game.scheduled_actions
+  ADD CONSTRAINT scheduled_actions_status_check
+  CHECK (status IN ('pending', 'retrying', 'resolving', 'resolved', 'failed', 'cancelled'));
+
 CREATE OR REPLACE FUNCTION game.cleanup_terminal_action_plan()
 RETURNS trigger
 LANGUAGE plpgsql
