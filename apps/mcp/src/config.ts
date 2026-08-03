@@ -8,6 +8,7 @@ export type McpConfig = {
   apiBaseUrl: string;
   apiAuthMode: ApiAuthMode;
   apiBearerToken?: string;
+  databaseUrl?: string;
   oauthSigningSecret: string;
   adminPassword?: string;
   accountLinkSecret?: string;
@@ -60,10 +61,14 @@ export function loadMcpConfig(env: Record<string, string | undefined> = process.
   const webBaseUrl = env.NOCTURNE_WEB_URL?.trim()
     ? normalizedBaseUrl(env.NOCTURNE_WEB_URL.trim(), "NOCTURNE_WEB_URL")
     : undefined;
+  const databaseUrl = env.DATABASE_URL?.trim() || undefined;
   if (Boolean(accountLinkSecret) !== Boolean(webBaseUrl)) {
     throw new Error(
       "MCP_ACCOUNT_LINK_SECRET and NOCTURNE_WEB_URL must either both be configured or both be omitted.",
     );
+  }
+  if (accountLinkSecret && !databaseUrl) {
+    throw new Error("DATABASE_URL is required when Nocturne account linking is configured.");
   }
   if (apiAuthMode === "bearer" && !apiBearerToken && !accountLinkSecret) {
     throw new Error(
@@ -99,6 +104,7 @@ export function loadMcpConfig(env: Record<string, string | undefined> = process.
     apiBaseUrl: normalizedBaseUrl(required(env, "NOCTURNE_API_URL"), "NOCTURNE_API_URL"),
     apiAuthMode,
     apiBearerToken,
+    databaseUrl,
     oauthSigningSecret,
     adminPassword,
     accountLinkSecret,
