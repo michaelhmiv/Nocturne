@@ -4,7 +4,7 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: temporary-pr112-resource-patch-${{ github.ref }}
@@ -16,6 +16,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: fix/typed-resource-integrity
       - uses: pnpm/action-setup@v4
         with:
           version: 11.17.0
@@ -37,102 +39,24 @@ jobs:
                   raise SystemExit(f"missing replacement in {path}: {old!r}")
               file.write_text(text.replace(old, new))
 
-          replace(
-              "packages/contracts/src/world-operations.ts",
-              'import { z } from "zod";\n',
-              'import { z } from "zod";\nimport { WorldResourceKeySchema } from "./resource.js";\n',
-          )
-          replace(
-              "packages/contracts/src/world-operations.ts",
-              "  resource: SlugSchema,\n",
-              "  resource: WorldResourceKeySchema,\n",
-          )
-
-          replace(
-              "packages/contracts/src/resolution.ts",
-              'import { z } from "zod";\n',
-              'import { z } from "zod";\nimport { WorldResourceKeySchema } from "./resource.js";\n',
-          )
-          replace(
-              "packages/contracts/src/resolution.ts",
-              "  resource: z.string().regex(/^[a-z][a-z0-9_]{0,31}$/),\n",
-              "  resource: WorldResourceKeySchema,\n",
-          )
-          replace(
-              "packages/contracts/src/resolution.ts",
-              "    resource: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/),\n",
-              "    resource: WorldResourceKeySchema,\n",
-          )
-
-          replace(
-              "packages/contracts/src/action.ts",
-              'import { ConsumptionResultSchema } from "./consumption.js";\n',
-              'import { ConsumptionResultSchema } from "./consumption.js";\nimport { WorldResourceKeySchema } from "./resource.js";\n',
-          )
-          replace(
-              "packages/contracts/src/action.ts",
-              "  costs: z.array(z.object({ resource: z.string(), amount: z.number() })),\n",
-              "  costs: z.array(z.object({ resource: WorldResourceKeySchema, amount: z.number() })),\n",
-          )
-
-          replace(
-              "packages/contracts/src/player-dashboard.ts",
-              'import { PlayerEffectFeedSchema } from "./player-effects.js";\n',
-              'import { PlayerEffectFeedSchema } from "./player-effects.js";\nimport { WorldResourceKeySchema } from "./resource.js";\n',
-          )
-          replace(
-              "packages/contracts/src/player-dashboard.ts",
-              "export const PlayerDashboardResourceSchema = z\n  .object({\n    key: SemanticKeySchema,\n",
-              "export const PlayerDashboardResourceSchema = z\n  .object({\n    key: WorldResourceKeySchema,\n",
-          )
-          replace(
-              "packages/contracts/src/player-dashboard.ts",
-              "export const PlayerDashboardResourceHistorySchema = z\n  .object({\n    resource: SemanticKeySchema,\n",
-              "export const PlayerDashboardResourceHistorySchema = z\n  .object({\n    resource: WorldResourceKeySchema,\n",
-          )
-
-          replace(
-              "packages/contracts/src/simulation.ts",
-              'import { UniversalWorldOperationSchema } from "./world-operations.js";\n',
-              'import { WorldResourceKeySchema } from "./resource.js";\nimport { UniversalWorldOperationSchema } from "./world-operations.js";\n',
-          )
-          replace(
-              "packages/contracts/src/simulation.ts",
-              "        stateKeys: z.array(z.string().trim().min(1).max(100)).max(64),\n",
-              "        stateKeys: z.array(z.string().trim().min(1).max(100)).max(64),\n        resourceKeys: z.array(WorldResourceKeySchema).max(32).default([]),\n",
-          )
-
-          replace(
-              "packages/database/src/lazy-simulation-store.ts",
-              "          state_keys: string[] | null;\n          allowed_operation_types: string[] | null;\n",
-              "          state_keys: string[] | null;\n          resource_keys: string[] | null;\n          allowed_operation_types: string[] | null;\n",
-          )
-          replace(
-              "packages/database/src/lazy-simulation-store.ts",
-              "               policy.state_keys, policy.allowed_operation_types, policy.constraints\n",
-              "               policy.state_keys, policy.resource_keys, policy.allowed_operation_types,\n               policy.constraints\n",
-          )
-          replace(
-              "packages/database/src/lazy-simulation-store.ts",
-              "          stateKeys: entity.state_keys || [],\n          allowedOperationTypes: entity.allowed_operation_types || [],\n",
-              "          stateKeys: entity.state_keys || [],\n          resourceKeys: entity.resource_keys || [],\n          allowedOperationTypes: entity.allowed_operation_types || [],\n",
-          )
-
-          replace(
-              "packages/ai-gm/src/lazy-simulation-analyzer.ts",
-              "- State paths may use only policy stateKeys unless the operation is movement or condition change.\n",
-              "- State paths may use only policy stateKeys unless the operation is movement or condition change.\n- Resource operations may use only policy resourceKeys.\n",
-          )
-          replace(
-              "packages/ai-gm/src/lazy-simulation-analyzer.ts",
-              "  const allowedPaths = new Set(parsedInput.policy.stateKeys);\n",
-              "  const allowedPaths = new Set(parsedInput.policy.stateKeys);\n  const allowedResources = new Set(parsedInput.policy.resourceKeys);\n",
-          )
-          replace(
-              "packages/ai-gm/src/lazy-simulation-analyzer.ts",
-              "    if (\n      \"expectedVersion\" in operation &&\n",
-              "    if (\n      operation.type === \"adjust_resource\" &&\n      !allowedResources.has(operation.resource)\n    ) {\n      throw new Error(\"Simulation proposed a resource outside the policy.\");\n    }\n    if (\n      \"expectedVersion\" in operation &&\n",
-          )
+          replace("packages/contracts/src/world-operations.ts", 'import { z } from "zod";\n', 'import { z } from "zod";\nimport { WorldResourceKeySchema } from "./resource.js";\n')
+          replace("packages/contracts/src/world-operations.ts", "  resource: SlugSchema,\n", "  resource: WorldResourceKeySchema,\n")
+          replace("packages/contracts/src/resolution.ts", 'import { z } from "zod";\n', 'import { z } from "zod";\nimport { WorldResourceKeySchema } from "./resource.js";\n')
+          replace("packages/contracts/src/resolution.ts", "  resource: z.string().regex(/^[a-z][a-z0-9_]{0,31}$/),\n", "  resource: WorldResourceKeySchema,\n")
+          replace("packages/contracts/src/resolution.ts", "    resource: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/),\n", "    resource: WorldResourceKeySchema,\n")
+          replace("packages/contracts/src/action.ts", 'import { ConsumptionResultSchema } from "./consumption.js";\n', 'import { ConsumptionResultSchema } from "./consumption.js";\nimport { WorldResourceKeySchema } from "./resource.js";\n')
+          replace("packages/contracts/src/action.ts", "  costs: z.array(z.object({ resource: z.string(), amount: z.number() })),\n", "  costs: z.array(z.object({ resource: WorldResourceKeySchema, amount: z.number() })),\n")
+          replace("packages/contracts/src/player-dashboard.ts", 'import { PlayerEffectFeedSchema } from "./player-effects.js";\n', 'import { PlayerEffectFeedSchema } from "./player-effects.js";\nimport { WorldResourceKeySchema } from "./resource.js";\n')
+          replace("packages/contracts/src/player-dashboard.ts", "export const PlayerDashboardResourceSchema = z\n  .object({\n    key: SemanticKeySchema,\n", "export const PlayerDashboardResourceSchema = z\n  .object({\n    key: WorldResourceKeySchema,\n")
+          replace("packages/contracts/src/player-dashboard.ts", "export const PlayerDashboardResourceHistorySchema = z\n  .object({\n    resource: SemanticKeySchema,\n", "export const PlayerDashboardResourceHistorySchema = z\n  .object({\n    resource: WorldResourceKeySchema,\n")
+          replace("packages/contracts/src/simulation.ts", 'import { UniversalWorldOperationSchema } from "./world-operations.js";\n', 'import { WorldResourceKeySchema } from "./resource.js";\nimport { UniversalWorldOperationSchema } from "./world-operations.js";\n')
+          replace("packages/contracts/src/simulation.ts", "        stateKeys: z.array(z.string().trim().min(1).max(100)).max(64),\n", "        stateKeys: z.array(z.string().trim().min(1).max(100)).max(64),\n        resourceKeys: z.array(WorldResourceKeySchema).max(32).default([]),\n")
+          replace("packages/database/src/lazy-simulation-store.ts", "          state_keys: string[] | null;\n          allowed_operation_types: string[] | null;\n", "          state_keys: string[] | null;\n          resource_keys: string[] | null;\n          allowed_operation_types: string[] | null;\n")
+          replace("packages/database/src/lazy-simulation-store.ts", "               policy.state_keys, policy.allowed_operation_types, policy.constraints\n", "               policy.state_keys, policy.resource_keys, policy.allowed_operation_types,\n               policy.constraints\n")
+          replace("packages/database/src/lazy-simulation-store.ts", "          stateKeys: entity.state_keys || [],\n          allowedOperationTypes: entity.allowed_operation_types || [],\n", "          stateKeys: entity.state_keys || [],\n          resourceKeys: entity.resource_keys || [],\n          allowedOperationTypes: entity.allowed_operation_types || [],\n")
+          replace("packages/ai-gm/src/lazy-simulation-analyzer.ts", "- State paths may use only policy stateKeys unless the operation is movement or condition change.\n", "- State paths may use only policy stateKeys unless the operation is movement or condition change.\n- Resource operations may use only policy resourceKeys.\n")
+          replace("packages/ai-gm/src/lazy-simulation-analyzer.ts", "  const allowedPaths = new Set(parsedInput.policy.stateKeys);\n", "  const allowedPaths = new Set(parsedInput.policy.stateKeys);\n  const allowedResources = new Set(parsedInput.policy.resourceKeys);\n")
+          replace("packages/ai-gm/src/lazy-simulation-analyzer.ts", "    if (\n      \"expectedVersion\" in operation &&\n", "    if (\n      operation.type === \"adjust_resource\" &&\n      !allowedResources.has(operation.resource)\n    ) {\n      throw new Error(\"Simulation proposed a resource outside the policy.\");\n    }\n    if (\n      \"expectedVersion\" in operation &&\n")
           PY
       - name: Format patched files
         run: >-
@@ -144,15 +68,10 @@ jobs:
           packages/contracts/src/simulation.ts
           packages/database/src/lazy-simulation-store.ts
           packages/ai-gm/src/lazy-simulation-analyzer.ts
-      - uses: actions/upload-artifact@v4
-        with:
-          name: pr112-resource-patch
-          path: |
-            packages/contracts/src/world-operations.ts
-            packages/contracts/src/resolution.ts
-            packages/contracts/src/action.ts
-            packages/contracts/src/player-dashboard.ts
-            packages/contracts/src/simulation.ts
-            packages/database/src/lazy-simulation-store.ts
-            packages/ai-gm/src/lazy-simulation-analyzer.ts
-          retention-days: 1
+      - name: Commit generated source
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add packages/contracts/src/world-operations.ts packages/contracts/src/resolution.ts packages/contracts/src/action.ts packages/contracts/src/player-dashboard.ts packages/contracts/src/simulation.ts packages/database/src/lazy-simulation-store.ts packages/ai-gm/src/lazy-simulation-analyzer.ts
+          git diff --cached --quiet || git commit -m "fix: apply typed resource contracts"
+          git push origin HEAD:fix/typed-resource-integrity
