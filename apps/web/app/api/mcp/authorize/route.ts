@@ -16,6 +16,15 @@ function base64url(value: string) {
   return Buffer.from(value).toString("base64url");
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 function signAccountAssertion(input: {
   secret: string;
   userId: string;
@@ -46,13 +55,13 @@ function html(body: string, status = 200) {
       "x-content-type-options": "nosniff",
       "referrer-policy": "no-referrer",
       "x-frame-options": "DENY",
+      "content-security-policy":
+        "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
     },
   });
 }
 
-function loginPage(oauthRequest: string, callback: string) {
-  const oauthJson = JSON.stringify(oauthRequest).replaceAll("<", "\\u003c");
-  const callbackJson = JSON.stringify(callback).replaceAll("<", "\\u003c");
+function shell(content: string) {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Connect Nocturne to ChatGPT</title><style>
@@ -60,63 +69,144 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#101014;color:#ec
 main{width:min(520px,calc(100% - 32px));background:#18181f;border:1px solid #343440;border-radius:16px;padding:28px;box-shadow:0 18px 60px #0008}
 h1{margin:0 0 8px;font-size:24px}p{line-height:1.5;color:#b7b7c4}label{display:block;font-weight:650;margin:16px 0 8px}
 input{box-sizing:border-box;width:100%;padding:12px;border-radius:10px;border:1px solid #464655;background:#0f0f14;color:white}
-button{width:100%;padding:12px;margin-top:18px;border:0;border-radius:10px;background:#e8e8ef;color:#111;font-weight:750;cursor:pointer}.error{color:#ff9b9b;min-height:24px}
-small{display:block;margin-top:14px;color:#858593}
-</style></head><body><main>
+button,.button{box-sizing:border-box;width:100%;padding:12px;margin-top:12px;border:0;border-radius:10px;background:#e8e8ef;color:#111;font-weight:750;cursor:pointer;text-align:center;text-decoration:none;display:block}
+button.secondary{background:#2b2b35;color:#ececf1;border:1px solid #464655}.account{background:#111117;border-radius:10px;padding:14px;margin:18px 0}.account strong{display:block;color:#fff}.error{color:#ff9b9b;min-height:24px}small{display:block;margin-top:14px;color:#858593}
+</style></head><body><main>${content}</main></body></html>`;
+}
+
+function loginPage(oauthRequest: string, callback: string) {
+  const oauthJson = JSON.stringify(oauthRequest).replaceAll("<", "\\u003c");
+  const callbackJson = JSON.stringify(callback).replaceAll("<", "\\u003c");
+  return shell(`
 <h1>Sign in to Nocturne</h1>
-<p>Use the same account you use on the Nocturne website. ChatGPT will act through that account and its selected character.</p>
-<form id="login"><label for="email">Email</label><input id="email" type="email" autocomplete="email" required>
+<p>Use or create the Nocturne account whose characters and world state ChatGPT should access.</p>
+<form id="login"><label for="name">Display name</label><input id="name" type="text" autocomplete="name" maxlength="80" placeholder="Required only for a new account">
+<label for="email">Email</label><input id="email" type="email" autocomplete="email" required>
 <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" minlength="8" required>
-<p id="error" class="error" role="alert"></p><button type="submit">Sign in and authorize</button></form>
-<small>This does not create a separate MCP game account.</small>
+<p id="error" class="error" role="alert"></p><button type="submit" value="sign-in">Sign in</button>
+<button type="submit" value="sign-up" class="secondary">Create account</button></form>
+<small>Each Nocturne account has separate characters, inventory, housing, and world membership.</small>
 <script>
 const form=document.getElementById('login');const error=document.getElementById('error');
 form.addEventListener('submit',async(event)=>{event.preventDefault();error.textContent='';
-const response=await fetch('/api/auth/sign-in/email',{method:'POST',headers:{'content-type':'application/json'},credentials:'same-origin',body:JSON.stringify({email:document.getElementById('email').value,password:document.getElementById('password').value})});
+const submitter=event.submitter?.value||'sign-in';const email=document.getElementById('email').value;const password=document.getElementById('password').value;const name=document.getElementById('name').value.trim();
+const path=submitter==='sign-up'?'/api/auth/sign-up/email':'/api/auth/sign-in/email';
+const payload=submitter==='sign-up'?{email,password,name:name||email.split('@')[0]||'Player'}:{email,password};
+const response=await fetch(path,{method:'POST',headers:{'content-type':'application/json'},credentials:'same-origin',body:JSON.stringify(payload)});
 let body=null;try{body=await response.json()}catch{}
-if(!response.ok||body?.error){error.textContent=body?.message||body?.error?.message||'Sign-in failed.';return;}
+if(!response.ok||body?.error){error.textContent=body?.message||body?.error?.message||'Authentication failed.';return;}
 const next=new URL('/api/mcp/authorize',location.origin);next.searchParams.set('oauth_request',${oauthJson});next.searchParams.set('callback',${callbackJson});location.replace(next.toString());
 });
-</script></main></body></html>`;
+</script>`);
+}
+
+function confirmationPage(input: {
+  oauthRequest: string;
+  callback: string;
+  email: string;
+  name: string;
+}) {
+  return shell(`
+<h1>Authorize ChatGPT</h1>
+<p>ChatGPT is requesting permission to use Nocturne through the MCP connector.</p>
+<div class="account"><small>Signed in as</small><strong>${escapeHtml(input.name)}</strong><span>${escapeHtml(input.email)}</span></div>
+<p>The connector will act only through this account and its selected character. Write access can change persistent game state.</p>
+<form method="post" action="/api/mcp/authorize">
+<input type="hidden" name="oauth_request" value="${escapeHtml(input.oauthRequest)}">
+<input type="hidden" name="callback" value="${escapeHtml(input.callback)}">
+<button type="submit">Authorize this account</button></form>
+<button id="switch-account" type="button" class="secondary">Use a different account</button>
+<p id="error" class="error" role="alert"></p>
+<script>
+const button=document.getElementById('switch-account');const error=document.getElementById('error');
+button.addEventListener('click',async()=>{button.disabled=true;error.textContent='';
+const response=await fetch('/api/auth/sign-out',{method:'POST',headers:{'content-type':'application/json'},credentials:'same-origin',body:'{}'});
+if(!response.ok){error.textContent='Could not sign out. Open Nocturne and sign out manually.';button.disabled=false;return;}
+location.reload();});
+</script>`);
+}
+
+function authorizationInput(url: URL) {
+  const encodedRequest = url.searchParams.get("oauth_request") || "";
+  const callbackValue = url.searchParams.get("callback") || "";
+  if (!encodedRequest || encodedRequest.length > 30_000 || !callbackValue) {
+    throw new Error("invalid_request");
+  }
+
+  const mcpBaseUrl = new URL(requiredEnv("NOCTURNE_MCP_URL"));
+  const callback = new URL(callbackValue);
+  if (callback.origin !== mcpBaseUrl.origin || callback.pathname !== "/oauth/account-callback") {
+    throw new Error("invalid_callback");
+  }
+
+  let rawRequest: string;
+  try {
+    rawRequest = Buffer.from(encodedRequest, "base64url").toString("utf8");
+  } catch {
+    throw new Error("invalid_request");
+  }
+  if (!rawRequest || rawRequest.length > 20_000) throw new Error("invalid_request");
+
+  return { encodedRequest, callback, rawRequest, mcpBaseUrl };
+}
+
+async function sessionFor(request: Request) {
+  return getSessionFromNodeHeaders(Object.fromEntries(request.headers.entries()));
 }
 
 export async function GET(request: Request) {
   try {
-    const url = new URL(request.url);
-    const encodedRequest = url.searchParams.get("oauth_request") || "";
-    const callbackValue = url.searchParams.get("callback") || "";
-    if (!encodedRequest || encodedRequest.length > 30_000 || !callbackValue) {
-      return html("<h1>Invalid MCP authorization request.</h1>", 400);
-    }
+    const parsed = authorizationInput(new URL(request.url));
+    const session = await sessionFor(request);
+    if (!session) return html(loginPage(parsed.encodedRequest, parsed.callback.toString()));
 
-    const mcpBaseUrl = new URL(requiredEnv("NOCTURNE_MCP_URL"));
-    const callback = new URL(callbackValue);
-    if (callback.origin !== mcpBaseUrl.origin || callback.pathname !== "/oauth/account-callback") {
-      return html("<h1>Invalid MCP callback.</h1>", 400);
+    return html(
+      confirmationPage({
+        oauthRequest: parsed.encodedRequest,
+        callback: parsed.callback.toString(),
+        email: session.user.email,
+        name: session.user.name || session.user.email,
+      }),
+    );
+  } catch (error) {
+    const invalid = error instanceof Error && error.message.startsWith("invalid_");
+    if (!invalid) {
+      console.error(
+        JSON.stringify({
+          level: "error",
+          service: "nocturne-web",
+          event: "mcp_account_authorization_failed",
+          message: error instanceof Error ? error.message : String(error),
+        }),
+      );
     }
+    return html(shell(`<h1>${invalid ? "Invalid MCP authorization request." : "Nocturne MCP authorization is not configured."}</h1>`), invalid ? 400 : 500);
+  }
+}
 
-    let rawRequest: string;
-    try {
-      rawRequest = Buffer.from(encodedRequest, "base64url").toString("utf8");
-    } catch {
-      return html("<h1>Invalid MCP authorization request.</h1>", 400);
+export async function POST(request: Request) {
+  try {
+    const requestOrigin = request.headers.get("origin");
+    if (requestOrigin && requestOrigin !== new URL(request.url).origin) {
+      return html(shell("<h1>Invalid authorization origin.</h1>"), 403);
     }
-    if (!rawRequest || rawRequest.length > 20_000) {
-      return html("<h1>Invalid MCP authorization request.</h1>", 400);
-    }
-
-    const session = await getSessionFromNodeHeaders(Object.fromEntries(request.headers.entries()));
-    if (!session) return html(loginPage(encodedRequest, callback.toString()));
+    const form = await request.formData();
+    const target = new URL(request.url);
+    target.searchParams.set("oauth_request", String(form.get("oauth_request") || ""));
+    target.searchParams.set("callback", String(form.get("callback") || ""));
+    const parsed = authorizationInput(target);
+    const session = await sessionFor(request);
+    if (!session) return html(loginPage(parsed.encodedRequest, parsed.callback.toString()), 401);
 
     const assertion = signAccountAssertion({
       secret: requiredEnv("MCP_ACCOUNT_LINK_SECRET"),
       userId: session.user.id,
-      audience: mcpBaseUrl.toString().replace(/\/$/, ""),
-      rawRequest,
+      audience: parsed.mcpBaseUrl.toString().replace(/\/$/, ""),
+      rawRequest: parsed.rawRequest,
     });
-    callback.searchParams.set("oauth_request", encodedRequest);
-    callback.searchParams.set("assertion", assertion);
-    return Response.redirect(callback.toString(), 302);
+    parsed.callback.searchParams.set("oauth_request", parsed.encodedRequest);
+    parsed.callback.searchParams.set("assertion", assertion);
+    return Response.redirect(parsed.callback.toString(), 302);
   } catch (error) {
     console.error(
       JSON.stringify({
@@ -126,6 +216,6 @@ export async function GET(request: Request) {
         message: error instanceof Error ? error.message : String(error),
       }),
     );
-    return html("<h1>Nocturne MCP authorization is not configured.</h1>", 500);
+    return html(shell("<h1>Nocturne MCP authorization could not be completed.</h1>"), 500);
   }
 }
