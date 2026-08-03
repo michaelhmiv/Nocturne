@@ -97,6 +97,8 @@ function frame(actorId: string, overrides: Partial<SemanticActionFrame> = {}): S
     targetIds: [],
     objectIds: [],
     toolIds: [],
+    references: [],
+    claims: [],
     properties: {
       selfDirected: true,
       opposed: false,
@@ -171,7 +173,45 @@ describe("action affordance evaluator", () => {
     expect(evaluation.status).toBe("clarification_required");
   });
 
-  it("blocks an explicit possession claim when no controlled item matches", () => {
+  it("blocks a typed possession claim when no controlled item matches", () => {
+    const actorId = randomUUID();
+    const base = frame(actorId);
+    const evaluation = evaluateActionAffordance(
+      frame(actorId, {
+        objective: "Run around the room with knives",
+        claims: [
+          {
+            claimKey: "possession_knives",
+            claimType: "possession",
+            sourceText: "knives",
+            normalizedValue: "knives",
+            required: true,
+            referenceKey: "possession_knives",
+          },
+        ],
+        references: [
+          {
+            referenceKey: "possession_knives",
+            originalText: "knives",
+            normalizedText: "knives",
+            role: "tool",
+            required: true,
+            relationship: "possessed",
+            resolution: "unresolved",
+            candidateEntityIds: [],
+            allowClarification: false,
+          },
+        ],
+        properties: { ...base.properties, selfDirected: false },
+        demands: { ...base.demands, danger: 5 },
+      }),
+      context({ actorId }),
+    );
+    expect(evaluation.status).toBe("blocked");
+    expect(evaluation.missingRequirements).toContain("possess knives");
+  });
+
+  it("preserves legacy possession assumptions during migration", () => {
     const actorId = randomUUID();
     const base = frame(actorId);
     const evaluation = evaluateActionAffordance(
@@ -187,16 +227,109 @@ describe("action affordance evaluator", () => {
     expect(evaluation.missingRequirements).toContain("possess knives");
   });
 
+  it("checks missing possession before secondary target ambiguity", () => {
+    const actorId = randomUUID();
+    const base = frame(actorId);
+    const evaluation = evaluateActionAffordance(
+      frame(actorId, {
+        objective: "Carve an X into the wall with my knife",
+        claims: [
+          {
+            claimKey: "possession_knife",
+            claimType: "possession",
+            sourceText: "my knife",
+            normalizedValue: "knife",
+            required: true,
+            referenceKey: "possession_knife",
+          },
+        ],
+        references: [
+          {
+            referenceKey: "possession_knife",
+            originalText: "my knife",
+            normalizedText: "knife",
+            role: "tool",
+            required: true,
+            relationship: "possessed",
+            resolution: "unresolved",
+            candidateEntityIds: [],
+            allowClarification: false,
+          },
+          {
+            referenceKey: "target_wall",
+            originalText: "the wall",
+            normalizedText: "wall",
+            role: "target",
+            required: true,
+            relationship: "visible",
+            resolution: "ambiguous",
+            candidateEntityIds: [randomUUID(), randomUUID()],
+            allowClarification: true,
+          },
+        ],
+        properties: { ...base.properties, selfDirected: false, destructive: true },
+      }),
+      context({ actorId }),
+    );
+    expect(evaluation.status).toBe("blocked");
+    expect(evaluation.missingRequirements).toEqual(["possess knife"]);
+  });
+
   it("accepts plural possession language when a matching owned item exists", () => {
     const actorId = randomUUID();
     const base = frame(actorId);
     const evaluation = evaluateActionAffordance(
       frame(actorId, {
         objective: "Hold the knives",
-        assumptions: ["requires_possession:knives"],
+        claims: [
+          {
+            claimKey: "possession_knives",
+            claimType: "possession",
+            sourceText: "knives",
+            normalizedValue: "knives",
+            required: true,
+          },
+        ],
         properties: { ...base.properties, selfDirected: false },
       }),
       context({ actorId, ownedItemName: "Kitchen Knife" }),
+    );
+    expect(evaluation.status).toBe("feasible");
+  });
+
+  it("treats intrinsic anatomy as available without inventory", () => {
+    const actorId = randomUUID();
+    const base = frame(actorId);
+    const evaluation = evaluateActionAffordance(
+      frame(actorId, {
+        objective: "Strike the wall with my bare fist",
+        claims: [
+          {
+            claimKey: "anatomy_fist",
+            claimType: "anatomy",
+            sourceText: "bare fist",
+            normalizedValue: "fist",
+            required: true,
+            referenceKey: "anatomy_fist",
+          },
+        ],
+        references: [
+          {
+            referenceKey: "anatomy_fist",
+            originalText: "bare fist",
+            normalizedText: "fist",
+            role: "anatomy",
+            required: true,
+            relationship: "intrinsic",
+            resolution: "resolved_intrinsic",
+            candidateEntityIds: [],
+            allowClarification: false,
+          },
+        ],
+        properties: { ...base.properties, selfDirected: false, destructive: true },
+        demands: { ...base.demands, danger: 4 },
+      }),
+      context({ actorId }),
     );
     expect(evaluation.status).toBe("feasible");
   });

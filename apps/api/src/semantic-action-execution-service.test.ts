@@ -77,6 +77,19 @@ function frame(
     targetIds,
     objectIds: [],
     toolIds: [],
+    references: targetIds.map((targetId, index) => ({
+      referenceKey: `target_${index + 1}`,
+      originalText: "target",
+      normalizedText: "target",
+      role: "target",
+      required: true,
+      relationship: "visible",
+      resolution: "resolved_entity",
+      resolvedEntityId: targetId,
+      candidateEntityIds: [],
+      allowClarification: true,
+    })),
+    claims: [],
     properties: {
       selfDirected: targetIds.length === 0,
       opposed: kind === "combat",
@@ -202,6 +215,29 @@ describe("semantic action execution service", () => {
     hazardousFrame.actionType = "strike";
     hazardousFrame.objective = "Strike my forehead against the doorframe";
     hazardousFrame.demands.danger = 7;
+    hazardousFrame.references = [
+      {
+        referenceKey: "anatomy_forehead",
+        originalText: "forehead",
+        normalizedText: "forehead",
+        role: "anatomy",
+        required: true,
+        relationship: "intrinsic",
+        resolution: "resolved_intrinsic",
+        candidateEntityIds: [],
+        allowClarification: false,
+      },
+    ];
+    hazardousFrame.claims = [
+      {
+        claimKey: "anatomy_forehead",
+        claimType: "anatomy",
+        sourceText: "forehead",
+        normalizedValue: "forehead",
+        required: true,
+        referenceKey: "anatomy_forehead",
+      },
+    ];
     const hazardousResolution = resolution("unopposed_check");
     hazardousResolution.consequenceLevel = 7;
 

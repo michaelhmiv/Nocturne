@@ -27,7 +27,16 @@ function factText(context: RelevanceCompiledContext) {
 }
 
 function relevantFactIds(frame: SemanticActionFrame, context: RelevanceCompiledContext) {
-  const ids = new Set([frame.actorId, ...frame.targetIds, ...frame.objectIds, ...frame.toolIds]);
+  const typedReferenceIds = (frame.references ?? [])
+    .map((reference) => reference.resolvedEntityId)
+    .filter((id): id is string => Boolean(id));
+  const ids = new Set([
+    frame.actorId,
+    ...frame.targetIds,
+    ...frame.objectIds,
+    ...frame.toolIds,
+    ...typedReferenceIds,
+  ]);
   return [...(context.playerKnownFacts ?? []), ...(context.authoritativeHiddenFacts ?? [])]
     .filter((fact) => !fact.entityId || ids.has(fact.entityId))
     .sort((a, b) => b.relevanceScore - a.relevanceScore)
@@ -77,6 +86,18 @@ function nameMatches(requirement: string, entityName: string) {
   );
 }
 
+function possessionRequirements(frame: SemanticActionFrame) {
+  const typed = (frame.claims ?? [])
+    .filter((claim) => claim.claimType === "possession" && claim.required)
+    .map((claim) => claim.normalizedValue.trim())
+    .filter(Boolean);
+  const legacy = frame.assumptions
+    .filter((assumption) => assumption.startsWith(possessionPrefix))
+    .map((assumption) => assumption.slice(possessionPrefix.length).trim())
+    .filter(Boolean);
+  return [...new Set([...typed, ...legacy])];
+}
+
 export function evaluateActionAffordance(
   frame: SemanticActionFrame,
   context: RelevanceCompiledContext,
@@ -109,41 +130,6 @@ export function evaluateActionAffordance(
     });
   }
 
-  const entityById = new Map(entities.map((entity) => [entity.entityId, entity]));
-  const referencedIds = [...frame.targetIds, ...frame.objectIds, ...frame.toolIds];
-  const missingReferences = referencedIds.filter((id) => !entityById.has(id));
-  if (missingReferences.length > 0) {
-    return result(frame, context, {
-      status: "clarification_required",
-      rationale:
-        "At least one referenced entity is not established in the relevant authoritative context.",
-      missingRequirements: missingReferences.map((id) => `resolvable entity ${id}`),
-      warnings: [],
-    });
-  }
-
-  const remotelyActionable = frame.properties.movement || frame.properties.social;
-  const physicallyReferencedIds = [...frame.targetIds, ...frame.objectIds];
-  const unreachableEntities = physicallyReferencedIds
-    .map((id) => entityById.get(id))
-    .filter((entity) => Boolean(entity))
-    .filter(
-      (entity) =>
-        !remotelyActionable &&
-        actor.locationId !== null &&
-        entity!.locationId !== null &&
-        actor.locationId !== entity!.locationId,
-    );
-  if (unreachableEntities.length > 0) {
-    return result(frame, context, {
-      status: "blocked",
-      rationale:
-        "A referenced entity is not reachable from the actor's authoritative current location.",
-      missingRequirements: unreachableEntities.map((entity) => `reach ${entity!.name}`),
-      warnings: [],
-    });
-  }
-
   const facts = factText(context);
   if (/\b(?:unconscious|incapacitated|paralyzed)\b/.test(facts)) {
     return result(frame, context, {
@@ -166,22 +152,77 @@ export function evaluateActionAffordance(
     });
   }
 
-  const possessionRequirements = frame.assumptions
-    .filter((assumption) => assumption.startsWith(possessionPrefix))
-    .map((assumption) => assumption.slice(possessionPrefix.length).trim())
-    .filter(Boolean);
   const controlledEntities = entities.filter((entity) =>
     entity.inclusionReasons.some((reason) => possessionReasons.has(reason)),
   );
-  const missingPossessions = possessionRequirements.filter(
+  const missingPossessions = possessionRequirements(frame).filter(
     (requirement) => !controlledEntities.some((entity) => nameMatches(requirement, entity.name)),
   );
   if (missingPossessions.length > 0) {
     return result(frame, context, {
       status: "blocked",
       rationale:
-        "The action explicitly assumes possession of an item that is not authoritatively owned, controlled, or carried by the actor.",
+        "The attempted action requires an item that is not authoritatively owned, controlled, or carried by the actor.",
       missingRequirements: missingPossessions.map((name) => `possess ${name}`),
+      warnings: [],
+    });
+  }
+
+  const entityById = new Map(entities.map((entity) => [entity.entityId, entity]));
+  const referencedIds = [...frame.targetIds, ...frame.objectIds, ...frame.toolIds];
+  const missingReferences = referencedIds.filter((id) => !entityById.has(id));
+  if (missingReferences.length > 0) {
+    return result(frame, context, {
+      status: "clarification_required",
+      rationale:
+        "At least one referenced entity is not established in the relevant authoritative context.",
+      missingRequirements: missingReferences.map((id) => `resolvable entity ${id}`),
+      warnings: [],
+    });
+  }
+
+  const unresolvedTypedReferences = (frame.references ?? []).filter(
+    (reference) =>
+      reference.required &&
+      reference.relationship !== "possessed" &&
+      reference.resolution !== "resolved_entity" &&
+      reference.resolution !== "resolved_intrinsic",
+  );
+  if (unresolvedTypedReferences.length > 0) {
+    const clarificationReferences = unresolvedTypedReferences.filter(
+      (reference) => reference.allowClarification || reference.resolution === "ambiguous",
+    );
+    return result(frame, context, {
+      status: clarificationReferences.length > 0 ? "clarification_required" : "blocked",
+      rationale:
+        clarificationReferences.length > 0
+          ? "A required reference remains ambiguous or unresolved after authoritative context resolution."
+          : "A required non-clarifiable reference is unavailable in authoritative state.",
+      missingRequirements: unresolvedTypedReferences.map(
+        (reference) => `resolve ${reference.normalizedText}`,
+      ),
+      warnings: [],
+    });
+  }
+
+  const remotelyActionable = frame.properties.movement || frame.properties.social;
+  const physicallyReferencedIds = [...frame.targetIds, ...frame.objectIds];
+  const unreachableEntities = physicallyReferencedIds
+    .map((id) => entityById.get(id))
+    .filter((entity) => Boolean(entity))
+    .filter(
+      (entity) =>
+        !remotelyActionable &&
+        actor.locationId !== null &&
+        entity!.locationId !== null &&
+        actor.locationId !== entity!.locationId,
+    );
+  if (unreachableEntities.length > 0) {
+    return result(frame, context, {
+      status: "blocked",
+      rationale:
+        "A referenced entity is not reachable from the actor's authoritative current location.",
+      missingRequirements: unreachableEntities.map((entity) => `reach ${entity!.name}`),
       warnings: [],
     });
   }
