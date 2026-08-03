@@ -1,5 +1,6 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import { getSessionFromNodeHeaders } from "@nocturne/auth";
+import { isValidMcpAuthorizationOrigin } from "../../../../lib/mcp-authorization-origin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -192,7 +193,13 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const requestOrigin = request.headers.get("origin");
-    if (requestOrigin && requestOrigin !== new URL(request.url).origin) {
+    if (
+      !isValidMcpAuthorizationOrigin({
+        requestOrigin,
+        requestUrl: request.url,
+        configuredPublicUrl: process.env.BETTER_AUTH_URL,
+      })
+    ) {
       return html(shell("<h1>Invalid authorization origin.</h1>"), 403);
     }
     const form = await request.formData();
