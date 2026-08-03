@@ -6,6 +6,7 @@ import "./scene-styles.css";
 import "./action-plan-styles.css";
 import "./dashboard-styles.css";
 import "./developer-styles.css";
+import "./account-styles.css";
 
 export const metadata: Metadata = {
   title: "Nocturne",
