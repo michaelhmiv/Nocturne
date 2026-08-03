@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { WorldResourceKeySchema } from "./resource.js";
 
 export const OutcomeGradeSchema = z.enum([
   "complete_success",
@@ -38,7 +39,7 @@ export const CreateInformationAssetOperationSchema = z.object({
 export const ConsumeResourceOperationSchema = z.object({
   type: z.literal("consume_resource"),
   instanceId: z.string().uuid(),
-  resource: z.string().regex(/^[a-z][a-z0-9_]{0,31}$/),
+  resource: WorldResourceKeySchema,
   amount: z.number().positive(),
 });
 export const SetInstanceStateOperationSchema = z.object({
@@ -121,7 +122,7 @@ export const ConversationStateOperationSchema = z.discriminatedUnion("type", [
   operation({
     type: z.literal("adjust_resource"),
     entityId: OpaqueIdSchema,
-    resource: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/),
+    resource: WorldResourceKeySchema,
     delta: z.number().int().min(-1_000_000).max(1_000_000),
   }),
   operation({

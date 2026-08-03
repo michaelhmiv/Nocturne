@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ConsumptionResultSchema } from "./consumption.js";
+import { WorldResourceKeySchema } from "./resource.js";
 
 export const ConversationMessageRequestSchema = z
   .object({ message: z.string().trim().min(1).max(4_000) })
@@ -67,7 +68,7 @@ export const ActionExecutionResponseSchema = z.object({
   informationGained: z.array(
     z.object({ informationId: z.string().uuid(), content: z.string(), confidence: z.number() }),
   ),
-  costs: z.array(z.object({ resource: z.string(), amount: z.number() })),
+  costs: z.array(z.object({ resource: WorldResourceKeySchema, amount: z.number() })),
   consumption: ConsumptionResultSchema.optional(),
   createdAt: z.string().datetime(),
   idempotentReplay: z.boolean(),

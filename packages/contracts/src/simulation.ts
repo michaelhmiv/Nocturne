@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { WorldResourceKeySchema } from "./resource.js";
 import { UniversalWorldOperationSchema } from "./world-operations.js";
 
 const UuidSchema = z.string().uuid();
@@ -20,6 +21,7 @@ export const LazySimulationRequestSchema = z
         policyVersion: z.string().trim().min(1).max(120),
         description: TextSchema,
         stateKeys: z.array(z.string().trim().min(1).max(100)).max(64),
+        resourceKeys: z.array(WorldResourceKeySchema).max(32).default([]),
         allowedOperationTypes: z.array(z.string().trim().min(1).max(100)).max(32),
         constraints: z.array(z.string().trim().min(1).max(500)).max(64),
       })

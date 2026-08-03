@@ -546,7 +546,7 @@ describe("conversation contracts", () => {
         type: "adjust_resource",
         preconditionFactIds: [publicFact.factId],
         entityId: "character:ada",
-        resource: "focus",
+        resource: "stamina",
         delta: -1,
       },
       {

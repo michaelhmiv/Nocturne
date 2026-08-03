@@ -25,7 +25,7 @@ function committedConsumptionEvent() {
         remainingUnits: 0,
         resourceDeltas: [
           {
-            resource: "satiety",
+            resource: "nutrition",
             delta: 3,
             before: 9,
             after: 12,
@@ -58,7 +58,9 @@ describe("dashboard effect consistency", () => {
         heat: 0,
         warrant: false,
         status: "active",
-        resources: [{ key: "satiety", label: "Satiety", value: 12, minimum: -100, maximum: 100 }],
+        resources: [
+          { key: "nutrition", label: "Nutrition", value: 12, minimum: -100, maximum: 100 },
+        ],
         activeConditions: [],
         skills: {},
         factionStanding: {},
@@ -91,8 +93,8 @@ describe("dashboard effect consistency", () => {
       },
       resourceHistory: [
         {
-          resource: "satiety",
-          label: "Satiety",
+          resource: "nutrition",
+          label: "Nutrition",
           points: [
             {
               eventId,
@@ -108,7 +110,7 @@ describe("dashboard effect consistency", () => {
     });
 
     const effect = dashboard.effects.events[0]?.effects.find(
-      (candidate) => candidate.type === "resource_changed" && candidate.resource === "satiety",
+      (candidate) => candidate.type === "resource_changed" && candidate.resource === "nutrition",
     );
     expect(effect).toMatchObject({ delta: 3, before: 9, after: 12 });
     expect(dashboard.character.resources[0]?.value).toBe(12);
