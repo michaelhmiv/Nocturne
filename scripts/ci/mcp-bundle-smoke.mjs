@@ -97,7 +97,9 @@ try {
     redirect: "manual",
   });
   if (approval.status !== 302) {
-    throw new Error(`Rotated-key authorization failed: ${approval.status} ${await approval.text()}`);
+    throw new Error(
+      `Rotated-key authorization failed: ${approval.status} ${await approval.text()}`,
+    );
   }
   const callback = new URL(approval.headers.get("location"));
   const code = callback.searchParams.get("code");
@@ -116,7 +118,9 @@ try {
     }),
   });
   if (!exchange.ok) {
-    throw new Error(`Rotated-key token exchange failed: ${exchange.status} ${await exchange.text()}`);
+    throw new Error(
+      `Rotated-key token exchange failed: ${exchange.status} ${await exchange.text()}`,
+    );
   }
   const tokens = await exchange.json();
   if (!tokens.access_token || !tokens.refresh_token) {
