@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { LazySimulationRequest, LazySimulationResult } from "@nocturne/contracts";
-import { LazySimulationResultSchema, SystemResourceKeySchema } from "@nocturne/contracts";
+import { LazySimulationResultSchema, WorldResourceKeySchema } from "@nocturne/contracts";
 import type { createDatabase } from "./index.js";
 import { serializeJson as json } from "./json.js";
 import type { WorldScope } from "./world-store.js";
@@ -164,7 +164,7 @@ export function createLazySimulationStore(database: ReturnType<typeof createData
           policyVersion: entity.policy_version!,
           description: entity.policy_description!,
           stateKeys: entity.state_keys || [],
-          resourceKeys: SystemResourceKeySchema.array().parse(entity.resource_keys || []),
+          resourceKeys: WorldResourceKeySchema.array().parse(entity.resource_keys || []),
           allowedOperationTypes: entity.allowed_operation_types || [],
           constraints: entity.constraints || [],
         },
