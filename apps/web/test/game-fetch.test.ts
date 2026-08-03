@@ -23,6 +23,36 @@ describe("gameFetch", () => {
     expect(headers.get("x-nocturne-guest-mode")).toBe("1");
   });
 
+  it("preserves the legacy web history while retaining canonical records", async () => {
+    const canonical = [{ requestId: "request-1", command: "Scan the room", status: "completed" }];
+    const legacy = [
+      {
+        eventId: "event-1",
+        rawText: "Scan the room",
+        outcomeGrade: "complete_success",
+        narration: "The room is clear.",
+        calculationTrace: [],
+        informationGained: [],
+        costs: [],
+        createdAt: "2026-08-03T16:00:00.000Z",
+      },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ actions: canonical, legacyActions: legacy })),
+    );
+
+    const result = await gameFetch<{
+      actions: typeof legacy;
+      canonicalActions: typeof canonical;
+      legacyActions: typeof legacy;
+    }>("actions?actorId=40000000-0000-4000-8000-000000000001");
+
+    expect(result.actions).toEqual(legacy);
+    expect(result.canonicalActions).toEqual(canonical);
+    expect(result.legacyActions).toEqual(legacy);
+  });
+
   it("preserves a non-JSON upstream error", async () => {
     vi.stubGlobal(
       "fetch",

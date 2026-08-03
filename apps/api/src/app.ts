@@ -22,6 +22,7 @@ import {
   createLocationStore,
   createMarketStore,
   createPersistentWorldStore,
+  createWorldActionRequestStore,
   executeConversationStateOperations,
 } from "@nocturne/database";
 import Fastify from "fastify";
@@ -49,6 +50,7 @@ export async function buildApp() {
     locations,
     consumption,
   );
+  const actionHistory = createWorldActionRequestStore(database);
   const market = createMarketStore(database);
   const agents = createAgentStore(database);
   const conversationTurns = createConversationStore(database);
@@ -349,7 +351,11 @@ export async function buildApp() {
     await authorizeAgent(request.headers, "character:read", actorId);
     const user = await requireUser(request.headers);
     await requireOwnedCharacter(user.id, actorId);
-    return { actions: await actions.list(user.id, actorId) };
+    const [canonical, legacyActions] = await Promise.all([
+      actionHistory.listForActor({ userId: user.id, actorId }),
+      actions.list(user.id, actorId),
+    ]);
+    return { actions: canonical, legacyActions };
   });
   app.post("/v1/actions", async (request) => {
     const actorId = (request.body as { actorId?: unknown } | null)?.actorId;

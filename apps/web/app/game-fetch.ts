@@ -60,6 +60,19 @@ function object(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function preserveWebActionHistoryContract(path: string, payload: unknown) {
+  if (!path.startsWith("actions?")) return payload;
+  const value = object(payload);
+  if (!value || !Array.isArray(value.actions) || !Array.isArray(value.legacyActions)) {
+    return payload;
+  }
+  return {
+    ...value,
+    canonicalActions: value.actions,
+    actions: value.legacyActions,
+  };
+}
+
 function persistentResultAsLegacyJob(
   rawText: string,
   resultValue: unknown,
@@ -189,5 +202,6 @@ export async function gameFetch<T>(
     if (job) return job as T;
   }
 
-  return (await requestJson(path, init, guest)) as T;
+  const payload = await requestJson(path, init, guest);
+  return preserveWebActionHistoryContract(path, payload) as T;
 }
