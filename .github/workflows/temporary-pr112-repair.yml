@@ -1,0 +1,58 @@
+name: Temporary PR 112 Repair
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/typed-resource-integrity
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Restore and update typed resource fixtures
+        run: |
+          git show origin/main:packages/contracts/test/conversation-contracts.test.ts > packages/contracts/test/conversation-contracts.test.ts
+          python - <<'PY'
+          from pathlib import Path
+
+          conversation = Path("packages/contracts/test/conversation-contracts.test.ts")
+          text = conversation.read_text()
+          old = '        resource: "focus",\n'
+          if old not in text:
+              raise SystemExit("focus fixture not found")
+          conversation.write_text(text.replace(old, '        resource: "stamina",\n', 1))
+
+          dashboard = Path("packages/contracts/src/player-dashboard.test.ts")
+          text = dashboard.read_text()
+          text = text.replace('{ key: "satiety", label: "Satiety", value: 12 }', '{ key: "nutrition", label: "Nutrition", value: 12 }')
+          text = text.replace('resource: "satiety"', 'resource: "nutrition"')
+          text = text.replace('{ key: "satiety", value: 12 }', '{ key: "nutrition", value: 12 }')
+          dashboard.write_text(text)
+          PY
+          pnpm exec prettier --write \
+            packages/contracts/src/resource.ts \
+            packages/contracts/test/conversation-contracts.test.ts \
+            packages/contracts/src/player-dashboard.test.ts \
+            packages/rules-engine/src/detection-operations.ts
+      - name: Commit repaired source
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add packages/contracts/src/resource.ts packages/contracts/test/conversation-contracts.test.ts packages/contracts/src/player-dashboard.test.ts packages/rules-engine/src/detection-operations.ts
+          git diff --cached --quiet || git commit -m "fix: align typed resource producers and fixtures"
+          git push origin HEAD:fix/typed-resource-integrity
