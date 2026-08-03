@@ -28,6 +28,7 @@ import Fastify from "fastify";
 import { z, ZodError } from "zod";
 import { registerAgentRoutes } from "./agent-routes.js";
 import { requireAgentScope, requireBoundCharacter, type AgentScope } from "./agent-scope.js";
+import { classifyUnhandledApiError } from "./api-error-classification.js";
 import { createActionService } from "./action-service.js";
 import { ConversationServiceError, createConversationService } from "./conversation-service.js";
 import { createInventionService } from "./invention-service.js";
@@ -175,17 +176,22 @@ export async function buildApp() {
               : 422;
       return reply.code(status).send({ error: error.code, message: error.message });
     }
-    const providerCode =
-      error instanceof Error && "code" in error ? String((error as { code: unknown }).code) : null;
-    if (providerCode) {
-      app.log.error(error);
-      return reply.code(providerCode === "configuration" ? 503 : 502).send({
-        error: providerCode,
-        message: "AI provider request failed.",
-      });
-    }
-    app.log.error(error);
-    return reply.code(500).send({ error: "internal_error" });
+
+    const classification = classifyUnhandledApiError(error);
+    request.log.error(
+      {
+        err: error,
+        errorClass: classification.errorClass,
+        sourceCode: classification.sourceCode,
+        method: request.method,
+        url: request.url,
+      },
+      "request failed",
+    );
+    return reply.code(classification.statusCode).send({
+      error: classification.errorClass,
+      ...(classification.message ? { message: classification.message } : {}),
+    });
   });
 
   const primaryProvider = "deepseek" as const;
