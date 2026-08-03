@@ -48,6 +48,21 @@ const anatomyPattern =
   /\b(?:bare\s+)?(?:my\s+)?(fists?|hands?|head|forehead|face|neck|chest|body|arms?|legs?|feet|foot|elbows?|knees?)\b/gi;
 const possessionToolPattern =
   /\b(?:gun|pistol|rifle|shotgun|knife|knives|blade|razor|hammer|crowbar|tool|weapon)\b/i;
+const intrinsicAnatomyNames = new Set([
+  "fist",
+  "hand",
+  "head",
+  "forehead",
+  "face",
+  "neck",
+  "chest",
+  "body",
+  "arm",
+  "leg",
+  "foot",
+  "elbow",
+  "knee",
+]);
 
 function firstString(payload: Record<string, unknown>, keys: string[]) {
   for (const key of keys) {
@@ -178,22 +193,6 @@ function slugPart(value: string) {
   return normalized || "reference";
 }
 
-function explicitPossessionNames(rawText: string) {
-  const names = new Set<string>();
-  const patterns = [
-    /\b(?:holding|carrying|wielding|armed with|equipped with|using)\s+(?:a|an|the|my|some)?\s*([a-z][a-z0-9' -]{0,50}?)(?=$|[,.!?]|\s+(?:to|while|and|but|then)\b)/gi,
-    /\bwith\s+(?:a|an|the|my|some)?\s*([a-z][a-z0-9' -]{0,50}?)(?=$|[,.!?]|\s+(?:while|and|but|then)\b)/gi,
-    /\b(?:the|a|an|my)\s+([a-z][a-z0-9' -]{0,50}?)\s+(?:from|in)\s+my\s+inventory\b/gi,
-  ];
-  for (const pattern of patterns) {
-    for (const match of rawText.matchAll(pattern)) {
-      const name = cleanPossessionName(match[1] || "");
-      if (name) names.add(name);
-    }
-  }
-  return [...names];
-}
-
 function normalizeAnatomy(value: string) {
   const normalized = value.toLowerCase();
   if (normalized === "fists") return "fist";
@@ -204,6 +203,33 @@ function normalizeAnatomy(value: string) {
   if (normalized === "elbows") return "elbow";
   if (normalized === "knees") return "knee";
   return normalized;
+}
+
+function isIntrinsicAnatomyPhrase(value: string) {
+  const normalized = value
+    .toLowerCase()
+    .replace(/\b(?:bare|my|own)\b/g, " ")
+    .replace(/[^a-z ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized || normalized.includes(" ")) return false;
+  return intrinsicAnatomyNames.has(normalizeAnatomy(normalized));
+}
+
+function explicitPossessionNames(rawText: string) {
+  const names = new Set<string>();
+  const patterns = [
+    /\b(?:holding|carrying|wielding|armed with|equipped with|using)\s+(?:a|an|the|my|some)?\s*([a-z][a-z0-9' -]{0,50}?)(?=$|[,.!?]|\s+(?:to|while|and|but|then)\b)/gi,
+    /\bwith\s+(?:a|an|the|my|some)?\s*([a-z][a-z0-9' -]{0,50}?)(?=$|[,.!?]|\s+(?:while|and|but|then)\b)/gi,
+    /\b(?:the|a|an|my)\s+([a-z][a-z0-9' -]{0,50}?)\s+(?:from|in)\s+my\s+inventory\b/gi,
+  ];
+  for (const pattern of patterns) {
+    for (const match of rawText.matchAll(pattern)) {
+      const name = cleanPossessionName(match[1] || "");
+      if (name && !isIntrinsicAnatomyPhrase(name)) names.add(name);
+    }
+  }
+  return [...names];
 }
 
 function explicitAnatomyNames(rawText: string) {
@@ -304,7 +330,8 @@ export function deriveSemanticActionFrame(input: {
       : 1;
   const explicitLocationId = firstString(payload, ["locationId"]);
   const actorLocationId = contextById.get(input.actorId)?.locationId || undefined;
-  const locationId = explicitLocationId || actorLocationId || undefined;
+  const deicticLocation = deicticLocationPattern.exec(input.rawText)?.[0];
+  const locationId = explicitLocationId || (deicticLocation ? actorLocationId : undefined);
   const selfHarmDanger = explicitSelfDirected && harmfulContactPattern.test(input.rawText);
   const danger = selfHarmDanger
     ? 7
@@ -314,8 +341,8 @@ export function deriveSemanticActionFrame(input: {
         ? 4
         : 0;
 
-  const possessionNames = explicitPossessionNames(input.rawText);
   const anatomyNames = explicitAnatomyNames(input.rawText);
+  const possessionNames = explicitPossessionNames(input.rawText);
   const assumptions = [
     ...stringArray(payload, "assumptions"),
     ...possessionNames.map((name) => `requires_possession:${name}`),
@@ -406,7 +433,6 @@ export function deriveSemanticActionFrame(input: {
     });
   }
 
-  const deicticLocation = deicticLocationPattern.exec(input.rawText)?.[0];
   if (deicticLocation) {
     references.push({
       referenceKey: "current_location",
