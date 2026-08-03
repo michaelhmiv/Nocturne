@@ -99,6 +99,41 @@ describe("semantic action frame", () => {
     expect(isRoutineSelfDirectedAction(frame)).toBe(false);
   });
 
+  it("preserves explicit possession claims even when no UUID resolves", () => {
+    const actorId = randomUUID();
+    const armed = deriveSemanticActionFrame({
+      kind: "interact",
+      actorId,
+      rawText: "I run around the room with knives.",
+      payload: {},
+      context: context(actorId),
+    });
+    const inventory = deriveSemanticActionFrame({
+      kind: "interact",
+      actorId,
+      rawText: "I eat the sandwich from my inventory.",
+      payload: {},
+      context: context(actorId),
+    });
+    expect(armed.assumptions).toContain("requires_possession:knives");
+    expect(armed.demands.danger).toBeGreaterThanOrEqual(5);
+    expect(inventory.assumptions).toContain("requires_possession:sandwich");
+  });
+
+  it("classifies deliberate harmful contact with the actor's body as dangerous", () => {
+    const actorId = randomUUID();
+    const frame = deriveSemanticActionFrame({
+      kind: "interact",
+      actorId,
+      rawText: "I deliberately strike my forehead against the doorframe once.",
+      payload: {},
+      context: context(actorId),
+    });
+    expect(frame.properties.selfDirected).toBe(true);
+    expect(frame.demands.danger).toBeGreaterThanOrEqual(5);
+    expect(isRoutineSelfDirectedAction(frame)).toBe(false);
+  });
+
   it("accepts minimal legacy test context without an entity collection", () => {
     const actorId = randomUUID();
     const frame = deriveSemanticActionFrame({
