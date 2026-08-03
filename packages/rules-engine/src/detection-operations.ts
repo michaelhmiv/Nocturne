@@ -14,7 +14,7 @@ export function buildDetectionOperations(input: {
       path: ["lastScanAt"],
       value: input.occurredAt,
     },
-    { type: "consume_resource", instanceId: input.methodInstanceId, resource: "power", amount: 1 },
+    { type: "consume_resource", instanceId: input.methodInstanceId, resource: "charge", amount: 1 },
   ];
   const information = {
     complete_success: {
