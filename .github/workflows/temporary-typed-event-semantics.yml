@@ -1,0 +1,338 @@
+name: Temporary Typed Event Semantics Patch
+
+on:
+  push:
+    branches:
+      - feat/typed-event-semantics
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, 'apply coordinated typed event semantics') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/typed-event-semantics
+          fetch-depth: 0
+      - name: Apply coordinated contract and executor changes
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str):
+              file = Path(path)
+              text = file.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"Expected one match in {path}, found {count}: {old[:100]!r}")
+              file.write_text(text.replace(old, new))
+
+          replace_once(
+              "packages/contracts/src/world-operations.ts",
+              'import { WorldResourceKeySchema } from "./resource.js";\n',
+              'import { UniversalEventTypeSchema } from "./event-taxonomy.js";\nimport { WorldResourceKeySchema } from "./resource.js";\n',
+          )
+          replace_once(
+              "packages/contracts/src/world-operations.ts",
+              'operations: z.array(UniversalWorldOperationSchema).min(1).max(MAX_UNIVERSAL_WORLD_OPERATIONS),',
+              'operations: z.array(UniversalWorldOperationSchema).max(MAX_UNIVERSAL_WORLD_OPERATIONS),',
+          )
+          replace_once(
+              "packages/contracts/src/world-operations.ts",
+              '    authority: z.enum(["player", "scheduled", "world_simulation", "operator"]),\n    actorId: UuidSchema.optional(),',
+              '    authority: z.enum(["player", "scheduled", "world_simulation", "operator"]),\n    eventType: UniversalEventTypeSchema.default("world_state_mutated"),\n    actorId: UuidSchema.optional(),',
+          )
+
+          replace_once(
+              "packages/database/src/universal-operation-executor.ts",
+              '  UniversalMutationReceiptSchema,\n  UniversalWorldOperationBranchSchema,\n  type UniversalMutationReceipt,',
+              '  UniversalMutationReceiptSchema,\n  UniversalWorldOperationBranchSchema,\n  isNonMutatingEventType,\n  type UniversalEventType,\n  type UniversalMutationReceipt,',
+          )
+          replace_once(
+              "packages/database/src/universal-operation-executor.ts",
+              '  playerVisibleFacts?: string[];\n  hiddenFacts?: string[];\n};',
+              '  playerVisibleFacts?: string[];\n  hiddenFacts?: string[];\n  eventType?: UniversalEventType;\n  eventPayload?: Record<string, unknown>;\n};',
+          )
+          replace_once(
+              "packages/database/src/universal-operation-executor.ts",
+              'const hashRequest = (value: unknown) =>\n  createHash("sha256").update(JSON.stringify(value)).digest("hex");\n',
+              '''const hashRequest = (value: unknown) =>
+  createHash("sha256").update(JSON.stringify(value)).digest("hex");
+
+function defaultEventType(operations: UniversalWorldOperation[]): UniversalEventType {
+  if (operations.length > 0 && operations.every(({ type }) => type === "schedule_timed_work")) {
+    return "action_scheduled";
+  }
+  if (operations.length > 0 && operations.every(({ type }) => type === "cancel_timed_work")) {
+    return "action_cancelled";
+  }
+  return "world_state_mutated";
+}
+''',
+          )
+          replace_once(
+              "packages/database/src/universal-operation-executor.ts",
+              '        hidden_facts: string[];\n        created_at: Date;',
+              '        hidden_facts: string[];\n        event_type: UniversalEventType;\n        created_at: Date;',
+          )
+          replace_once(
+              "packages/database/src/universal-operation-executor.ts",
+              '''      SELECT receipt_id, event_id, world_id, shard_id, idempotency_key,
+             request_hash, authority, actor_id, symbol_map,
+             player_visible_facts, hidden_facts, created_at
+      FROM game.mutation_receipts
+      WHERE world_id = ${worldId} AND idempotency_key = ${idempotencyKey}
+''',
+              '''      SELECT receipt.receipt_id, receipt.event_id, receipt.world_id, receipt.shard_id,
+             receipt.idempotency_key, receipt.request_hash, receipt.authority,
+             receipt.actor_id, receipt.symbol_map, receipt.player_visible_facts,
+             receipt.hidden_facts, event.event_type, receipt.created_at
+      FROM game.mutation_receipts receipt
+      JOIN game.event_ledger event ON event.event_id = receipt.event_id
+      WHERE receipt.world_id = ${worldId}
+        AND receipt.idempotency_key = ${idempotencyKey}
+''',
+          )
+          replace_once(
+              "packages/database/src/universal-operation-executor.ts",
+              '      authority: row.authority,\n      actorId: row.actor_id || undefined,',
+              '      authority: row.authority,\n      eventType: row.event_type,\n      actorId: row.actor_id || undefined,',
+          )
+          replace_once(
+              "packages/database/src/universal-operation-executor.ts",
+              '''    const branch = validateExecutionInput(input);
+    const declared = new Set(input.declaredFactIds);
+''',
+              '''    const branch = validateExecutionInput(input);
+    const eventType = input.eventType ?? defaultEventType(branch.operations);
+    if (branch.operations.length === 0 && !isNonMutatingEventType(eventType)) {
+      throw new UniversalOperationError(
+        "invalid_input",
+        "An operation-free event requires an explicitly non-mutating event type.",
+      );
+    }
+    const declared = new Set(input.declaredFactIds);
+''',
+          )
+          replace_once(
+              "packages/database/src/universal-operation-executor.ts",
+              '''      sourceStepId: input.sourceStepId || null,
+      declaredFactIds: input.declaredFactIds,
+      branch,
+''',
+              '''      sourceStepId: input.sourceStepId || null,
+      eventType,
+      eventPayload: input.eventPayload || {},
+      declaredFactIds: input.declaredFactIds,
+      branch,
+''',
+          )
+          replace_once(
+              "packages/database/src/universal-operation-executor.ts",
+              '''          operationTypes: branch.operations.map(({ type }) => type),
+          playerVisibleFacts,
+          hiddenFacts,
+''',
+              '''          operationTypes: branch.operations.map(({ type }) => type),
+          playerVisibleFacts,
+          hiddenFacts,
+          eventPayload: input.eventPayload || {},
+''',
+          )
+          replace_once(
+              "packages/database/src/universal-operation-executor.ts",
+              '''            ${input.idempotencyKey}, now(), 'world_mutation',
+              ${json([...involvedEntityIds])}::jsonb,
+''',
+              '''            ${input.idempotencyKey}, now(), ${eventType},
+              ${json([...involvedEntityIds])}::jsonb,
+''',
+          )
+          replace_once(
+              "packages/database/src/universal-operation-executor.ts",
+              '          authority: input.authority,\n          actorId: input.actorId,',
+              '          authority: input.authority,\n          eventType,\n          actorId: input.actorId,',
+          )
+
+          replace_once(
+              "apps/api/src/semantic-action-execution-service.ts",
+              '  SemanticActionFrame,\n  UniversalWorldOperation,',
+              '  SemanticActionFrame,\n  UniversalWorldOperation,\n  type UniversalEventType,',
+          )
+          replace_once(
+              "apps/api/src/semantic-action-execution-service.ts",
+              '''  const result: UniversalWorldOperation[] = [
+    {
+      type: "set_state_value",
+      entityRef: { kind: "existing", entityId: input.frame.actorId },
+      path: ["activity", "last_semantic_action"],
+      value: {
+        actionType: input.frame.actionType,
+        objective: input.frame.objective,
+        resolutionMode: input.resolution.mode,
+        succeeded: input.succeeded,
+        needsClarification: input.resolution.mode === "clarification_required",
+        rationale: input.resolution.rationale,
+        roll: input.roll,
+        hazard: input.hazard,
+        occurredAt: new Date().toISOString(),
+      },
+      preconditionFactIds: [],
+    },
+  ];
+''',
+              '  const result: UniversalWorldOperation[] = [];\n',
+          )
+          replace_once(
+              "apps/api/src/semantic-action-execution-service.ts",
+              '''  if (input.succeeded && input.frame.kind === "question") {
+    result.push({
+      type: "create_information_asset",
+      holderRef: { kind: "existing", entityId: input.frame.actorId },
+      ...(targetId ? { subjectRef: { kind: "existing" as const, entityId: targetId } } : {}),
+      content: `The actor asked: ${input.frame.objective}`,
+      confidenceBasisPoints: 5_000,
+      truthStatus: "observation",
+      preconditionFactIds: [],
+    });
+  }
+''',
+              '',
+          )
+          replace_once(
+              "apps/api/src/semantic-action-execution-service.ts",
+              '''export function createSemanticActionExecutionService(input: {
+''',
+              '''function eventTypeFor(input: {
+  frame: SemanticActionFrame;
+  resolution: ActionResolutionDecision;
+  succeeded: boolean;
+  operationCount: number;
+}): UniversalEventType {
+  if (input.resolution.mode === "clarification_required") return "clarification_requested";
+  if (input.frame.kind === "dialogue") return "dialogue_occurred";
+  if (input.frame.kind === "question") return "question_asked";
+  if (!input.succeeded) return "action_failed";
+  return input.operationCount > 0 ? "world_state_mutated" : "action_completed_non_mutating";
+}
+
+export function createSemanticActionExecutionService(input: {
+''',
+          )
+          replace_once(
+              "apps/api/src/semantic-action-execution-service.ts",
+              '''    const playerNarration = narration(request.frame, request.resolution, succeeded, hazard);
+    const receipt = await input.executor.execute({
+''',
+              '''    const playerNarration = narration(request.frame, request.resolution, succeeded, hazard);
+    const committedOperations = operations({
+      frame: request.frame,
+      resolution: request.resolution,
+      succeeded,
+      roll,
+      hazard,
+    });
+    const eventType = eventTypeFor({
+      frame: request.frame,
+      resolution: request.resolution,
+      succeeded,
+      operationCount: committedOperations.length,
+    });
+    const receipt = await input.executor.execute({
+''',
+          )
+          replace_once(
+              "apps/api/src/semantic-action-execution-service.ts",
+              '''      declaredFactIds: request.resolution.requiredFactIds,
+      branch: {
+        operations: operations({
+          frame: request.frame,
+          resolution: request.resolution,
+          succeeded,
+          roll,
+          hazard,
+        }),
+      },
+''',
+              '''      declaredFactIds: request.resolution.requiredFactIds,
+      eventType,
+      eventPayload: {
+        frame: request.frame,
+        resolution: request.resolution,
+        succeeded,
+        roll,
+        hazard,
+        narration: playerNarration,
+      },
+      branch: { operations: committedOperations },
+''',
+          )
+
+          replace_once(
+              "apps/api/src/semantic-action-execution-service.test.ts",
+              '''    expect(operationValues(execute.mock.calls[0]![0])).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "set_state_value",
+          path: ["activity", "last_semantic_action"],
+        }),
+      ]),
+    );
+''',
+              '''    const execution = execute.mock.calls[0]![0];
+    expect(execution.eventType).toBe("dialogue_occurred");
+    expect(operationValues(execution)).toEqual([]);
+    expect(execution.eventPayload).toEqual(
+      expect.objectContaining({
+        succeeded: true,
+        frame: expect.objectContaining({ kind: "dialogue" }),
+      }),
+    );
+''',
+          )
+          replace_once(
+              "apps/api/src/semantic-action-execution-service.test.ts",
+              '''    expect(operationValues(execute.mock.calls[0]![0])).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "adjust_condition",
+          entityRef: { kind: "existing", entityId: targetId },
+        }),
+      ]),
+    );
+''',
+              '''    const execution = execute.mock.calls[0]![0];
+    expect(execution.eventType).toBe("world_state_mutated");
+    expect(operationValues(execution)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "adjust_condition",
+          entityRef: { kind: "existing", entityId: targetId },
+        }),
+      ]),
+    );
+''',
+          )
+
+          workflow = Path(".github/workflows/temporary-typed-event-semantics.yml")
+          workflow.unlink()
+          PY
+      - name: Format changed files
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm exec prettier --write \
+            packages/contracts/src/world-operations.ts \
+            packages/database/src/universal-operation-executor.ts \
+            apps/api/src/semantic-action-execution-service.ts \
+            apps/api/src/semantic-action-execution-service.test.ts
+      - name: Commit patch and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: apply coordinated typed event semantics"
+          git push origin HEAD:feat/typed-event-semantics
