@@ -65,6 +65,7 @@ export function createLazySimulationStore(database: ReturnType<typeof createData
           minimum_interval_seconds: number | null;
           maximum_elapsed_seconds: number | null;
           state_keys: string[] | null;
+          resource_keys: string[] | null;
           allowed_operation_types: string[] | null;
           constraints: string[] | null;
         }[]
@@ -77,7 +78,8 @@ export function createLazySimulationStore(database: ReturnType<typeof createData
                policy.policy_id, policy.policy_version,
                policy.description AS policy_description,
                policy.minimum_interval_seconds, policy.maximum_elapsed_seconds,
-               policy.state_keys, policy.allowed_operation_types, policy.constraints
+               policy.state_keys, policy.resource_keys, policy.allowed_operation_types,
+               policy.constraints
         FROM game.entity_instances instance
         JOIN game.entity_definitions definition
           ON definition.definition_id = instance.definition_id
@@ -162,6 +164,7 @@ export function createLazySimulationStore(database: ReturnType<typeof createData
           policyVersion: entity.policy_version!,
           description: entity.policy_description!,
           stateKeys: entity.state_keys || [],
+          resourceKeys: entity.resource_keys || [],
           allowedOperationTypes: entity.allowed_operation_types || [],
           constraints: entity.constraints || [],
         },

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { WorldResourceKeySchema } from "./resource.js";
 
 const UuidSchema = z.string().uuid();
 const SymbolSchema = z.string().regex(/^[a-z][a-z0-9_]{0,63}$/);
@@ -164,7 +165,7 @@ export const AdjustConditionWorldOperationSchema = withPreconditions({
 export const AdjustResourceWorldOperationSchema = withPreconditions({
   type: z.literal("adjust_resource"),
   entityRef: WorldEntityReferenceSchema,
-  resource: SlugSchema,
+  resource: WorldResourceKeySchema,
   delta: z.number().min(-1_000_000_000).max(1_000_000_000),
   minimum: z.number().min(-1_000_000_000).max(1_000_000_000).optional(),
   maximum: z.number().min(-1_000_000_000).max(1_000_000_000).optional(),

@@ -42,6 +42,7 @@ Rules:
 - Do not expose hidden changes; summary is authoritative audit text, not player narration.
 - Include current entity expectedVersion on every mutating operation.
 - State paths may use only policy stateKeys unless the operation is movement or condition change.
+- Resource operations may use only policy resourceKeys.
 - nextSimulationSeconds must respect the likely rate of future meaningful change.
 
 ENTITY:
@@ -74,6 +75,7 @@ export function validateLazySimulationProposal(
   const parsed = LazySimulationProposalSchema.parse(proposal);
   const allowedTypes = new Set(parsedInput.policy.allowedOperationTypes);
   const allowedPaths = new Set(parsedInput.policy.stateKeys);
+  const allowedResources = new Set(parsedInput.policy.resourceKeys);
   for (const operation of parsed.operations) {
     if (!allowedTypes.has(operation.type)) {
       throw new Error(`Simulation proposed disallowed operation type: ${operation.type}.`);
@@ -117,6 +119,9 @@ export function validateLazySimulationProposal(
       !allowedPaths.has(operation.path[0]!)
     ) {
       throw new Error("Simulation proposed a state key outside the policy.");
+    }
+    if (operation.type === "adjust_resource" && !allowedResources.has(operation.resource)) {
+      throw new Error("Simulation proposed a resource outside the policy.");
     }
     if (
       "expectedVersion" in operation &&

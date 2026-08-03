@@ -1,13 +1,14 @@
 import { z } from "zod";
 import { PersistentWorldSceneSchema } from "./persistent-scene.js";
 import { PlayerEffectFeedSchema } from "./player-effects.js";
+import { WorldResourceKeySchema } from "./resource.js";
 
 const UuidSchema = z.string().uuid();
 const SemanticKeySchema = z.string().regex(/^[a-z][a-z0-9_]{0,63}$/);
 
 export const PlayerDashboardResourceSchema = z
   .object({
-    key: SemanticKeySchema,
+    key: WorldResourceKeySchema,
     label: z.string().trim().min(1).max(120),
     value: z.number(),
     minimum: z.number().default(-100),
@@ -72,7 +73,7 @@ export const PlayerDashboardHistoryPointSchema = z
 
 export const PlayerDashboardResourceHistorySchema = z
   .object({
-    resource: SemanticKeySchema,
+    resource: WorldResourceKeySchema,
     label: z.string().trim().min(1).max(120),
     points: z.array(PlayerDashboardHistoryPointSchema).max(200),
   })
