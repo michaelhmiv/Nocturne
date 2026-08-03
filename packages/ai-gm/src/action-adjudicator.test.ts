@@ -10,7 +10,7 @@ const committedConsumption = {
   margin: 1,
   calculationTrace: [],
   informationGained: [],
-  costs: [{ resource: "consumable_units", amount: 1 }],
+  costs: [{ resource: "quantity", amount: 1 }],
   consumption: {
     sourceType: "entity" as const,
     sourceId: "20000000-0000-4000-8000-000000000001",
@@ -18,7 +18,7 @@ const committedConsumption = {
     unitsConsumed: 1,
     remainingUnits: 0,
     materialized: false,
-    resourceDeltas: [{ resource: "satiety", delta: 2, rationale: "One modest serving." }],
+    resourceDeltas: [{ resource: "nutrition", delta: 2, rationale: "One modest serving." }],
     conditions: [],
     risks: [],
   },
