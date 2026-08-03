@@ -1,0 +1,36 @@
+name: MCP Production Certification Once
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  certify-production:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Wait for production service health
+        run: |
+          for attempt in $(seq 1 20); do
+            echo "Health attempt ${attempt}/20"
+            api_status=$(curl --silent --show-error --max-time 15 --output /tmp/api-health.json --write-out '%{http_code}' https://nocturneapi-production.up.railway.app/health || true)
+            mcp_status=$(curl --silent --show-error --max-time 15 --output /tmp/mcp-health.json --write-out '%{http_code}' https://nocturnemcp-production.up.railway.app/health || true)
+            web_status=$(curl --silent --show-error --max-time 15 --output /tmp/web-health.html --write-out '%{http_code}' https://nocturneweb-production.up.railway.app || true)
+            echo "api=${api_status} mcp=${mcp_status} web=${web_status}"
+            if [ "$api_status" = "200" ] && [ "$mcp_status" = "200" ] && [ "$web_status" = "200" ]; then exit 0; fi
+            sleep 15
+          done
+          exit 1
+      - name: Run live OAuth and MCP action certification
+        env:
+          NOCTURNE_WEB_URL: https://nocturneweb-production.up.railway.app
+          NOCTURNE_MCP_URL: https://nocturnemcp-production.up.railway.app
+        run: node scripts/ci/mcp-production-certification.mjs
