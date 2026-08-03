@@ -1,0 +1,41 @@
+name: MCP Production Certification Once
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  certify-production:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Wait for Railway deployment and certify production
+        env:
+          NOCTURNE_WEB_URL: https://nocturneweb-production.up.railway.app
+          NOCTURNE_MCP_URL: https://nocturnemcp-production.up.railway.app
+        run: |
+          for attempt in $(seq 1 10); do
+            echo "Production certification attempt ${attempt}/10"
+            if curl --fail --silent --show-error --max-time 20 \
+                https://nocturneapi-production.up.railway.app/health >/tmp/api-health.json && \
+               curl --fail --silent --show-error --max-time 20 \
+                https://nocturnemcp-production.up.railway.app/health >/tmp/mcp-health.json && \
+               curl --fail --silent --show-error --max-time 20 \
+                https://nocturneweb-production.up.railway.app >/tmp/web-health.html && \
+               node scripts/ci/mcp-production-certification.mjs; then
+              echo "API health: $(cat /tmp/api-health.json)"
+              echo "MCP health: $(cat /tmp/mcp-health.json)"
+              exit 0
+            fi
+            sleep 45
+          done
+          echo "Production did not pass certification after ten attempts."
+          exit 1
