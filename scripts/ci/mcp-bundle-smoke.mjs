@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 
 const port = 31_000 + Math.floor(Math.random() * 2_000);
 const baseUrl = `http://127.0.0.1:${port}`;
-const child = spawn(process.execPath, ["apps/mcp/dist/index.js"], {
+const child = spawn(process.execPath, ["apps/mcp/dist/index.cjs"], {
   env: {
     ...process.env,
     HOST: "127.0.0.1",
