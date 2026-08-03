@@ -180,7 +180,12 @@ export async function GET(request: Request) {
         }),
       );
     }
-    return html(shell(`<h1>${invalid ? "Invalid MCP authorization request." : "Nocturne MCP authorization is not configured."}</h1>`), invalid ? 400 : 500);
+    return html(
+      shell(
+        `<h1>${invalid ? "Invalid MCP authorization request." : "Nocturne MCP authorization is not configured."}</h1>`,
+      ),
+      invalid ? 400 : 500,
+    );
   }
 }
 
