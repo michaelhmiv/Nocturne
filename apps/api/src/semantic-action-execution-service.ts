@@ -59,7 +59,9 @@ function hazardEffect(
     1,
     Math.min(25, Math.max(frame.demands.danger, resolution.consequenceLevel)),
   );
-  const conditionLoss = frame.properties.selfDirected ? severity : Math.max(1, Math.ceil(severity / 2));
+  const conditionLoss = frame.properties.selfDirected
+    ? severity
+    : Math.max(1, Math.ceil(severity / 2));
   return {
     conditionDelta: -conditionLoss,
     condition: frame.properties.selfDirected ? "self_inflicted_injury" : "action_injury",

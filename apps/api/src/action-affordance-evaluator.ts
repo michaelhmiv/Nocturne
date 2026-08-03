@@ -174,8 +174,7 @@ export function evaluateActionAffordance(
     entity.inclusionReasons.some((reason) => possessionReasons.has(reason)),
   );
   const missingPossessions = possessionRequirements.filter(
-    (requirement) =>
-      !controlledEntities.some((entity) => nameMatches(requirement, entity.name)),
+    (requirement) => !controlledEntities.some((entity) => nameMatches(requirement, entity.name)),
   );
   if (missingPossessions.length > 0) {
     return result(frame, context, {
@@ -189,10 +188,7 @@ export function evaluateActionAffordance(
 
   const missingTools = frame.toolIds.filter((id) => {
     const tool = entityById.get(id);
-    return (
-      !tool ||
-      !tool.inclusionReasons.some((reason) => possessionReasons.has(reason))
-    );
+    return !tool || !tool.inclusionReasons.some((reason) => possessionReasons.has(reason));
   });
   if (missingTools.length > 0) {
     return result(frame, context, {

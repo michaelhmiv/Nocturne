@@ -228,7 +228,9 @@ export function deriveSemanticActionFrame(input: {
   const transferResistance = input.kind === "transfer" && illegalPattern.test(input.rawText);
   const opposed = Boolean(payload.opposed) || kindImpliesOpposition || transferResistance;
   const selfDirected =
-    (routineSelfDirected || explicitSelfDirected) && targetIds.length === 0 && objectIds.length === 0;
+    (routineSelfDirected || explicitSelfDirected) &&
+    targetIds.length === 0 &&
+    objectIds.length === 0;
   const durationSeconds =
     numberValue(payload, "durationSeconds") || durationFromText(input.rawText);
   const quantity = numberValue(payload, "quantity") || quantityFromText(input.rawText);
