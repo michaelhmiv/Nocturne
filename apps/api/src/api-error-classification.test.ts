@@ -4,7 +4,9 @@ import { classifyUnhandledApiError } from "./api-error-classification.js";
 
 describe("classifyUnhandledApiError", () => {
   it("classifies typed provider failures without inspecting arbitrary code properties", () => {
-    expect(classifyUnhandledApiError(new AiProviderError("provider_rejected", "rejected"))).toEqual({
+    expect(
+      classifyUnhandledApiError(new AiProviderError("provider_rejected", "rejected")),
+    ).toEqual({
       statusCode: 502,
       errorClass: "provider_rejected",
       sourceCode: "provider_rejected",
