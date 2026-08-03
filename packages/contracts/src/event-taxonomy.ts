@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+// Event classification describes what authoritative state was committed, not what narration claimed.
 export const UniversalEventTypeSchema = z.enum([
   "world_state_mutated",
   "action_completed_non_mutating",
