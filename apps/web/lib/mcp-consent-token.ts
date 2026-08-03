@@ -17,7 +17,8 @@ type ConsentTokenPayload = {
   nonce: string;
 };
 
-const hash = (value: string) => createHash("sha256").update(value).digest("hex");
+const hash = (value: string) =>
+  createHash("sha256").update(value).digest("hex");
 
 function signatureFor(secret: string, body: string) {
   return createHmac("sha256", secret).update(body).digest("base64url");
@@ -50,9 +51,15 @@ export function verifyMcpConsentToken(
     const expectedSignature = signatureFor(input.secret, body);
     const supplied = Buffer.from(suppliedSignature, "base64url");
     const expected = Buffer.from(expectedSignature, "base64url");
-    if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return false;
+    if (
+      supplied.length !== expected.length ||
+      !timingSafeEqual(supplied, expected)
+    )
+      return false;
 
-    const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as Partial<ConsentTokenPayload>;
+    const payload = JSON.parse(
+      Buffer.from(body, "base64url").toString("utf8"),
+    ) as Partial<ConsentTokenPayload>;
     const now = input.nowSeconds ?? Math.floor(Date.now() / 1000);
     if (
       payload.typ !== "mcp_consent" ||
