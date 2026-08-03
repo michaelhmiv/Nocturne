@@ -240,7 +240,15 @@ export async function POST(request: Request) {
     });
     parsed.callback.searchParams.set("oauth_request", parsed.encodedRequest);
     parsed.callback.searchParams.set("assertion", assertion);
-    return Response.redirect(parsed.callback.toString(), 302);
+    const destination = parsed.callback.toString();
+    const destinationJson = JSON.stringify(destination).replaceAll("<", "\\u003c");
+    return html(
+      shell(`
+<h1>Completing authorization</h1>
+<p>Nocturne approved the connection. Continuing to the MCP connector now.</p>
+<a class="button" href="${escapeHtml(destination)}">Continue to ChatGPT</a>
+<script>location.replace(${destinationJson});</script>`),
+    );
   } catch (error) {
     console.error(
       JSON.stringify({
