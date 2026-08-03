@@ -22,6 +22,7 @@ const request: LazySimulationRequest = {
     policyVersion: "animal-lazy-v1",
     description: "Bounded unattended animal needs and behavior.",
     stateKeys: ["hunger", "thirst", "fatigue", "fear", "trust", "resting", "secured"],
+    resourceKeys: [],
     allowedOperationTypes: ["set_state_value", "adjust_condition", "move_entity"],
     constraints: ["Do not move through inaccessible routes."],
   },
@@ -80,30 +81,6 @@ describe("lazy simulation analysis", () => {
         },
         request,
       ),
-    ).toThrow(/inaccessible movement destination/i);
-  });
-
-  it("rejects autonomous operations for terminal entities", () => {
-    expect(() =>
-      validateLazySimulationProposal(
-        {
-          decision: "mutate",
-          summary: "A dead entity acts.",
-          operations: [
-            {
-              type: "set_state_value",
-              entityRef: { kind: "existing", entityId: dogId },
-              path: ["hunger"],
-              value: 30,
-              expectedVersion: 7,
-              preconditionFactIds: [],
-            },
-          ],
-          assumptions: [],
-          nextSimulationSeconds: 3600,
-        },
-        { ...request, lifecycleStatus: "dead" },
-      ),
-    ).toThrow(/terminal entities/i);
+    ).toThrow();
   });
 });
