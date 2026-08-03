@@ -18,7 +18,9 @@ export async function registerOperatorDashboardRoutes(
       });
     }
     const privileged = ["owner", "operator"].includes(scope.role || "");
-    const selectedActor = Boolean(scope.selectedCharacterId && scope.selectedCharacterId === actorId);
+    const selectedActor = Boolean(
+      scope.selectedCharacterId && scope.selectedCharacterId === actorId,
+    );
     if (!privileged && !selectedActor) {
       return reply.code(403).send({
         error: "forbidden",
