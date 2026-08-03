@@ -323,7 +323,7 @@ export class PostgresMcpOAuthStore implements McpOAuthStore {
         );
       }
       await client.query("COMMIT");
-      return true;
+      return grants.rows.length;
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
