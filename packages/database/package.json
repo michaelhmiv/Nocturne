@@ -13,7 +13,8 @@
     "test": "vitest run --passWithNoTests",
     "db:migrate": "tsx src/migrate.ts",
     "db:check": "tsx src/check-migrations.ts",
-    "db:invariants": "tsx src/check-invariants.ts"
+    "db:invariants": "tsx src/check-invariants.ts",
+    "world:grant-role": "tsx src/grant-world-role.ts"
   },
   "dependencies": {
     "@nocturne/content-engine": "workspace:*",
