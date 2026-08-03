@@ -25,6 +25,7 @@ export * from "./conversation-store.js";
 export * from "./entity-lifecycle-schema.js";
 export * from "./entity-lifecycle-store.js";
 export * from "./game-store.js";
+export * from "./geospatial-store.js";
 export * from "./invention-store.js";
 export * from "./json.js";
 export * from "./lazy-simulation-store.js";
