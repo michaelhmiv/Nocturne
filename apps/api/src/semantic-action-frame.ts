@@ -31,7 +31,12 @@ const highEffortPattern =
 const technicalPattern = /\b(?:hack|repair|build|craft|wire|program|forge|pick the lock|disarm)\b/i;
 const precisionPattern =
   /\b(?:carefully|precisely|surgically|without spilling|without being seen|bullseye)\b/i;
-const dangerPattern = /\b(?:fire|explosive|live wire|gun|weapon|poison|traffic|roof|ledge)\b/i;
+const dangerPattern =
+  /\b(?:fire|explosive|live wire|gun|weapon|knife|knives|blade|razor|poison|traffic|roof|ledge)\b/i;
+const harmfulContactPattern =
+  /\b(?:strike|hit|slam|bang|stab|cut|burn|shoot|poison|choke|electrocute|crash)\b/i;
+const selfBodyReferencePattern =
+  /\b(?:myself|my own body|my (?:head|forehead|face|neck|chest|body|hand|arm|leg|foot))\b/i;
 const pressurePattern =
   /\b(?:before|within|in less than|quickly|immediately|right now|countdown)\b/i;
 
@@ -46,6 +51,13 @@ function firstString(payload: Record<string, unknown>, keys: string[]) {
 function numberValue(payload: Record<string, unknown>, key: string) {
   const value = payload[key];
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function stringArray(payload: Record<string, unknown>, key: string) {
+  const value = payload[key];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+    : [];
 }
 
 type ReferenceBuckets = {
@@ -139,6 +151,31 @@ function objectiveFromRawText(rawText: string) {
   return trimmed || "Perform the requested action";
 }
 
+function cleanPossessionName(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/^(?:a|an|the|my|some)\s+/, "")
+    .replace(/\s+/g, " ")
+    .replace(/[^a-z0-9' -]/g, "")
+    .trim();
+}
+
+function explicitPossessionAssumptions(rawText: string) {
+  const names = new Set<string>();
+  const patterns = [
+    /\b(?:holding|carrying|wielding|armed with|equipped with|using)\s+(?:a|an|the|my|some)?\s*([a-z][a-z0-9' -]{0,50}?)(?=$|[,.!?]|\s+(?:to|while|and|but|then)\b)/gi,
+    /\bwith\s+(?:a|an|the|my|some)?\s*([a-z][a-z0-9' -]{0,50}?)(?=$|[,.!?]|\s+(?:while|and|but|then)\b)/gi,
+    /\b(?:the|a|an|my)\s+([a-z][a-z0-9' -]{0,50}?)\s+(?:from|in)\s+my\s+inventory\b/gi,
+  ];
+  for (const pattern of patterns) {
+    for (const match of rawText.matchAll(pattern)) {
+      const name = cleanPossessionName(match[1] || "");
+      if (name) names.add(name);
+    }
+  }
+  return [...names].map((name) => `requires_possession:${name}`);
+}
+
 export function deriveSemanticActionFrame(input: {
   kind: WorldActionKind;
   actorId: string;
@@ -186,10 +223,14 @@ export function deriveSemanticActionFrame(input: {
   const routineSelfDirected = routineSelfDirectedPatterns.some((pattern) =>
     pattern.test(input.rawText),
   );
+  const explicitSelfDirected = selfBodyReferencePattern.test(input.rawText);
   const kindImpliesOpposition = ["combat", "relationship"].includes(input.kind);
   const transferResistance = input.kind === "transfer" && illegalPattern.test(input.rawText);
   const opposed = Boolean(payload.opposed) || kindImpliesOpposition || transferResistance;
-  const selfDirected = routineSelfDirected && targetIds.length === 0 && objectIds.length === 0;
+  const selfDirected =
+    (routineSelfDirected || explicitSelfDirected) &&
+    targetIds.length === 0 &&
+    objectIds.length === 0;
   const durationSeconds =
     numberValue(payload, "durationSeconds") || durationFromText(input.rawText);
   const quantity = numberValue(payload, "quantity") || quantityFromText(input.rawText);
@@ -201,6 +242,18 @@ export function deriveSemanticActionFrame(input: {
         : 2
       : 1;
   const locationId = firstString(payload, ["locationId"]);
+  const selfHarmDanger = explicitSelfDirected && harmfulContactPattern.test(input.rawText);
+  const danger = selfHarmDanger
+    ? 7
+    : dangerPattern.test(input.rawText)
+      ? 5
+      : input.kind === "combat"
+        ? 4
+        : 0;
+  const assumptions = [
+    ...stringArray(payload, "assumptions"),
+    ...explicitPossessionAssumptions(input.rawText),
+  ];
 
   return SemanticActionFrameSchema.parse({
     kind: input.kind,
@@ -227,10 +280,10 @@ export function deriveSemanticActionFrame(input: {
       physicalEffort,
       technicalComplexity: technicalPattern.test(input.rawText) ? 5 : 0,
       precision: precisionPattern.test(input.rawText) ? 4 : 0,
-      danger: dangerPattern.test(input.rawText) ? 5 : input.kind === "combat" ? 4 : 0,
+      danger,
       timePressure: pressurePattern.test(input.rawText) ? 4 : 0,
     },
-    assumptions: [],
+    assumptions: [...new Set(assumptions)].slice(0, 32),
     ambiguities: [],
   });
 }

@@ -9,6 +9,7 @@ function context(input: {
   actorCondition?: number;
   targetId?: string;
   targetLocation?: string | null;
+  ownedItemName?: string;
   facts?: string[];
 }): RelevanceCompiledContext {
   const actorLocation = input.actorLocation === undefined ? randomUUID() : input.actorLocation;
@@ -47,6 +48,23 @@ function context(input: {
               visibility: "player_known" as const,
               relevanceScore: 80,
               inclusionReasons: ["explicit_reference" as const],
+            },
+          ]
+        : []),
+      ...(input.ownedItemName
+        ? [
+            {
+              entityId: randomUUID(),
+              definitionId: "owned-item",
+              name: input.ownedItemName,
+              definitionType: "item",
+              locationId: actorLocation,
+              condition: 100,
+              lifecycleStatus: "active",
+              version: 1,
+              visibility: "player_known" as const,
+              relevanceScore: 90,
+              inclusionReasons: ["owned" as const],
             },
           ]
         : []),
@@ -151,6 +169,36 @@ describe("action affordance evaluator", () => {
       context({ actorId }),
     );
     expect(evaluation.status).toBe("clarification_required");
+  });
+
+  it("blocks an explicit possession claim when no controlled item matches", () => {
+    const actorId = randomUUID();
+    const base = frame(actorId);
+    const evaluation = evaluateActionAffordance(
+      frame(actorId, {
+        objective: "Run around the room with knives",
+        assumptions: ["requires_possession:knives"],
+        properties: { ...base.properties, selfDirected: false },
+        demands: { ...base.demands, danger: 5 },
+      }),
+      context({ actorId }),
+    );
+    expect(evaluation.status).toBe("blocked");
+    expect(evaluation.missingRequirements).toContain("possess knives");
+  });
+
+  it("accepts plural possession language when a matching owned item exists", () => {
+    const actorId = randomUUID();
+    const base = frame(actorId);
+    const evaluation = evaluateActionAffordance(
+      frame(actorId, {
+        objective: "Hold the knives",
+        assumptions: ["requires_possession:knives"],
+        properties: { ...base.properties, selfDirected: false },
+      }),
+      context({ actorId, ownedItemName: "Kitchen Knife" }),
+    );
+    expect(evaluation.status).toBe("feasible");
   });
 
   it("surfaces deterministic warnings for destructive and dangerous actions", () => {

@@ -5,6 +5,21 @@ import {
   type SemanticActionFrame,
 } from "@nocturne/contracts";
 
+const possessionPrefix = "requires_possession:";
+const possessionReasons = new Set(["owned", "controlled", "possessed"]);
+const ignoredNameTokens = new Set([
+  "a",
+  "an",
+  "the",
+  "my",
+  "some",
+  "pair",
+  "set",
+  "of",
+  "item",
+  "items",
+]);
+
 function factText(context: RelevanceCompiledContext) {
   return [...(context.playerKnownFacts ?? []), ...(context.authoritativeHiddenFacts ?? [])]
     .map(({ claim, value }) => `${claim}:${JSON.stringify(value)}`.toLowerCase())
@@ -29,6 +44,37 @@ function result(
     ...input,
     relevantFactIds: relevantFactIds(frame, context),
   });
+}
+
+function tokenVariants(token: string) {
+  const variants = new Set([token]);
+  if (token.endsWith("ies") && token.length > 3) variants.add(`${token.slice(0, -3)}y`);
+  if (token.endsWith("ves") && token.length > 3) {
+    variants.add(`${token.slice(0, -3)}f`);
+    variants.add(`${token.slice(0, -3)}fe`);
+  }
+  if (token.endsWith("s") && !token.endsWith("ss") && token.length > 3) {
+    variants.add(token.slice(0, -1));
+  }
+  return variants;
+}
+
+function nameTokens(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9' -]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((token) => !ignoredNameTokens.has(token));
+}
+
+function nameMatches(requirement: string, entityName: string) {
+  const required = nameTokens(requirement);
+  const available = new Set(nameTokens(entityName).flatMap((token) => [...tokenVariants(token)]));
+  return (
+    required.length > 0 &&
+    required.every((token) => [...tokenVariants(token)].some((variant) => available.has(variant)))
+  );
 }
 
 export function evaluateActionAffordance(
@@ -120,12 +166,29 @@ export function evaluateActionAffordance(
     });
   }
 
+  const possessionRequirements = frame.assumptions
+    .filter((assumption) => assumption.startsWith(possessionPrefix))
+    .map((assumption) => assumption.slice(possessionPrefix.length).trim())
+    .filter(Boolean);
+  const controlledEntities = entities.filter((entity) =>
+    entity.inclusionReasons.some((reason) => possessionReasons.has(reason)),
+  );
+  const missingPossessions = possessionRequirements.filter(
+    (requirement) => !controlledEntities.some((entity) => nameMatches(requirement, entity.name)),
+  );
+  if (missingPossessions.length > 0) {
+    return result(frame, context, {
+      status: "blocked",
+      rationale:
+        "The action explicitly assumes possession of an item that is not authoritatively owned, controlled, or carried by the actor.",
+      missingRequirements: missingPossessions.map((name) => `possess ${name}`),
+      warnings: [],
+    });
+  }
+
   const missingTools = frame.toolIds.filter((id) => {
     const tool = entityById.get(id);
-    return (
-      !tool ||
-      !tool.inclusionReasons.some((reason) => ["owned", "controlled", "possessed"].includes(reason))
-    );
+    return !tool || !tool.inclusionReasons.some((reason) => possessionReasons.has(reason));
   });
   if (missingTools.length > 0) {
     return result(frame, context, {

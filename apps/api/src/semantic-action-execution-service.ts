@@ -34,16 +34,58 @@ function successFor(
   return resolution.mode === "automatic_success";
 }
 
+type HazardEffect = {
+  conditionDelta: number;
+  condition: "self_inflicted_injury" | "action_injury";
+  intensity: number;
+  durationSeconds: number;
+};
+
+function hazardEffect(
+  frame: SemanticActionFrame,
+  resolution: ActionResolutionDecision,
+  succeeded: boolean,
+): HazardEffect | null {
+  if (
+    frame.demands.danger < 3 ||
+    ["automatic_failure", "clarification_required", "conversation", "transaction"].includes(
+      resolution.mode,
+    )
+  ) {
+    return null;
+  }
+  if (!frame.properties.selfDirected && succeeded) return null;
+  const severity = Math.max(
+    1,
+    Math.min(25, Math.max(frame.demands.danger, resolution.consequenceLevel)),
+  );
+  const conditionLoss = frame.properties.selfDirected
+    ? severity
+    : Math.max(1, Math.ceil(severity / 2));
+  return {
+    conditionDelta: -conditionLoss,
+    condition: frame.properties.selfDirected ? "self_inflicted_injury" : "action_injury",
+    intensity: Math.min(100, severity * 10),
+    durationSeconds: Math.max(300, severity * 300),
+  };
+}
+
 function narration(
   frame: SemanticActionFrame,
   resolution: ActionResolutionDecision,
   succeeded: boolean,
+  hazard: HazardEffect | null,
 ) {
   if (resolution.mode === "clarification_required") {
     return `Clarification required before acting: ${resolution.rationale}`;
   }
-  if (succeeded) return `You accomplish your objective: ${frame.objective}.`;
-  return `You attempt the action but do not accomplish the objective: ${frame.objective}.`;
+  const base = succeeded
+    ? `You accomplish your objective: ${frame.objective}.`
+    : `You attempt the action but do not accomplish the objective: ${frame.objective}.`;
+  if (!hazard) return base;
+  return `${base} The attempt causes a physical injury and costs ${Math.abs(
+    hazard.conditionDelta,
+  )} condition.`;
 }
 
 function operations(input: {
@@ -51,6 +93,7 @@ function operations(input: {
   resolution: ActionResolutionDecision;
   succeeded: boolean;
   roll: number;
+  hazard: HazardEffect | null;
 }): UniversalWorldOperation[] {
   const result: UniversalWorldOperation[] = [
     {
@@ -65,11 +108,37 @@ function operations(input: {
         needsClarification: input.resolution.mode === "clarification_required",
         rationale: input.resolution.rationale,
         roll: input.roll,
+        hazard: input.hazard,
         occurredAt: new Date().toISOString(),
       },
       preconditionFactIds: [],
     },
   ];
+
+  if (input.hazard) {
+    result.push(
+      {
+        type: "adjust_condition",
+        entityRef: { kind: "existing", entityId: input.frame.actorId },
+        delta: input.hazard.conditionDelta,
+        preconditionFactIds: [],
+      },
+      {
+        type: "set_condition",
+        entityRef: { kind: "existing", entityId: input.frame.actorId },
+        condition: input.hazard.condition,
+        active: true,
+        intensity: input.hazard.intensity,
+        durationSeconds: input.hazard.durationSeconds,
+        metadata: {
+          actionType: input.frame.actionType,
+          objective: input.frame.objective,
+          resolutionMode: input.resolution.mode,
+        },
+        preconditionFactIds: [],
+      },
+    );
+  }
 
   const targetId = input.frame.targetIds[0];
   if (input.succeeded && input.frame.kind === "combat" && targetId) {
@@ -148,7 +217,8 @@ export function createSemanticActionExecutionService(input: {
       request.resolution.mode !== "automatic_failure" &&
       request.resolution.mode !== "clarification_required" &&
       successFor(request.frame, request.resolution, request.context, roll);
-    const playerNarration = narration(request.frame, request.resolution, succeeded);
+    const hazard = hazardEffect(request.frame, request.resolution, succeeded);
+    const playerNarration = narration(request.frame, request.resolution, succeeded, hazard);
     const receipt = await input.executor.execute({
       scope: request.scope,
       authority: "player",
@@ -163,6 +233,7 @@ export function createSemanticActionExecutionService(input: {
           resolution: request.resolution,
           succeeded,
           roll,
+          hazard,
         }),
       },
       playerVisibleFacts: [playerNarration],
@@ -170,7 +241,11 @@ export function createSemanticActionExecutionService(input: {
     });
     return {
       state: "completed" as const,
-      outcomeGrade: succeeded ? "complete_success" : "failure",
+      outcomeGrade: succeeded
+        ? hazard
+          ? "success_with_consequence"
+          : "complete_success"
+        : "failure",
       eventId: receipt.eventId,
       receiptId: receipt.receiptId,
       narration: playerNarration,

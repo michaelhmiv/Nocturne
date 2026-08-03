@@ -187,6 +187,54 @@ describe("semantic action execution service", () => {
     );
   });
 
+  it("commits proportional injury and an active condition for hazardous self-actions", async () => {
+    const actorId = randomUUID();
+    const execute = vi.fn(async (_input: UniversalOperationExecutionInput) => ({
+      eventId: randomUUID(),
+      receiptId: randomUUID(),
+      symbolMap: {},
+    }));
+    const service = createSemanticActionExecutionService({
+      executor: { execute } as never,
+      rollSecret: "semantic-test-secret",
+    });
+    const hazardousFrame = frame(actorId, "interact");
+    hazardousFrame.actionType = "strike";
+    hazardousFrame.objective = "Strike my forehead against the doorframe";
+    hazardousFrame.demands.danger = 7;
+    const hazardousResolution = resolution("unopposed_check");
+    hazardousResolution.consequenceLevel = 7;
+
+    const result = await service.execute({
+      scope,
+      actorId,
+      planId: randomUUID(),
+      stepId: randomUUID(),
+      idempotencyKey: "semantic:self-hazard",
+      frame: hazardousFrame,
+      resolution: hazardousResolution,
+      context: context(actorId),
+    });
+
+    expect(result.outcomeGrade).toBe("success_with_consequence");
+    expect(result.narration).toMatch(/costs 7 condition/i);
+    expect(operationValues(execute.mock.calls[0]![0])).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "adjust_condition",
+          entityRef: { kind: "existing", entityId: actorId },
+          delta: -7,
+        }),
+        expect.objectContaining({
+          type: "set_condition",
+          entityRef: { kind: "existing", entityId: actorId },
+          condition: "self_inflicted_injury",
+          active: true,
+        }),
+      ]),
+    );
+  });
+
   it("uses the same deterministic roll for the same idempotency key", async () => {
     const actorId = randomUUID();
     const execute = vi.fn(async (_input: UniversalOperationExecutionInput) => ({
