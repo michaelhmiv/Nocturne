@@ -30,9 +30,7 @@ export const SemanticReferenceRelationshipSchema = z.enum([
   "available",
   "intrinsic",
 ]);
-export type SemanticReferenceRelationship = z.infer<
-  typeof SemanticReferenceRelationshipSchema
->;
+export type SemanticReferenceRelationship = z.infer<typeof SemanticReferenceRelationshipSchema>;
 
 export const SemanticReferenceResolutionSchema = z.enum([
   "resolved_entity",
@@ -78,10 +76,7 @@ export const SemanticEntityReferenceSchema = z
         message: "Ambiguous references require at least two candidates.",
       });
     }
-    if (
-      reference.resolution === "resolved_intrinsic" &&
-      reference.relationship !== "intrinsic"
-    ) {
+    if (reference.resolution === "resolved_intrinsic" && reference.relationship !== "intrinsic") {
       context.addIssue({
         code: "custom",
         path: ["relationship"],
