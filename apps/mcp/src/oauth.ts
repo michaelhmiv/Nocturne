@@ -1,8 +1,13 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import {
+  createMcpOAuthStore,
+  type McpOAuthStore,
+} from "../../../packages/auth/src/mcp-oauth-store.js";
 import type { McpConfig } from "./config.js";
 
 const base64url = (value: Buffer | string) => Buffer.from(value).toString("base64url");
 const nowSeconds = () => Math.floor(Date.now() / 1000);
+const tokenHash = (value: string) => createHash("sha256").update(value).digest("hex");
 
 export type AuthorizedPrincipal = {
   subject: string;
@@ -138,11 +143,12 @@ export class OAuthError extends Error {
 }
 
 export class OAuthService {
-  private readonly usedCodeHashes = new Set<string>();
-  private readonly usedRefreshHashes = new Set<string>();
   private readonly resource: string;
 
-  constructor(private readonly config: McpConfig) {
+  constructor(
+    private readonly config: McpConfig,
+    private readonly store: McpOAuthStore = createMcpOAuthStore(config.databaseUrl),
+  ) {
     this.resource = `${config.publicBaseUrl}/mcp`;
   }
 
@@ -333,7 +339,7 @@ ${errorMessage ? `<p class="error">${html(errorMessage)}</p>` : ""}
 </main></body></html>`;
   }
 
-  approveAuthorization(input: URLSearchParams, authenticatedSubject?: string) {
+  async approveAuthorization(input: URLSearchParams, authenticatedSubject?: string) {
     const authorization = this.authorizationInput(input);
     let subject = authenticatedSubject?.trim();
     if (!subject) {
@@ -351,10 +357,14 @@ ${errorMessage ? `<p class="error">${html(errorMessage)}</p>` : ""}
     }
     const issuedAt = nowSeconds();
     const grantId = randomBytes(18).toString("base64url");
+    const codeExpiresAt = issuedAt + 300;
+    const grantTtl = authorization.scope.split(/\s+/).includes("offline_access")
+      ? this.config.refreshTokenTtlSeconds
+      : this.config.accessTokenTtlSeconds;
     const code = sign(this.config.oauthSigningSecret, {
       typ: "code",
       iat: issuedAt,
-      exp: issuedAt + 300,
+      exp: codeExpiresAt,
       sub: subject,
       grantId,
       clientId: authorization.clientId,
@@ -364,13 +374,31 @@ ${errorMessage ? `<p class="error">${html(errorMessage)}</p>` : ""}
       resource: authorization.resource,
       nonce: randomBytes(18).toString("base64url"),
     } satisfies CodePayload);
+    await this.store.createGrant({
+      grantId,
+      userId: subject,
+      clientId: authorization.clientId,
+      scope: authorization.scope,
+      resource: authorization.resource,
+      expiresAt: new Date((issuedAt + grantTtl) * 1000),
+    });
+    try {
+      await this.store.recordAuthorizationCode({
+        codeHash: tokenHash(code),
+        grantId,
+        expiresAt: new Date(codeExpiresAt * 1000),
+      });
+    } catch (error) {
+      await this.store.revokeGrant({ userId: subject, grantId });
+      throw error;
+    }
     const redirect = new URL(authorization.redirectUri);
     redirect.searchParams.set("code", code);
     if (authorization.state) redirect.searchParams.set("state", authorization.state);
     return { ok: true as const, redirect: redirect.toString() };
   }
 
-  exchangeToken(input: URLSearchParams) {
+  async exchangeToken(input: URLSearchParams) {
     const grantType = input.get("grant_type") || "";
     const clientId = input.get("client_id") || "";
     this.client(clientId);
@@ -390,10 +418,6 @@ ${errorMessage ? `<p class="error">${html(errorMessage)}</p>` : ""}
         throw new OAuthError("invalid_grant", "Authorization code is invalid or expired.");
       }
       const resource = this.requestedResource(input, payload.resource);
-      const codeHash = createHash("sha256").update(code).digest("hex");
-      if (this.usedCodeHashes.has(codeHash)) {
-        throw new OAuthError("invalid_grant", "Authorization code was already used.");
-      }
       if (
         payload.clientId !== clientId ||
         payload.redirectUri !== redirectUri ||
@@ -408,8 +432,14 @@ ${errorMessage ? `<p class="error">${html(errorMessage)}</p>` : ""}
       if (!verifier || !constantTimeTextEqual(challenge, payload.codeChallenge)) {
         throw new OAuthError("invalid_grant", "PKCE verification failed.");
       }
-      this.usedCodeHashes.add(codeHash);
-      if (this.usedCodeHashes.size > 10_000) this.usedCodeHashes.clear();
+      if (
+        !(await this.store.consumeAuthorizationCode({
+          codeHash: tokenHash(code),
+          grantId: payload.grantId,
+        }))
+      ) {
+        throw new OAuthError("invalid_grant", "Authorization code was already used or revoked.");
+      }
       return this.issueTokens(payload.sub, payload.grantId, clientId, payload.scope, resource);
     }
     if (grantType === "refresh_token") {
@@ -428,12 +458,14 @@ ${errorMessage ? `<p class="error">${html(errorMessage)}</p>` : ""}
           "Refresh token does not belong to this client or resource.",
         );
       }
-      const refreshHash = createHash("sha256").update(raw).digest("hex");
-      if (this.usedRefreshHashes.has(refreshHash)) {
-        throw new OAuthError("invalid_grant", "Refresh token was already rotated.");
+      if (
+        !(await this.store.rotateRefreshToken({
+          tokenHash: tokenHash(raw),
+          grantId: payload.grantId,
+        }))
+      ) {
+        throw new OAuthError("invalid_grant", "Refresh token was already rotated or revoked.");
       }
-      this.usedRefreshHashes.add(refreshHash);
-      if (this.usedRefreshHashes.size > 10_000) this.usedRefreshHashes.clear();
       return this.issueTokens(payload.sub, payload.grantId, clientId, payload.scope, resource);
     }
     throw new OAuthError(
@@ -442,7 +474,7 @@ ${errorMessage ? `<p class="error">${html(errorMessage)}</p>` : ""}
     );
   }
 
-  private issueTokens(
+  private async issueTokens(
     subject: string,
     grantId: string,
     clientId: string,
@@ -467,10 +499,11 @@ ${errorMessage ? `<p class="error">${html(errorMessage)}</p>` : ""}
       scope,
     };
     if (scope.split(/\s+/).includes("offline_access")) {
-      response.refresh_token = sign(this.config.oauthSigningSecret, {
+      const refreshExpiresAt = issuedAt + this.config.refreshTokenTtlSeconds;
+      const refreshToken = sign(this.config.oauthSigningSecret, {
         typ: "refresh",
         iat: issuedAt,
-        exp: issuedAt + this.config.refreshTokenTtlSeconds,
+        exp: refreshExpiresAt,
         sub: subject,
         grantId,
         clientId,
@@ -478,11 +511,17 @@ ${errorMessage ? `<p class="error">${html(errorMessage)}</p>` : ""}
         aud: resource,
         nonce: randomBytes(18).toString("base64url"),
       } satisfies RefreshPayload);
+      await this.store.recordRefreshToken({
+        tokenHash: tokenHash(refreshToken),
+        grantId,
+        expiresAt: new Date(refreshExpiresAt * 1000),
+      });
+      response.refresh_token = refreshToken;
     }
     return response;
   }
 
-  authorizeBearer(header: string | undefined): AuthorizedPrincipal {
+  async authorizeBearer(header: string | undefined): Promise<AuthorizedPrincipal> {
     const match = header?.match(/^Bearer\s+(.+)$/i);
     if (!match?.[1]) {
       throw new OAuthError("invalid_token", "A valid bearer token is required.", 401);
@@ -501,11 +540,24 @@ ${errorMessage ? `<p class="error">${html(errorMessage)}</p>` : ""}
         401,
       );
     }
+    if (
+      !(await this.store.isGrantActive({
+        grantId: payload.grantId,
+        userId: payload.sub,
+        clientId: payload.clientId,
+      }))
+    ) {
+      throw new OAuthError("invalid_token", "The MCP authorization grant was revoked.", 401);
+    }
     return {
       subject: payload.sub,
       grantId: payload.grantId,
       clientId: payload.clientId,
       scopes: new Set(payload.scope.split(/\s+/).filter(Boolean)),
     };
+  }
+
+  async close() {
+    await this.store.close();
   }
 }

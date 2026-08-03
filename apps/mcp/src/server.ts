@@ -257,7 +257,7 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
     return rpcError(request.id, -32601, `Method not found: ${request.method}`);
   }
 
-  return createServer(async (request, response) => {
+  const server = createServer(async (request, response) => {
     try {
       const url = requestUrl(request, config.publicBaseUrl);
       const method = request.method || "GET";
@@ -266,6 +266,7 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
           status: "ok",
           service: "nocturne-mcp",
           oauth: "configured",
+          oauthStorage: config.databaseUrl ? "postgres" : "memory",
           accountAuth: config.webBaseUrl ? "nocturne_account" : "admin_password",
           apiIdentityMode: config.webBaseUrl ? "per_user" : config.apiAuthMode,
           apiBaseUrl: config.apiBaseUrl,
@@ -306,7 +307,7 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
       }
       if (method === "POST" && url.pathname === "/oauth/authorize") {
         assertAuthorizationAllowed(request);
-        const result = oauth.approveAuthorization(await readForm(request));
+        const result = await oauth.approveAuthorization(await readForm(request));
         recordAuthorizationResult(request, result.ok);
         log(result.ok ? "oauth_password_approved" : "oauth_password_rejected", {
           clientAddress: clientAddress(request),
@@ -340,7 +341,7 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
           throw new OAuthError("access_denied", "Nocturne account authorization was invalid.", 403);
         }
         const authorization = new URLSearchParams(rawRequest);
-        const approval = oauth.approveAuthorization(authorization, userId);
+        const approval = await oauth.approveAuthorization(authorization, userId);
         if (!approval.ok) {
           throw new OAuthError(
             "server_error",
@@ -352,7 +353,7 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
         return redirect(response, approval.redirect);
       }
       if (method === "POST" && url.pathname === "/oauth/token") {
-        const tokens = oauth.exchangeToken(await readForm(request));
+        const tokens = await oauth.exchangeToken(await readForm(request));
         log("oauth_token_issued");
         return json(response, 200, tokens);
       }
@@ -370,7 +371,7 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
       if (url.pathname === "/mcp" && method === "POST") {
         let principal: AuthorizedPrincipal;
         try {
-          principal = oauth.authorizeBearer(request.headers.authorization);
+          principal = await oauth.authorizeBearer(request.headers.authorization);
         } catch (error) {
           return bearerChallenge(
             config,
@@ -428,4 +429,8 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
       return json(response, 500, { error: "internal_error" });
     }
   });
+  server.on("close", () => {
+    void oauth.close();
+  });
+  return server;
 }
