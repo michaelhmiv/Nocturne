@@ -8,11 +8,13 @@ async function appFor(input: {
   selectedCharacterId: string;
 }) {
   const app = Fastify();
-  const build = vi.fn(async ({ actorId, limit }: { actorId: string; limit: number }) => ({
-    actorId,
-    limit,
-    requests: [],
-  }));
+  const build = vi.fn(
+    async ({ actorId, limit }: { actorId: string; limit: number }) => ({
+      actorId,
+      limit,
+      requests: [],
+    }),
+  );
   await registerOperatorDashboardRoutes(app, {
     dashboard: { build } as never,
     resolveScope: async () => ({
@@ -29,7 +31,10 @@ async function appFor(input: {
 describe("operator dashboard routes", () => {
   it("allows a player to read the selected actor's trace dashboard", async () => {
     const actorId = randomUUID();
-    const { app, build } = await appFor({ role: "player", selectedCharacterId: actorId });
+    const { app, build } = await appFor({
+      role: "player",
+      selectedCharacterId: actorId,
+    });
 
     const response = await app.inject({
       method: "GET",
