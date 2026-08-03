@@ -23,6 +23,12 @@ function signatureFor(secret: string, body: string) {
   return createHmac("sha256", secret).update(body).digest("base64url");
 }
 
+function decodeCanonicalBase64Url(value: string) {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) return null;
+  const decoded = Buffer.from(value, "base64url");
+  return decoded.toString("base64url") === value ? decoded : null;
+}
+
 export function createMcpConsentToken(
   input: ConsentTokenInput & { nowSeconds?: number; ttlSeconds?: number },
 ) {
@@ -47,14 +53,15 @@ export function verifyMcpConsentToken(
     const [body, suppliedSignature, extra] = input.token.split(".");
     if (!body || !suppliedSignature || extra) return false;
 
+    const decodedBody = decodeCanonicalBase64Url(body);
+    const supplied = decodeCanonicalBase64Url(suppliedSignature);
+    if (!decodedBody || !supplied) return false;
+
     const expectedSignature = signatureFor(input.secret, body);
-    const supplied = Buffer.from(suppliedSignature, "base64url");
     const expected = Buffer.from(expectedSignature, "base64url");
     if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return false;
 
-    const payload = JSON.parse(
-      Buffer.from(body, "base64url").toString("utf8"),
-    ) as Partial<ConsentTokenPayload>;
+    const payload = JSON.parse(decodedBody.toString("utf8")) as Partial<ConsentTokenPayload>;
     const now = input.nowSeconds ?? Math.floor(Date.now() / 1000);
     if (
       payload.typ !== "mcp_consent" ||
