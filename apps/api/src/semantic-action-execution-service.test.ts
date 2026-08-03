@@ -128,13 +128,18 @@ function operationValues(input: UniversalOperationExecutionInput) {
   return branch.operations;
 }
 
+type RecordedNonMutatingEvent = {
+  eventType: string;
+  payload: { roll: number } & Record<string, unknown>;
+};
+
 function serviceMocks() {
   const execute = vi.fn(async (_input: UniversalOperationExecutionInput) => ({
     eventId: randomUUID(),
     receiptId: randomUUID(),
     symbolMap: {},
   }));
-  const record = vi.fn(async (input: { eventType: string }) => ({
+  const record = vi.fn(async (input: RecordedNonMutatingEvent) => ({
     eventId: randomUUID(),
     receiptId: randomUUID(),
     eventType: input.eventType,
@@ -322,8 +327,8 @@ describe("semantic action execution service", () => {
     await service.execute(request);
     await service.execute(request);
 
-    const firstRoll = (record.mock.calls[0]![0] as { payload: { roll: number } }).payload.roll;
-    const secondRoll = (record.mock.calls[1]![0] as { payload: { roll: number } }).payload.roll;
+    const firstRoll = record.mock.calls[0]![0].payload.roll;
+    const secondRoll = record.mock.calls[1]![0].payload.roll;
     expect(firstRoll).toBe(secondRoll);
   });
 });
