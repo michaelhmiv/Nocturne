@@ -186,12 +186,19 @@ export function createNocturneTools(config: McpConfig, fetchImpl: FetchLike = fe
     readTool(
       "nocturne_health",
       "Check Nocturne health",
-      "Check the Nocturne API and MCP connection before running gameplay tests.",
+      "Check the Nocturne API, worker, queue, provider, deployment, and MCP connection before running gameplay tests.",
       emptySchema,
-      async () => ({
-        mcp: { status: "ok", service: "nocturne-mcp" },
-        api: await api.request("/health"),
-      }),
+      async () => {
+        const [apiHealth, operationalHealth] = await Promise.all([
+          api.request("/health"),
+          api.request("/v1/system/operational-health"),
+        ]);
+        return {
+          mcp: { status: "ok", service: "nocturne-mcp" },
+          api: apiHealth,
+          operational: operationalHealth,
+        };
+      },
     ),
     readTool(
       "get_world_start",
