@@ -110,6 +110,20 @@ describe("Nocturne MCP service", () => {
           headers: { "content-type": "application/json" },
         });
       }
+      if (String(input).endsWith("/v1/system/operational-health")) {
+        return new Response(
+          JSON.stringify({
+            status: "ready",
+            service: "api",
+            deployment: { commitSha: "test-sha" },
+            database: { ready: true, migrationsReady: true },
+            worker: { configured: true, online: true },
+            queue: { queuedCount: 0, processingCount: 0 },
+            ai: { provider: "deepseek", configured: true, model: "deepseek-v4-flash" },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
       return new Response(JSON.stringify({ error: "not_found" }), { status: 404 });
     });
     const { baseUrl } = await start(apiFetch);
@@ -173,8 +187,11 @@ describe("Nocturne MCP service", () => {
       params: { name: "nocturne_health", arguments: {} },
     }).then((response) => response.json() as Promise<any>);
     expect(health.result.structuredContent.api).toEqual({ status: "ok", service: "api" });
-    const requestInit = apiFetch.mock.calls[0]![1] as RequestInit;
-    expect(new Headers(requestInit.headers).get("x-nocturne-guest-mode")).toBe("1");
+    expect(health.result.structuredContent.operational).toMatchObject({ status: "ready" });
+    for (const [, request] of apiFetch.mock.calls) {
+      const requestInit = request as RequestInit;
+      expect(new Headers(requestInit.headers).get("x-nocturne-guest-mode")).toBe("1");
+    }
   });
 
   it("submits only natural-language text through the persistent-world endpoint", async () => {

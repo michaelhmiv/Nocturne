@@ -2,6 +2,7 @@ import { registerAiJobRoutesFromEnv } from "./ai-job-routes.js";
 import { buildApp } from "./app.js";
 import { registerBuildInfoRoute } from "./build-info-route.js";
 import { registerInventionCatalogueRoutes } from "./invention-catalogue-routes.js";
+import { registerOperationalHealthRoute } from "./operational-health-route.js";
 import { registerPersistentWorldRuntimeFromEnv } from "./persistent-world-runtime-env.js";
 import { registerSceneRoutesFromEnv } from "./scene-routes.js";
 import { registerScheduledWorkRoutesFromEnv } from "./scheduled-work-routes.js";
@@ -18,6 +19,7 @@ const app = await buildApp().catch((error: unknown) => {
   process.exit(1);
 });
 await registerBuildInfoRoute(app);
+await registerOperationalHealthRoute(app);
 await registerPersistentWorldRuntimeFromEnv(app);
 await registerAiJobRoutesFromEnv(app);
 await registerSceneRoutesFromEnv(app);

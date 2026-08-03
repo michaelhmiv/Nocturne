@@ -134,11 +134,16 @@ function upstreamSubject(header: string | null) {
   };
 }
 
+type UpstreamRequest = { url: string; authorization: string };
+
 describe("MCP Nocturne account binding", () => {
   it("keeps account identity isolated across grants and refreshes", async () => {
-    const authorizationHeaders: string[] = [];
-    const apiFetch = vi.fn<typeof fetch>(async (_input, init) => {
-      authorizationHeaders.push(new Headers(init?.headers).get("authorization") || "");
+    const upstreamRequests: UpstreamRequest[] = [];
+    const apiFetch = vi.fn<typeof fetch>(async (input, init) => {
+      upstreamRequests.push({
+        url: String(input),
+        authorization: new Headers(init?.headers).get("authorization") || "",
+      });
       return new Response(JSON.stringify({ status: "ok", service: "api" }), {
         status: 200,
         headers: { "content-type": "application/json" },
@@ -150,9 +155,23 @@ describe("MCP Nocturne account binding", () => {
 
     expect((await callHealth(baseUrl, accountA.access_token)).status).toBe(200);
     expect((await callHealth(baseUrl, accountB.access_token)).status).toBe(200);
-    expect(upstreamSubject(authorizationHeaders[0]!).sub).toBe("user-account-a");
-    expect(upstreamSubject(authorizationHeaders[1]!).sub).toBe("user-account-b");
-    expect(upstreamSubject(authorizationHeaders[0]!).scopes).toContain("action:submit");
+
+    const livenessSubjects = upstreamRequests
+      .filter((request) => request.url.endsWith("/health"))
+      .map((request) => upstreamSubject(request.authorization));
+    const operationalSubjects = upstreamRequests
+      .filter((request) => request.url.endsWith("/v1/system/operational-health"))
+      .map((request) => upstreamSubject(request.authorization));
+
+    expect(livenessSubjects.map((subject) => subject.sub)).toEqual([
+      "user-account-a",
+      "user-account-b",
+    ]);
+    expect(operationalSubjects.map((subject) => subject.sub)).toEqual([
+      "user-account-a",
+      "user-account-b",
+    ]);
+    expect(livenessSubjects[0]!.scopes).toContain("action:submit");
 
     const refreshed = await fetch(`${baseUrl}/oauth/token`, {
       method: "POST",
@@ -165,6 +184,22 @@ describe("MCP Nocturne account binding", () => {
       }),
     }).then((response) => response.json() as Promise<{ access_token: string }>);
     expect((await callHealth(baseUrl, refreshed.access_token)).status).toBe(200);
-    expect(upstreamSubject(authorizationHeaders[2]!).sub).toBe("user-account-a");
+
+    const refreshedLiveness = upstreamRequests
+      .filter((request) => request.url.endsWith("/health"))
+      .map((request) => upstreamSubject(request.authorization));
+    const refreshedOperational = upstreamRequests
+      .filter((request) => request.url.endsWith("/v1/system/operational-health"))
+      .map((request) => upstreamSubject(request.authorization));
+    expect(refreshedLiveness.map((subject) => subject.sub)).toEqual([
+      "user-account-a",
+      "user-account-b",
+      "user-account-a",
+    ]);
+    expect(refreshedOperational.map((subject) => subject.sub)).toEqual([
+      "user-account-a",
+      "user-account-b",
+      "user-account-a",
+    ]);
   });
 });
