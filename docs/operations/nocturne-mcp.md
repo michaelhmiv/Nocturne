@@ -1,94 +1,77 @@
 # Nocturne MCP service
 
-The Nocturne MCP service is a remote, OAuth-protected Model Context Protocol endpoint for exercising the game through the same public APIs as the web client. It does not write directly to PostgreSQL.
+The Nocturne MCP service is a remote, OAuth-protected Model Context Protocol endpoint that exercises the game through the same authenticated public APIs as the web client. It never writes directly to game tables.
 
 ## Railway service
 
-Create a dedicated Railway service from the repository root with:
+Use the repository root with:
 
 - Build command: `pnpm install --frozen-lockfile && pnpm build:mcp`
 - Start command: `pnpm start:mcp`
 - Healthcheck: `/health`
-- Root directory: repository root
 
-Required variables:
+Required production variables:
 
+- `DATABASE_URL=${{Postgres.DATABASE_URL}}`
 - `MCP_PUBLIC_BASE_URL=https://<mcp-domain>`
-- `MCP_OAUTH_SIGNING_SECRET=<at least 32 random characters>`
-- `MCP_ADMIN_PASSWORD=<strong password entered during ChatGPT OAuth>`
-- `NOCTURNE_API_URL=https://nocturneapi-production.up.railway.app`
-- `NOCTURNE_API_AUTH_MODE=guest`
-
-Optional variables:
-
+- `MCP_OAUTH_SIGNING_SECRET=<independent secret of at least 32 characters>`
+- `MCP_ACCOUNT_LINK_SECRET=<shared account-link secret of at least 32 characters>`
+- `NOCTURNE_WEB_URL=https://<web-domain>`
+- `NOCTURNE_API_URL=https://<api-domain>`
+- `NOCTURNE_API_AUTH_MODE=bearer`
 - `MCP_ALLOWED_REDIRECT_HOSTS=chatgpt.com,openai.com,localhost,127.0.0.1`
+
+Optional token settings:
+
 - `MCP_ACCESS_TOKEN_TTL_SECONDS=3600`
 - `MCP_REFRESH_TOKEN_TTL_SECONDS=2592000`
 - `MCP_REQUEST_TIMEOUT_MS=120000`
 
-Railway supplies `PORT`. For a non-guest service account, set `NOCTURNE_API_AUTH_MODE=bearer` and `NOCTURNE_API_TOKEN` to a scoped Nocturne agent token.
+Do not configure `MCP_LINKED_USER_ID`. Account identity is selected during OAuth and is stored in each durable grant. `MCP_ADMIN_PASSWORD` and `NOCTURNE_API_TOKEN` are only for an explicitly configured service-account fallback and are not used by the normal player-account flow.
 
-## ChatGPT authorization
+The web, API, and MCP services must use the same `MCP_ACCOUNT_LINK_SECRET`. The MCP and web services must use the same PostgreSQL database so users can list and revoke connector grants.
 
-1. In ChatGPT web, enable developer mode for custom apps.
-2. Create a custom app and enter `https://<mcp-domain>/mcp` as the MCP endpoint.
-3. Select OAuth authentication.
-4. Run **Scan Tools**.
-5. ChatGPT discovers the protected-resource and authorization-server metadata and dynamically registers an OAuth client.
-6. The Nocturne authorization page opens. Enter the value stored in `MCP_ADMIN_PASSWORD`.
-7. ChatGPT exchanges the authorization code using PKCE and stores a short-lived access token plus a rotating refresh token.
-8. Enable the app in a chat and call `nocturne_health` before gameplay testing.
+## Account authorization
 
-The service publishes:
+1. ChatGPT discovers the OAuth metadata and dynamically registers a public client.
+2. MCP redirects the browser to `/api/mcp/authorize` on the Nocturne web service.
+3. The user signs in or creates a Better Auth account.
+4. Nocturne displays the exact signed-in account and requires explicit consent.
+5. The web service returns a short-lived signed account assertion to MCP.
+6. MCP creates a PostgreSQL-backed OAuth grant and one-time authorization-code record.
+7. ChatGPT exchanges the code with PKCE and receives an access token plus a rotating refresh token.
+8. Every MCP request verifies that the grant remains active and creates a short-lived upstream API credential for that user only.
 
-- `/.well-known/oauth-protected-resource`
-- `/.well-known/oauth-protected-resource/mcp`
-- `/.well-known/oauth-authorization-server`
-- `/.well-known/openid-configuration`
-- `/oauth/register`
-- `/oauth/authorize`
-- `/oauth/token`
-- `/mcp`
+Authorization codes and refresh tokens are stored only as SHA-256 hashes. Code consumption, refresh rotation, expiration, and revocation survive MCP restarts and multiple service replicas.
 
-Tokens are audience-bound to the MCP endpoint. Access is separated into `nocturne.read` and `nocturne.write` scopes. The authorization server supports PKCE S256, resource indicators, dynamic client registration, refresh tokens, refresh-token rotation, exact redirect validation, and authorization-attempt throttling.
+## User revocation
+
+Signed-in users manage connections at `/account`. They can revoke one ChatGPT grant or every active grant. Revocation immediately invalidates existing MCP access tokens and prevents future refreshes.
+
+## Administrative roles
+
+New world memberships default to `player`. Role elevation is explicit and audited:
+
+```bash
+DATABASE_URL=... pnpm world:grant-role player@example.com operator
+```
+
+The command resolves the Better Auth account by exact email, updates only that user’s default-world membership, and records the prior and new role in `auth.admin_audit_log`.
+
+## Connector reset after OAuth changes
+
+After deploying an OAuth-signing or grant-format change:
+
+1. Rotate `MCP_OAUTH_SIGNING_SECRET` on the MCP service.
+2. Confirm MCP `/health` reports `oauthStorage: postgres` and `apiIdentityMode: per_user`.
+3. Remove the old Nocturne custom app from ChatGPT.
+4. Add the MCP endpoint again and rescan tools.
+5. Sign in to Nocturne and explicitly authorize the displayed account.
+
+Do not rotate `BETTER_AUTH_SECRET` during a normal MCP reset.
 
 ## Tool surface
 
-Player-path tools:
+Player-path tools include character creation and selection, starter housing repair, natural-language action submission, scene inspection, dashboard inspection, and dashboard-change waiting. Inspection tools include health, world start, characters, actions, vehicles, travel paths, operator traces, and world-entity inspection.
 
-- `create_character`
-- `select_character`
-- `rent_starter_residence`
-- `submit_action`
-- `get_scene`
-- `get_dashboard`
-- `wait_for_dashboard_change`
-
-Inspection tools:
-
-- `nocturne_health`
-- `get_world_start`
-- `list_characters`
-- `list_actions`
-- `list_vehicles`
-- `get_travel_path`
-- `get_operator_dashboard`
-- `inspect_world_entity`
-
-`submit_action` accepts natural-language text and optional trace/idempotency metadata. It deliberately does not accept an action kind, destination ID, target ID, route, or handler name. The normal LLM interpretation and persistent-world execution pipeline remains under test.
-
-## Testing discipline
-
-After a write:
-
-1. Read `get_dashboard` and retain its fingerprint.
-2. For scheduled work, call `wait_for_dashboard_change`.
-3. Read `get_scene`.
-4. Read `get_operator_dashboard` for plan, step, schedule, event, and mutation evidence.
-5. Use `inspect_world_entity` for any actor, destination, target, item, or vehicle involved.
-
-This makes narration-to-state contradictions visible while preserving the normal gameplay path.
-
-## Starter housing behavior
-
-Character creation atomically provisions a unique bare-bones unit inside Ashdown Apartments in Foundry Row. The building is shared geography, while every apartment is a distinct persistent residence instance. The legacy rent tool is retained as an idempotent repair operation and can no longer fail because another character occupies a different unit.
+`submit_action` accepts natural-language intent rather than internal action kinds or entity-routing parameters. After each write, inspect the dashboard, scene, operator traces, and relevant entities to confirm that narration matches durable state.
