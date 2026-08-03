@@ -5,11 +5,7 @@ const TextSchema = z.string().trim().min(1).max(4_000);
 const FactIdSchema = z.string().trim().min(1).max(200);
 const EntityIdSchema = z.string().uuid();
 
-export const EstimatePrecisionSchema = z.enum([
-  "qualitative",
-  "bounded_range",
-  "point_estimate",
-]);
+export const EstimatePrecisionSchema = z.enum(["qualitative", "bounded_range", "point_estimate"]);
 export type EstimatePrecision = z.infer<typeof EstimatePrecisionSchema>;
 
 export const QualitativeMagnitudeSchema = z.enum([

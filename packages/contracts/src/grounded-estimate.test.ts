@@ -3,7 +3,7 @@ import { GroundedEstimateSchema, GroundedWorldProposalSchema } from "./grounded-
 
 const entityId = "10000000-0000-4000-8000-000000000001";
 
- describe("grounded LLM estimates", () => {
+describe("grounded LLM estimates", () => {
   it("accepts qualitative damage without false precision", () => {
     expect(
       GroundedEstimateSchema.parse({
@@ -12,7 +12,8 @@ const entityId = "10000000-0000-4000-8000-000000000001";
         precision: "qualitative",
         qualitativeMagnitude: "majority",
         confidence: 0.72,
-        rationale: "The blast reached most of the exposed facade, but individual panes are not materialized.",
+        rationale:
+          "The blast reached most of the exposed facade, but individual panes are not materialized.",
       }),
     ).toMatchObject({ qualitativeMagnitude: "majority" });
   });
