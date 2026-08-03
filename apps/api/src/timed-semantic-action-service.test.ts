@@ -22,6 +22,17 @@ function frame(actorId: string): SemanticActionFrame {
     objectIds: [],
     toolIds: [],
     durationSeconds: 1_800,
+    references: [],
+    claims: [
+      {
+        claimKey: "explicit_duration",
+        claimType: "duration",
+        sourceText: "Exercise for 30 minutes",
+        normalizedValue: "1800 seconds",
+        required: true,
+        durationSeconds: 1_800,
+      },
+    ],
     properties: {
       selfDirected: true,
       opposed: false,
@@ -87,7 +98,12 @@ describe("timed semantic action service", () => {
         expectedVersions: { [actorId]: 3 },
         payload: expect.objectContaining({
           actorId,
-          frame: expect.objectContaining({ objective: "Exercise for 30 minutes" }),
+          frame: expect.objectContaining({
+            objective: "Exercise for 30 minutes",
+            claims: expect.arrayContaining([
+              expect.objectContaining({ claimType: "duration", durationSeconds: 1_800 }),
+            ]),
+          }),
           resolution: expect.objectContaining({ mode: "timed_task" }),
         }),
       }),
