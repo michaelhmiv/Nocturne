@@ -187,14 +187,14 @@ export class PostgresMcpOAuthStore implements McpOAuthStore {
     const result = await this.pool.query(
       `UPDATE auth.mcp_oauth_authorization_codes AS code
        SET consumed_at = now()
-       FROM auth.mcp_oauth_grants AS grant
+       FROM auth.mcp_oauth_grants AS oauth_grant
        WHERE code.code_hash = $1
          AND code.grant_id = $2
          AND code.consumed_at IS NULL
          AND code.expires_at > now()
-         AND grant.grant_id = code.grant_id
-         AND grant.revoked_at IS NULL
-         AND grant.expires_at > now()
+         AND oauth_grant.grant_id = code.grant_id
+         AND oauth_grant.revoked_at IS NULL
+         AND oauth_grant.expires_at > now()
        RETURNING code.code_hash`,
       [input.codeHash, input.grantId],
     );
@@ -213,15 +213,15 @@ export class PostgresMcpOAuthStore implements McpOAuthStore {
     const result = await this.pool.query(
       `UPDATE auth.mcp_oauth_refresh_tokens AS token
        SET rotated_at = now()
-       FROM auth.mcp_oauth_grants AS grant
+       FROM auth.mcp_oauth_grants AS oauth_grant
        WHERE token.token_hash = $1
          AND token.grant_id = $2
          AND token.rotated_at IS NULL
          AND token.revoked_at IS NULL
          AND token.expires_at > now()
-         AND grant.grant_id = token.grant_id
-         AND grant.revoked_at IS NULL
-         AND grant.expires_at > now()
+         AND oauth_grant.grant_id = token.grant_id
+         AND oauth_grant.revoked_at IS NULL
+         AND oauth_grant.expires_at > now()
        RETURNING token.token_hash`,
       [input.tokenHash, input.grantId],
     );
@@ -323,7 +323,7 @@ export class PostgresMcpOAuthStore implements McpOAuthStore {
         );
       }
       await client.query("COMMIT");
-      return grants.rows.length;
+      return true;
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
