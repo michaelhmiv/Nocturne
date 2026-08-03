@@ -1,0 +1,17 @@
+{
+  "name": "@nocturne/geospatial-importer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsup --config ../../tsup.app.config.ts",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@nocturne/contracts": "workspace:*",
+    "@nocturne/database": "workspace:*"
+  }
+}
