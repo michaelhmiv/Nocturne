@@ -68,8 +68,8 @@ describe("API boot paths", () => {
 
     expect(response.statusCode).toBe(502);
     expect(response.json()).toEqual({
-      error: "validation",
-      message: "AI provider request failed.",
+      error: "schema_validation_error",
+      message: "AI provider returned an invalid response.",
     });
     expect(response.body).not.toContain(secret);
     await app.close();
