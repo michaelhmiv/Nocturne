@@ -137,7 +137,9 @@ export default function AccountClient() {
             {connections.map((connection) => (
               <article className="connection-card" key={connection.grantId}>
                 <div>
-                  <strong>{connection.active ? "Active ChatGPT connection" : "Revoked connection"}</strong>
+                  <strong>
+                    {connection.active ? "Active ChatGPT connection" : "Revoked connection"}
+                  </strong>
                   <p>
                     Authorized {new Date(connection.createdAt).toLocaleString()} · Expires{" "}
                     {new Date(connection.expiresAt).toLocaleString()}

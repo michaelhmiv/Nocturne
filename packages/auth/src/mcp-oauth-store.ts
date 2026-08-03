@@ -29,17 +29,9 @@ export interface McpOAuthStore {
     expiresAt: Date;
   }): Promise<void>;
   consumeAuthorizationCode(input: { codeHash: string; grantId: string }): Promise<boolean>;
-  recordRefreshToken(input: {
-    tokenHash: string;
-    grantId: string;
-    expiresAt: Date;
-  }): Promise<void>;
+  recordRefreshToken(input: { tokenHash: string; grantId: string; expiresAt: Date }): Promise<void>;
   rotateRefreshToken(input: { tokenHash: string; grantId: string }): Promise<boolean>;
-  isGrantActive(input: {
-    grantId: string;
-    userId: string;
-    clientId: string;
-  }): Promise<boolean>;
+  isGrantActive(input: { grantId: string; userId: string; clientId: string }): Promise<boolean>;
   listGrants(userId: string): Promise<McpOAuthGrant[]>;
   revokeGrant(input: { userId: string; grantId: string }): Promise<boolean>;
   revokeAllGrants(userId: string): Promise<number>;
@@ -74,11 +66,7 @@ export class MemoryMcpOAuthStore implements McpOAuthStore {
     });
   }
 
-  async recordAuthorizationCode(input: {
-    codeHash: string;
-    grantId: string;
-    expiresAt: Date;
-  }) {
+  async recordAuthorizationCode(input: { codeHash: string; grantId: string; expiresAt: Date }) {
     this.codes.set(input.codeHash, { ...input, consumedAt: null });
   }
 
@@ -98,11 +86,7 @@ export class MemoryMcpOAuthStore implements McpOAuthStore {
     return true;
   }
 
-  async recordRefreshToken(input: {
-    tokenHash: string;
-    grantId: string;
-    expiresAt: Date;
-  }) {
+  async recordRefreshToken(input: { tokenHash: string; grantId: string; expiresAt: Date }) {
     this.refreshTokens.set(input.tokenHash, {
       ...input,
       rotatedAt: null,
@@ -131,10 +115,10 @@ export class MemoryMcpOAuthStore implements McpOAuthStore {
     const grant = this.grants.get(input.grantId);
     return Boolean(
       grant &&
-        grant.userId === input.userId &&
-        grant.clientIdHash === mcpClientIdHash(input.clientId) &&
-        !grant.revokedAt &&
-        grant.expiresAt.getTime() > Date.now(),
+      grant.userId === input.userId &&
+      grant.clientIdHash === mcpClientIdHash(input.clientId) &&
+      !grant.revokedAt &&
+      grant.expiresAt.getTime() > Date.now(),
     );
   }
 
@@ -191,11 +175,7 @@ export class PostgresMcpOAuthStore implements McpOAuthStore {
     );
   }
 
-  async recordAuthorizationCode(input: {
-    codeHash: string;
-    grantId: string;
-    expiresAt: Date;
-  }) {
+  async recordAuthorizationCode(input: { codeHash: string; grantId: string; expiresAt: Date }) {
     await this.pool.query(
       `INSERT INTO auth.mcp_oauth_authorization_codes (code_hash, grant_id, expires_at)
        VALUES ($1, $2, $3)`,
@@ -221,11 +201,7 @@ export class PostgresMcpOAuthStore implements McpOAuthStore {
     return result.rowCount === 1;
   }
 
-  async recordRefreshToken(input: {
-    tokenHash: string;
-    grantId: string;
-    expiresAt: Date;
-  }) {
+  async recordRefreshToken(input: { tokenHash: string; grantId: string; expiresAt: Date }) {
     await this.pool.query(
       `INSERT INTO auth.mcp_oauth_refresh_tokens (token_hash, grant_id, expires_at)
        VALUES ($1, $2, $3)`,
