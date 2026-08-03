@@ -1,7 +1,10 @@
 import {
   SemanticActionFrameSchema,
   type RelevanceCompiledContext,
+  type SemanticActionClaim,
   type SemanticActionFrame,
+  type SemanticEntityReference,
+  type SemanticReferenceRole,
   type WorldActionKind,
 } from "@nocturne/contracts";
 
@@ -39,6 +42,12 @@ const selfBodyReferencePattern =
   /\b(?:myself|my own body|my (?:head|forehead|face|neck|chest|body|hand|arm|leg|foot))\b/i;
 const pressurePattern =
   /\b(?:before|within|in less than|quickly|immediately|right now|countdown)\b/i;
+const deicticLocationPattern =
+  /\b(?:(?:this|the current|my current)\s+(room|apartment|unit|building|location)|here)\b/i;
+const anatomyPattern =
+  /\b(?:bare\s+)?(?:my\s+)?(fists?|hands?|head|forehead|face|neck|chest|body|arms?|legs?|feet|foot|elbows?|knees?)\b/gi;
+const possessionToolPattern =
+  /\b(?:gun|pistol|rifle|shotgun|knife|knives|blade|razor|hammer|crowbar|tool|weapon)\b/i;
 
 function firstString(payload: Record<string, unknown>, keys: string[]) {
   for (const key of keys) {
@@ -160,7 +169,16 @@ function cleanPossessionName(value: string) {
     .trim();
 }
 
-function explicitPossessionAssumptions(rawText: string) {
+function slugPart(value: string) {
+  const normalized = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 44);
+  return normalized || "reference";
+}
+
+function explicitPossessionNames(rawText: string) {
   const names = new Set<string>();
   const patterns = [
     /\b(?:holding|carrying|wielding|armed with|equipped with|using)\s+(?:a|an|the|my|some)?\s*([a-z][a-z0-9' -]{0,50}?)(?=$|[,.!?]|\s+(?:to|while|and|but|then)\b)/gi,
@@ -173,7 +191,50 @@ function explicitPossessionAssumptions(rawText: string) {
       if (name) names.add(name);
     }
   }
-  return [...names].map((name) => `requires_possession:${name}`);
+  return [...names];
+}
+
+function normalizeAnatomy(value: string) {
+  const normalized = value.toLowerCase();
+  if (normalized === "fists") return "fist";
+  if (normalized === "hands") return "hand";
+  if (normalized === "arms") return "arm";
+  if (normalized === "legs") return "leg";
+  if (normalized === "feet") return "foot";
+  if (normalized === "elbows") return "elbow";
+  if (normalized === "knees") return "knee";
+  return normalized;
+}
+
+function explicitAnatomyNames(rawText: string) {
+  const names = new Set<string>();
+  for (const match of rawText.matchAll(anatomyPattern)) {
+    const name = normalizeAnatomy(match[1] || "");
+    if (name) names.add(name);
+  }
+  return [...names];
+}
+
+function resolvedReference(input: {
+  referenceKey: string;
+  entityId: string;
+  role: SemanticReferenceRole;
+  contextById: Map<string, RelevanceCompiledContext["entities"][number]>;
+}): SemanticEntityReference {
+  const entity = input.contextById.get(input.entityId);
+  const name = entity?.name || input.entityId;
+  return {
+    referenceKey: input.referenceKey,
+    originalText: name,
+    normalizedText: name.toLowerCase(),
+    role: input.role,
+    required: true,
+    relationship: input.role === "tool" ? "possessed" : "visible",
+    resolution: "resolved_entity",
+    resolvedEntityId: input.entityId,
+    candidateEntityIds: [],
+    allowClarification: true,
+  };
 }
 
 export function deriveSemanticActionFrame(input: {
@@ -241,7 +302,9 @@ export function deriveSemanticActionFrame(input: {
         ? 5
         : 2
       : 1;
-  const locationId = firstString(payload, ["locationId"]);
+  const explicitLocationId = firstString(payload, ["locationId"]);
+  const actorLocationId = contextById.get(input.actorId)?.locationId || undefined;
+  const locationId = explicitLocationId || actorLocationId || undefined;
   const selfHarmDanger = explicitSelfDirected && harmfulContactPattern.test(input.rawText);
   const danger = selfHarmDanger
     ? 7
@@ -250,10 +313,122 @@ export function deriveSemanticActionFrame(input: {
       : input.kind === "combat"
         ? 4
         : 0;
+
+  const possessionNames = explicitPossessionNames(input.rawText);
+  const anatomyNames = explicitAnatomyNames(input.rawText);
   const assumptions = [
     ...stringArray(payload, "assumptions"),
-    ...explicitPossessionAssumptions(input.rawText),
+    ...possessionNames.map((name) => `requires_possession:${name}`),
   ];
+
+  const references: SemanticEntityReference[] = [
+    ...targetIds.map((entityId, index) =>
+      resolvedReference({
+        referenceKey: `target_${index + 1}`,
+        entityId,
+        role: "target",
+        contextById,
+      }),
+    ),
+    ...objectIds.map((entityId, index) =>
+      resolvedReference({
+        referenceKey: `object_${index + 1}`,
+        entityId,
+        role: "object",
+        contextById,
+      }),
+    ),
+    ...toolIds.map((entityId, index) =>
+      resolvedReference({
+        referenceKey: `tool_${index + 1}`,
+        entityId,
+        role: "tool",
+        contextById,
+      }),
+    ),
+  ];
+  const claims: SemanticActionClaim[] = [];
+
+  for (const name of possessionNames) {
+    const key = `possession_${slugPart(name)}`;
+    references.push({
+      referenceKey: key,
+      originalText: name,
+      normalizedText: name,
+      role: possessionToolPattern.test(name) ? "tool" : "object",
+      required: true,
+      relationship: "possessed",
+      resolution: "unresolved",
+      candidateEntityIds: [],
+      allowClarification: false,
+    });
+    claims.push({
+      claimKey: key,
+      claimType: "possession",
+      sourceText: name,
+      normalizedValue: name,
+      required: true,
+      referenceKey: key,
+    });
+  }
+
+  for (const name of anatomyNames) {
+    const key = `anatomy_${slugPart(name)}`;
+    references.push({
+      referenceKey: key,
+      originalText: name,
+      normalizedText: name,
+      role: "anatomy",
+      required: true,
+      relationship: "intrinsic",
+      resolution: "resolved_intrinsic",
+      candidateEntityIds: [],
+      allowClarification: false,
+    });
+    claims.push({
+      claimKey: key,
+      claimType: "anatomy",
+      sourceText: name,
+      normalizedValue: name,
+      required: true,
+      referenceKey: key,
+    });
+  }
+
+  if (durationSeconds) {
+    claims.push({
+      claimKey: "explicit_duration",
+      claimType: "duration",
+      sourceText: input.rawText,
+      normalizedValue: `${durationSeconds} seconds`,
+      required: true,
+      durationSeconds,
+    });
+  }
+
+  const deicticLocation = deicticLocationPattern.exec(input.rawText)?.[0];
+  if (deicticLocation) {
+    references.push({
+      referenceKey: "current_location",
+      originalText: deicticLocation,
+      normalizedText: deicticLocation.toLowerCase(),
+      role: "location",
+      required: true,
+      relationship: "current_location",
+      resolution: locationId ? "resolved_entity" : "unresolved",
+      ...(locationId ? { resolvedEntityId: locationId } : {}),
+      candidateEntityIds: [],
+      allowClarification: true,
+    });
+    claims.push({
+      claimKey: "current_location",
+      claimType: "location",
+      sourceText: deicticLocation,
+      normalizedValue: "current location",
+      required: true,
+      referenceKey: "current_location",
+    });
+  }
 
   return SemanticActionFrameSchema.parse({
     kind: input.kind,
@@ -267,6 +442,8 @@ export function deriveSemanticActionFrame(input: {
     ...(locationId ? { locationId } : {}),
     ...(quantity ? { quantity } : {}),
     ...(durationSeconds ? { durationSeconds } : {}),
+    references,
+    claims,
     properties: {
       selfDirected,
       opposed,
