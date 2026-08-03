@@ -7,6 +7,7 @@ const webBaseUrl = (
 const mcpBaseUrl = (
   process.env.NOCTURNE_MCP_URL || "https://nocturnemcp-production.up.railway.app"
 ).replace(/\/$/, "");
+const webOrigin = new URL(webBaseUrl).origin;
 const redirectUri = "http://127.0.0.1/nocturne-certification-callback";
 const runId = `${Date.now()}-${randomBytes(4).toString("hex")}`;
 const email = `mcp-cert-${runId}@example.invalid`;
@@ -35,6 +36,9 @@ async function request(url, options = {}) {
   const headers = new Headers(options.headers || {});
   const cookie = cookieHeader(parsed.origin);
   if (cookie) headers.set("cookie", cookie);
+  if (parsed.origin === webOrigin && !headers.has("origin")) {
+    headers.set("origin", webOrigin);
+  }
   const response = await fetch(parsed, {
     ...options,
     headers,
@@ -127,7 +131,7 @@ async function authorize() {
   const start = await request(authorizeUrl, { method: "GET" });
   assert.equal(start.status, 302, "MCP authorize must redirect to Nocturne account linking");
   const webAuthorizeUrl = requiredLocation(start, "MCP authorize");
-  assert.equal(new URL(webAuthorizeUrl).origin, new URL(webBaseUrl).origin);
+  assert.equal(new URL(webAuthorizeUrl).origin, webOrigin);
 
   const linked = await request(webAuthorizeUrl, { method: "GET" });
   assert.equal(linked.status, 302, "Nocturne account linking must redirect to the MCP callback");
