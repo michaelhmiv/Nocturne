@@ -85,7 +85,7 @@ async function createAccountAndCharacter() {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       name: characterName,
-      concept:
+      conceptSummary:
         "A disposable certification character used only for safe MCP action and persistence tests.",
     }),
   });
