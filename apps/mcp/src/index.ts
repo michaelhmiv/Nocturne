@@ -1,5 +1,8 @@
 import { loadMcpConfig } from "./config.js";
+import { installOAuthClientKeyRotationCompatibility } from "./oauth-client-compat.js";
 import { createMcpServer } from "./server.js";
+
+installOAuthClientKeyRotationCompatibility();
 
 const config = loadMcpConfig();
 const server = createMcpServer(config);
