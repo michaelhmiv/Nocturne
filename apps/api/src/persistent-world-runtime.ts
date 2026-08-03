@@ -4,6 +4,7 @@ import type { AiProviderClient } from "@nocturne/ai-gm";
 import {
   createMaterializationStore,
   createNarrativeMemoryStore,
+  createNonMutatingEventStore,
   createOperatorDashboardStore,
   createPersistentPlanStore,
   createPersistentSceneStore,
@@ -95,9 +96,11 @@ export async function registerPersistentWorldRuntime(
   },
 ) {
   const executor = createUniversalOperationExecutor(dependencies.database);
+  const nonMutatingEvents = createNonMutatingEventStore(dependencies.database);
   const routineActions = createRoutineActionService(executor);
   const semanticActions = createSemanticActionExecutionService({
     executor,
+    nonMutatingEvents,
     rollSecret: dependencies.rollSecret,
   });
   const timedActions = createTimedSemanticActionService(executor);

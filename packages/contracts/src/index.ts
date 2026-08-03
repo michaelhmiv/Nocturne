@@ -6,6 +6,7 @@ export * from "./character.js";
 export * from "./consumption.js";
 export * from "./content.js";
 export * from "./conversation.js";
+export * from "./event-taxonomy.js";
 export * from "./event.js";
 export * from "./game-master-context.js";
 export * from "./geospatial.js";

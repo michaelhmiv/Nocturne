@@ -3,9 +3,14 @@ import type {
   ActionResolutionDecision,
   RelevanceCompiledContext,
   SemanticActionFrame,
+  UniversalEventType,
   UniversalWorldOperation,
 } from "@nocturne/contracts";
-import type { UniversalOperationExecutor, WorldScope } from "@nocturne/database";
+import type {
+  NonMutatingEventStore,
+  UniversalOperationExecutor,
+  WorldScope,
+} from "@nocturne/database";
 
 function deterministicRoll(secret: string | Buffer, idempotencyKey: string) {
   const digest = createHmac("sha256", secret).update(idempotencyKey).digest();
@@ -92,28 +97,9 @@ function operations(input: {
   frame: SemanticActionFrame;
   resolution: ActionResolutionDecision;
   succeeded: boolean;
-  roll: number;
   hazard: HazardEffect | null;
 }): UniversalWorldOperation[] {
-  const result: UniversalWorldOperation[] = [
-    {
-      type: "set_state_value",
-      entityRef: { kind: "existing", entityId: input.frame.actorId },
-      path: ["activity", "last_semantic_action"],
-      value: {
-        actionType: input.frame.actionType,
-        objective: input.frame.objective,
-        resolutionMode: input.resolution.mode,
-        succeeded: input.succeeded,
-        needsClarification: input.resolution.mode === "clarification_required",
-        rationale: input.resolution.rationale,
-        roll: input.roll,
-        hazard: input.hazard,
-        occurredAt: new Date().toISOString(),
-      },
-      preconditionFactIds: [],
-    },
-  ];
+  const result: UniversalWorldOperation[] = [];
 
   if (input.hazard) {
     result.push(
@@ -171,22 +157,24 @@ function operations(input: {
       preconditionFactIds: [],
     });
   }
-  if (input.succeeded && input.frame.kind === "question") {
-    result.push({
-      type: "create_information_asset",
-      holderRef: { kind: "existing", entityId: input.frame.actorId },
-      ...(targetId ? { subjectRef: { kind: "existing" as const, entityId: targetId } } : {}),
-      content: `The actor asked: ${input.frame.objective}`,
-      confidenceBasisPoints: 5_000,
-      truthStatus: "observation",
-      preconditionFactIds: [],
-    });
-  }
   return result;
+}
+
+function nonMutatingEventType(input: {
+  frame: SemanticActionFrame;
+  resolution: ActionResolutionDecision;
+  succeeded: boolean;
+}): UniversalEventType {
+  if (input.resolution.mode === "clarification_required") return "clarification_requested";
+  if (input.frame.kind === "dialogue") return "dialogue_occurred";
+  if (input.frame.kind === "question") return "question_asked";
+  if (!input.succeeded) return "action_failed";
+  return "action_completed_non_mutating";
 }
 
 export function createSemanticActionExecutionService(input: {
   executor: UniversalOperationExecutor;
+  nonMutatingEvents: NonMutatingEventStore;
   rollSecret: string | Buffer;
 }) {
   async function execute(request: {
@@ -219,26 +207,50 @@ export function createSemanticActionExecutionService(input: {
       successFor(request.frame, request.resolution, request.context, roll);
     const hazard = hazardEffect(request.frame, request.resolution, succeeded);
     const playerNarration = narration(request.frame, request.resolution, succeeded, hazard);
-    const receipt = await input.executor.execute({
-      scope: request.scope,
-      authority: "player",
-      actorId: request.actorId,
-      sourcePlanId: request.planId,
-      sourceStepId: request.stepId,
-      idempotencyKey: request.idempotencyKey,
-      declaredFactIds: request.resolution.requiredFactIds,
-      branch: {
-        operations: operations({
-          frame: request.frame,
-          resolution: request.resolution,
-          succeeded,
-          roll,
-          hazard,
-        }),
-      },
-      playerVisibleFacts: [playerNarration],
-      hiddenFacts: [],
+    const committedOperations = operations({
+      frame: request.frame,
+      resolution: request.resolution,
+      succeeded,
+      hazard,
     });
+
+    const receipt =
+      committedOperations.length > 0
+        ? await input.executor.execute({
+            scope: request.scope,
+            authority: "player",
+            actorId: request.actorId,
+            sourcePlanId: request.planId,
+            sourceStepId: request.stepId,
+            idempotencyKey: request.idempotencyKey,
+            declaredFactIds: request.resolution.requiredFactIds,
+            branch: { operations: committedOperations },
+            playerVisibleFacts: [playerNarration],
+            hiddenFacts: [],
+          })
+        : await input.nonMutatingEvents.record({
+            scope: request.scope,
+            actorId: request.actorId,
+            sourcePlanId: request.planId,
+            sourceStepId: request.stepId,
+            idempotencyKey: request.idempotencyKey,
+            eventType: nonMutatingEventType({
+              frame: request.frame,
+              resolution: request.resolution,
+              succeeded,
+            }),
+            payload: {
+              frame: request.frame,
+              resolution: request.resolution,
+              succeeded,
+              roll,
+              hazard,
+              narration: playerNarration,
+            },
+            playerVisibleFacts: [playerNarration],
+            hiddenFacts: [],
+          });
+
     return {
       state: "completed" as const,
       outcomeGrade: succeeded

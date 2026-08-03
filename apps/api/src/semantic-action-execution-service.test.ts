@@ -124,24 +124,42 @@ function resolution(mode: ActionResolutionDecision["mode"]): ActionResolutionDec
 }
 
 function operationValues(input: UniversalOperationExecutionInput) {
-  const branch = input.branch as {
-    operations: Array<{ value?: unknown }>;
-  };
+  const branch = input.branch as { operations: Array<Record<string, unknown>> };
   return branch.operations;
 }
 
-describe("semantic action execution service", () => {
-  it("commits ordinary conversation through the universal executor", async () => {
-    const actorId = randomUUID();
-    const execute = vi.fn(async (_input: UniversalOperationExecutionInput) => ({
-      eventId: randomUUID(),
-      receiptId: randomUUID(),
-      symbolMap: {},
-    }));
-    const service = createSemanticActionExecutionService({
+type RecordedNonMutatingEvent = {
+  eventType: string;
+  payload: { roll: number } & Record<string, unknown>;
+};
+
+function serviceMocks() {
+  const execute = vi.fn(async (_input: UniversalOperationExecutionInput) => ({
+    eventId: randomUUID(),
+    receiptId: randomUUID(),
+    symbolMap: {},
+  }));
+  const record = vi.fn(async (input: RecordedNonMutatingEvent) => ({
+    eventId: randomUUID(),
+    receiptId: randomUUID(),
+    eventType: input.eventType,
+    idempotentReplay: false,
+  }));
+  return {
+    execute,
+    record,
+    service: createSemanticActionExecutionService({
       executor: { execute } as never,
+      nonMutatingEvents: { record } as never,
       rollSecret: "semantic-test-secret",
-    });
+    }),
+  };
+}
+
+describe("semantic action execution service", () => {
+  it("records conversation without writing actor state", async () => {
+    const actorId = randomUUID();
+    const { service, execute, record } = serviceMocks();
 
     const result = await service.execute({
       scope,
@@ -155,29 +173,56 @@ describe("semantic action execution service", () => {
     });
 
     expect(result.outcomeGrade).toBe("complete_success");
-    expect(execute).toHaveBeenCalledOnce();
-    expect(operationValues(execute.mock.calls[0]![0])).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          type: "set_state_value",
-          path: ["activity", "last_semantic_action"],
+    expect(execute).not.toHaveBeenCalled();
+    expect(record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "dialogue_occurred",
+        payload: expect.objectContaining({
+          succeeded: true,
+          frame: expect.objectContaining({ kind: "dialogue" }),
         }),
-      ]),
+      }),
     );
   });
 
-  it("commits successful combat damage as an authoritative condition operation", async () => {
+  it("records questions without creating authoritative information assets", async () => {
+    const actorId = randomUUID();
+    const { service, execute, record } = serviceMocks();
+    await service.execute({
+      scope,
+      actorId,
+      planId: randomUUID(),
+      stepId: randomUUID(),
+      idempotencyKey: "semantic:question",
+      frame: frame(actorId, "question"),
+      resolution: resolution("conversation"),
+      context: context(actorId),
+    });
+    expect(execute).not.toHaveBeenCalled();
+    expect(record).toHaveBeenCalledWith(expect.objectContaining({ eventType: "question_asked" }));
+  });
+
+  it("records failed no-effect attempts without a mutation", async () => {
+    const actorId = randomUUID();
+    const { service, execute, record } = serviceMocks();
+    await service.execute({
+      scope,
+      actorId,
+      planId: randomUUID(),
+      stepId: randomUUID(),
+      idempotencyKey: "semantic:failed",
+      frame: frame(actorId, "interact"),
+      resolution: resolution("automatic_failure"),
+      context: context(actorId),
+    });
+    expect(execute).not.toHaveBeenCalled();
+    expect(record).toHaveBeenCalledWith(expect.objectContaining({ eventType: "action_failed" }));
+  });
+
+  it("commits successful combat damage through the mutation executor", async () => {
     const actorId = randomUUID();
     const targetId = randomUUID();
-    const execute = vi.fn(async (_input: UniversalOperationExecutionInput) => ({
-      eventId: randomUUID(),
-      receiptId: randomUUID(),
-      symbolMap: {},
-    }));
-    const service = createSemanticActionExecutionService({
-      executor: { execute } as never,
-      rollSecret: "semantic-test-secret",
-    });
+    const { service, execute, record } = serviceMocks();
 
     await service.execute({
       scope,
@@ -190,6 +235,7 @@ describe("semantic action execution service", () => {
       context: context(actorId, targetId),
     });
 
+    expect(record).not.toHaveBeenCalled();
     expect(operationValues(execute.mock.calls[0]![0])).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -202,15 +248,7 @@ describe("semantic action execution service", () => {
 
   it("commits proportional injury and an active condition for hazardous self-actions", async () => {
     const actorId = randomUUID();
-    const execute = vi.fn(async (_input: UniversalOperationExecutionInput) => ({
-      eventId: randomUUID(),
-      receiptId: randomUUID(),
-      symbolMap: {},
-    }));
-    const service = createSemanticActionExecutionService({
-      executor: { execute } as never,
-      rollSecret: "semantic-test-secret",
-    });
+    const { service, execute, record } = serviceMocks();
     const hazardousFrame = frame(actorId, "interact");
     hazardousFrame.actionType = "strike";
     hazardousFrame.objective = "Strike my forehead against the doorframe";
@@ -252,6 +290,7 @@ describe("semantic action execution service", () => {
       context: context(actorId),
     });
 
+    expect(record).not.toHaveBeenCalled();
     expect(result.outcomeGrade).toBe("success_with_consequence");
     expect(result.narration).toMatch(/costs 7 condition/i);
     expect(operationValues(execute.mock.calls[0]![0])).toEqual(
@@ -273,15 +312,7 @@ describe("semantic action execution service", () => {
 
   it("uses the same deterministic roll for the same idempotency key", async () => {
     const actorId = randomUUID();
-    const execute = vi.fn(async (_input: UniversalOperationExecutionInput) => ({
-      eventId: randomUUID(),
-      receiptId: randomUUID(),
-      symbolMap: {},
-    }));
-    const service = createSemanticActionExecutionService({
-      executor: { execute } as never,
-      rollSecret: "semantic-test-secret",
-    });
+    const { service, record } = serviceMocks();
     const request = {
       scope,
       actorId,
@@ -296,15 +327,8 @@ describe("semantic action execution service", () => {
     await service.execute(request);
     await service.execute(request);
 
-    const firstValue = operationValues(execute.mock.calls[0]![0])[0]!.value as {
-      roll: number;
-      succeeded: boolean;
-    };
-    const secondValue = operationValues(execute.mock.calls[1]![0])[0]!.value as {
-      roll: number;
-      succeeded: boolean;
-    };
-    expect(firstValue.roll).toBe(secondValue.roll);
-    expect(firstValue.succeeded).toBe(secondValue.succeeded);
+    const firstRoll = record.mock.calls[0]![0].payload.roll;
+    const secondRoll = record.mock.calls[1]![0].payload.roll;
+    expect(firstRoll).toBe(secondRoll);
   });
 });
