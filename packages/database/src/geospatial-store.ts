@@ -149,9 +149,19 @@ export function createGeospatialStore(database: ReturnType<typeof createDatabase
       for (const feature of features) {
         const bounds = calculateSpatialBounds(feature.geometry);
         const sourceHash = geospatialSourceHash(feature);
-        const rows = await transaction<
-          Array<{ inserted: boolean; changed: boolean }>
-        >`
+        const existing = await transaction<Array<{ source_hash: string }>>`
+          SELECT source_hash
+          FROM source_geo.features
+          WHERE dataset_id = ${run.dataset_id}
+            AND provider_feature_id = ${feature.providerFeatureId}
+          LIMIT 1
+          FOR UPDATE
+        `;
+        if (!existing[0]) inserted += 1;
+        else if (existing[0].source_hash === sourceHash) unchanged += 1;
+        else updated += 1;
+
+        await transaction`
           INSERT INTO source_geo.features (
             dataset_id, import_run_id, provider_feature_id, feature_kind,
             geometry_type, geometry, properties,
@@ -187,13 +197,7 @@ export function createGeospatialStore(database: ReturnType<typeof createDatabase
               WHEN source_geo.features.source_hash <> EXCLUDED.source_hash THEN now()
               ELSE source_geo.features.updated_at
             END
-          RETURNING
-            (xmax = 0) AS inserted,
-            (xmax = 0 OR source_geo.features.source_hash = ${sourceHash}) AS changed
         `;
-        if (rows[0]!.inserted) inserted += 1;
-        else if (rows[0]!.changed) updated += 1;
-        else unchanged += 1;
       }
 
       await transaction`
@@ -268,7 +272,7 @@ export function createGeospatialStore(database: ReturnType<typeof createDatabase
             AND feature.min_longitude <= ${parsed.maxLongitude}
             AND feature.max_latitude >= ${parsed.minLatitude}
             AND feature.min_latitude <= ${parsed.maxLatitude}
-            AND feature.feature_kind = ANY(${kinds})
+            AND feature.feature_kind = ANY(${kinds}::text[])
           ORDER BY feature.dataset_id, feature.provider_feature_id
           LIMIT ${parsed.limit}
         `
@@ -324,8 +328,8 @@ export function createGeospatialStore(database: ReturnType<typeof createDatabase
         RETURNING spatial_entity_id, version
       `;
 
-      const entity = inserted[0]
-        ? { ...inserted[0], created: true as const }
+      const existing = inserted[0]
+        ? null
         : (
             await transaction<Array<{ spatial_entity_id: string; version: number }>>`
               SELECT spatial_entity_id, version
@@ -336,6 +340,7 @@ export function createGeospatialStore(database: ReturnType<typeof createDatabase
               LIMIT 1
             `
           )[0];
+      const entity = inserted[0] ?? existing;
       if (!entity) {
         throw new GeospatialStoreError(
           "canonical_conflict",
@@ -361,7 +366,7 @@ export function createGeospatialStore(database: ReturnType<typeof createDatabase
       return {
         spatialEntityId: entity.spatial_entity_id,
         version: entity.version,
-        created: "created" in entity ? entity.created : false,
+        created: Boolean(inserted[0]),
       };
     });
   }
