@@ -26,6 +26,31 @@ export type ReservedWorldActionRequest = {
   created: boolean;
 };
 
+export type WorldActionExecutionStageHistory = {
+  order: number;
+  type: string;
+  status: "started" | "completed" | "failed" | "waiting" | "skipped";
+  inputSummary: Record<string, unknown>;
+  outputSummary: Record<string, unknown>;
+  startedAt: string;
+  completedAt: string | null;
+};
+
+export type WorldActionHistoryRecord = {
+  requestId: string;
+  actorId: string;
+  command: string;
+  requestHash: string;
+  status: WorldActionRequestStatus;
+  planId: string | null;
+  playerSafeResult: WorldActionPlayerSafeResult | null;
+  errorCode: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  stages: WorldActionExecutionStageHistory[];
+};
+
 export class WorldActionRequestStoreError extends Error {
   constructor(
     readonly code: "idempotency_conflict" | "request_not_found" | "invalid_transition",
@@ -59,6 +84,10 @@ const legalTransitions: Record<WorldActionRequestStatus, Set<WorldActionRequestS
 
 const requestHash = (input: { actorId: string; command: string }) =>
   createHash("sha256").update(JSON.stringify(input)).digest("hex");
+
+function iso(value: Date | string | null | undefined) {
+  return value ? new Date(value).toISOString() : null;
+}
 
 export function createWorldActionRequestStore(database: ReturnType<typeof createDatabase>) {
   async function reserve(input: {
@@ -206,7 +235,96 @@ export function createWorldActionRequestStore(database: ReturnType<typeof create
     return rows[0];
   }
 
-  return { reserve, transition, stage, get };
+  async function listForActor(input: {
+    userId: string;
+    actorId: string;
+    limit?: number;
+  }): Promise<WorldActionHistoryRecord[]> {
+    const limit = Math.min(200, Math.max(1, Math.trunc(input.limit ?? 100)));
+    const rows = await database.client<
+      {
+        request_id: string;
+        actor_id: string;
+        command: string;
+        request_hash: string;
+        status: WorldActionRequestStatus;
+        plan_id: string | null;
+        player_safe_result: WorldActionPlayerSafeResult | null;
+        error_code: string | null;
+        created_at: Date | string;
+        updated_at: Date | string;
+        completed_at: Date | string | null;
+        stages: Array<{
+          order: number;
+          type: string;
+          status: WorldActionExecutionStageHistory["status"];
+          inputSummary: Record<string, unknown>;
+          outputSummary: Record<string, unknown>;
+          startedAt: string;
+          completedAt: string | null;
+        }>;
+      }[]
+    >`
+      SELECT
+        request.request_id,
+        request.actor_id,
+        request.command,
+        request.request_hash,
+        request.status,
+        request.plan_id,
+        request.player_safe_result,
+        request.error_code,
+        request.created_at,
+        request.updated_at,
+        request.completed_at,
+        COALESCE(
+          jsonb_agg(
+            jsonb_build_object(
+              'order', stage.stage_order,
+              'type', stage.stage_type,
+              'status', stage.status,
+              'inputSummary', stage.input_summary,
+              'outputSummary', stage.output_summary,
+              'startedAt', stage.started_at,
+              'completedAt', stage.completed_at
+            ) ORDER BY stage.stage_order
+          ) FILTER (WHERE stage.stage_id IS NOT NULL),
+          '[]'::jsonb
+        ) AS stages
+      FROM game.world_action_requests request
+      LEFT JOIN game.world_action_execution_stages stage
+        ON stage.request_id = request.request_id
+      WHERE request.user_id = ${input.userId}
+        AND request.actor_id = ${input.actorId}
+      GROUP BY request.request_id
+      ORDER BY request.created_at DESC
+      LIMIT ${limit}
+    `;
+    return rows.map((row) => ({
+      requestId: row.request_id,
+      actorId: row.actor_id,
+      command: row.command,
+      requestHash: row.request_hash,
+      status: row.status,
+      planId: row.plan_id,
+      playerSafeResult: row.player_safe_result,
+      errorCode: row.error_code,
+      createdAt: iso(row.created_at)!,
+      updatedAt: iso(row.updated_at)!,
+      completedAt: iso(row.completed_at),
+      stages: (row.stages || []).map((stage) => ({
+        order: Number(stage.order),
+        type: String(stage.type),
+        status: stage.status,
+        inputSummary: stage.inputSummary || {},
+        outputSummary: stage.outputSummary || {},
+        startedAt: iso(stage.startedAt)!,
+        completedAt: iso(stage.completedAt),
+      })),
+    }));
+  }
+
+  return { reserve, transition, stage, get, listForActor };
 }
 
 export type WorldActionRequestStore = ReturnType<typeof createWorldActionRequestStore>;
