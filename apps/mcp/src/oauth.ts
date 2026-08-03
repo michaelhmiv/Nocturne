@@ -6,6 +6,7 @@ const nowSeconds = () => Math.floor(Date.now() / 1000);
 
 export type AuthorizedPrincipal = {
   subject: string;
+  grantId: string;
   clientId: string;
   scopes: Set<string>;
 };
@@ -25,6 +26,8 @@ type ClientPayload = SignedPayload & {
 
 type CodePayload = SignedPayload & {
   typ: "code";
+  sub: string;
+  grantId: string;
   clientId: string;
   redirectUri: string;
   codeChallenge: string;
@@ -36,6 +39,7 @@ type CodePayload = SignedPayload & {
 type AccessPayload = SignedPayload & {
   typ: "access";
   sub: string;
+  grantId: string;
   clientId: string;
   scope: string;
   aud: string;
@@ -44,6 +48,7 @@ type AccessPayload = SignedPayload & {
 type RefreshPayload = SignedPayload & {
   typ: "refresh";
   sub: string;
+  grantId: string;
   clientId: string;
   scope: string;
   aud: string;
@@ -107,6 +112,18 @@ function normalizedUrl(value: string, errorCode: string, message: string) {
   } catch {
     throw new OAuthError(errorCode, message);
   }
+}
+
+function requiredTokenIdentity(payload: { sub?: unknown; grantId?: unknown }) {
+  if (
+    typeof payload.sub !== "string" ||
+    !payload.sub.trim() ||
+    typeof payload.grantId !== "string" ||
+    !payload.grantId.trim()
+  ) {
+    throw new Error("invalid_token");
+  }
+  return { subject: payload.sub, grantId: payload.grantId };
 }
 
 export class OAuthError extends Error {
@@ -312,24 +329,34 @@ ${errorMessage ? `<p class="error">${html(errorMessage)}</p>` : ""}
 <form method="post" action="/oauth/authorize">${hidden}
 <label for="password">Nocturne MCP password</label><input id="password" name="password" type="password" required autofocus autocomplete="current-password">
 <button type="submit">Authorize</button></form>
-<small>This grants access to the configured Nocturne account. Write tools can change in-game state.</small>
+<small>This grants access to the configured Nocturne service account. Write tools can change in-game state.</small>
 </main></body></html>`;
   }
 
-  approveAuthorization(input: URLSearchParams) {
-    const password = input.get("password") || "";
+  approveAuthorization(input: URLSearchParams, authenticatedSubject?: string) {
     const authorization = this.authorizationInput(input);
-    if (!constantTimeTextEqual(password, this.config.adminPassword)) {
-      return {
-        ok: false as const,
-        html: this.renderAuthorizationPage(input, "Incorrect password."),
-      };
+    let subject = authenticatedSubject?.trim();
+    if (!subject) {
+      const password = input.get("password") || "";
+      if (
+        !this.config.adminPassword ||
+        !constantTimeTextEqual(password, this.config.adminPassword)
+      ) {
+        return {
+          ok: false as const,
+          html: this.renderAuthorizationPage(input, "Incorrect password."),
+        };
+      }
+      subject = "nocturne-mcp-service";
     }
     const issuedAt = nowSeconds();
+    const grantId = randomBytes(18).toString("base64url");
     const code = sign(this.config.oauthSigningSecret, {
       typ: "code",
       iat: issuedAt,
       exp: issuedAt + 300,
+      sub: subject,
+      grantId,
       clientId: authorization.clientId,
       redirectUri: authorization.redirectUri,
       codeChallenge: authorization.codeChallenge,
@@ -358,6 +385,7 @@ ${errorMessage ? `<p class="error">${html(errorMessage)}</p>` : ""}
       let payload: CodePayload;
       try {
         payload = verify<CodePayload>(this.config.oauthSigningSecret, code, "code");
+        requiredTokenIdentity(payload);
       } catch {
         throw new OAuthError("invalid_grant", "Authorization code is invalid or expired.");
       }
@@ -382,13 +410,14 @@ ${errorMessage ? `<p class="error">${html(errorMessage)}</p>` : ""}
       }
       this.usedCodeHashes.add(codeHash);
       if (this.usedCodeHashes.size > 10_000) this.usedCodeHashes.clear();
-      return this.issueTokens(clientId, payload.scope, resource);
+      return this.issueTokens(payload.sub, payload.grantId, clientId, payload.scope, resource);
     }
     if (grantType === "refresh_token") {
       const raw = input.get("refresh_token") || "";
       let payload: RefreshPayload;
       try {
         payload = verify<RefreshPayload>(this.config.oauthSigningSecret, raw, "refresh");
+        requiredTokenIdentity(payload);
       } catch {
         throw new OAuthError("invalid_grant", "Refresh token is invalid or expired.");
       }
@@ -405,7 +434,7 @@ ${errorMessage ? `<p class="error">${html(errorMessage)}</p>` : ""}
       }
       this.usedRefreshHashes.add(refreshHash);
       if (this.usedRefreshHashes.size > 10_000) this.usedRefreshHashes.clear();
-      return this.issueTokens(clientId, payload.scope, resource);
+      return this.issueTokens(payload.sub, payload.grantId, clientId, payload.scope, resource);
     }
     throw new OAuthError(
       "unsupported_grant_type",
@@ -413,14 +442,20 @@ ${errorMessage ? `<p class="error">${html(errorMessage)}</p>` : ""}
     );
   }
 
-  private issueTokens(clientId: string, scope: string, resource: string) {
+  private issueTokens(
+    subject: string,
+    grantId: string,
+    clientId: string,
+    scope: string,
+    resource: string,
+  ) {
     const issuedAt = nowSeconds();
-    const subject = "nocturne-mcp-tester";
     const accessToken = sign(this.config.oauthSigningSecret, {
       typ: "access",
       iat: issuedAt,
       exp: issuedAt + this.config.accessTokenTtlSeconds,
       sub: subject,
+      grantId,
       clientId,
       scope,
       aud: resource,
@@ -437,6 +472,7 @@ ${errorMessage ? `<p class="error">${html(errorMessage)}</p>` : ""}
         iat: issuedAt,
         exp: issuedAt + this.config.refreshTokenTtlSeconds,
         sub: subject,
+        grantId,
         clientId,
         scope,
         aud: resource,
@@ -454,6 +490,7 @@ ${errorMessage ? `<p class="error">${html(errorMessage)}</p>` : ""}
     let payload: AccessPayload;
     try {
       payload = verify<AccessPayload>(this.config.oauthSigningSecret, match[1], "access");
+      requiredTokenIdentity(payload);
     } catch {
       throw new OAuthError("invalid_token", "Bearer token is invalid or expired.", 401);
     }
@@ -466,6 +503,7 @@ ${errorMessage ? `<p class="error">${html(errorMessage)}</p>` : ""}
     }
     return {
       subject: payload.sub,
+      grantId: payload.grantId,
       clientId: payload.clientId,
       scopes: new Set(payload.scope.split(/\s+/).filter(Boolean)),
     };

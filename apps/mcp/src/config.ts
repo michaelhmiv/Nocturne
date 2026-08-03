@@ -9,9 +9,8 @@ export type McpConfig = {
   apiAuthMode: ApiAuthMode;
   apiBearerToken?: string;
   oauthSigningSecret: string;
-  adminPassword: string;
+  adminPassword?: string;
   accountLinkSecret?: string;
-  linkedUserId?: string;
   allowedRedirectHosts: Set<string>;
   accessTokenTtlSeconds: number;
   refreshTokenTtlSeconds: number;
@@ -54,8 +53,7 @@ export function loadMcpConfig(env: Record<string, string | undefined> = process.
   if (apiAuthMode !== "guest" && apiAuthMode !== "bearer") {
     throw new Error("NOCTURNE_API_AUTH_MODE must be guest or bearer.");
   }
-  const apiBearerToken = env.NOCTURNE_API_TOKEN?.trim();
-  const linkedUserId = env.MCP_LINKED_USER_ID?.trim() || undefined;
+  const apiBearerToken = env.NOCTURNE_API_TOKEN?.trim() || undefined;
   const accountLinkSecret = env.MCP_ACCOUNT_LINK_SECRET?.trim()
     ? minimumLength(env.MCP_ACCOUNT_LINK_SECRET.trim(), "MCP_ACCOUNT_LINK_SECRET", 32)
     : undefined;
@@ -67,12 +65,9 @@ export function loadMcpConfig(env: Record<string, string | undefined> = process.
       "MCP_ACCOUNT_LINK_SECRET and NOCTURNE_WEB_URL must either both be configured or both be omitted.",
     );
   }
-  if (linkedUserId && !accountLinkSecret) {
-    throw new Error("MCP_LINKED_USER_ID requires MCP_ACCOUNT_LINK_SECRET.");
-  }
-  if (apiAuthMode === "bearer" && !apiBearerToken && !linkedUserId) {
+  if (apiAuthMode === "bearer" && !apiBearerToken && !accountLinkSecret) {
     throw new Error(
-      "NOCTURNE_API_TOKEN or MCP_LINKED_USER_ID is required when NOCTURNE_API_AUTH_MODE=bearer.",
+      "NOCTURNE_API_TOKEN is required for bearer mode unless Nocturne account linking is configured.",
     );
   }
 
@@ -87,11 +82,14 @@ export function loadMcpConfig(env: Record<string, string | undefined> = process.
     "MCP_OAUTH_SIGNING_SECRET",
     32,
   );
-  const adminPassword = minimumLength(
-    required(env, "MCP_ADMIN_PASSWORD"),
-    "MCP_ADMIN_PASSWORD",
-    16,
-  );
+  const adminPassword = env.MCP_ADMIN_PASSWORD?.trim()
+    ? minimumLength(env.MCP_ADMIN_PASSWORD.trim(), "MCP_ADMIN_PASSWORD", 16)
+    : undefined;
+  if (!accountLinkSecret && !adminPassword) {
+    throw new Error(
+      "MCP_ADMIN_PASSWORD is required when Nocturne account linking is not configured.",
+    );
+  }
 
   return {
     host: env.HOST?.trim() || "0.0.0.0",
@@ -104,7 +102,6 @@ export function loadMcpConfig(env: Record<string, string | undefined> = process.
     oauthSigningSecret,
     adminPassword,
     accountLinkSecret,
-    linkedUserId,
     allowedRedirectHosts,
     accessTokenTtlSeconds: positiveInteger(
       env.MCP_ACCESS_TOKEN_TTL_SECONDS,

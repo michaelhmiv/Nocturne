@@ -19,7 +19,7 @@ type FailedAuthorization = {
   blockedUntil: number;
 };
 
-const serverInfo = { name: "nocturne-mcp", title: "Nocturne", version: "0.2.0" };
+const serverInfo = { name: "nocturne-mcp", title: "Nocturne", version: "0.3.0" };
 const supportedProtocolVersions = ["2025-06-18", "2025-03-26", "2024-11-05"];
 const authorizationWindowMs = 10 * 60 * 1000;
 const authorizationBlockMs = 15 * 60 * 1000;
@@ -150,27 +150,26 @@ function clientAddress(request: IncomingMessage) {
   return forwarded || request.socket.remoteAddress || "unknown";
 }
 
-function configureLinkedAccount(config: McpConfig, userId: string, writable: boolean) {
-  if (!config.accountLinkSecret) {
-    throw new OAuthError("server_error", "MCP account linking is not configured.", 500);
-  }
-  config.linkedUserId = userId;
-  config.apiAuthMode = "bearer";
-  config.apiBearerToken = signUpstreamApiToken({
-    secret: config.accountLinkSecret,
-    userId,
-    writable,
-  });
-}
-
 export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch) {
-  if (config.linkedUserId && config.accountLinkSecret) {
-    configureLinkedAccount(config, config.linkedUserId, true);
-  }
   const oauth = new OAuthService(config);
-  const tools = createNocturneTools(config, fetchImpl);
-  const byName = new Map(tools.map((tool) => [tool.name, tool]));
+  const baseTools = createNocturneTools(config, fetchImpl);
+  const baseByName = new Map(baseTools.map((tool) => [tool.name, tool]));
   const failedAuthorizations = new Map<string, FailedAuthorization>();
+
+  function toolsForPrincipal(principal: AuthorizedPrincipal) {
+    if (!config.accountLinkSecret || !config.webBaseUrl) return baseTools;
+    const requestConfig: McpConfig = {
+      ...config,
+      apiAuthMode: "bearer",
+      apiBearerToken: signUpstreamApiToken({
+        secret: config.accountLinkSecret,
+        userId: principal.subject,
+        writable: principal.scopes.has("nocturne.write"),
+        ttlSeconds: Math.min(config.accessTokenTtlSeconds, 60 * 60),
+      }),
+    };
+    return createNocturneTools(requestConfig, fetchImpl);
+  }
 
   function assertAuthorizationAllowed(request: IncomingMessage) {
     const key = clientAddress(request);
@@ -231,7 +230,7 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
       return null;
     }
     if (request.method === "tools/list") {
-      const visible = tools.filter((tool) => principal.scopes.has(tool.requiredScope));
+      const visible = baseTools.filter((tool) => principal.scopes.has(tool.requiredScope));
       return rpcSuccess(request.id, {
         tools: visible.map(({ requiredScope: _requiredScope, execute: _execute, ...tool }) => tool),
       });
@@ -242,10 +241,12 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
           ? (request.params as Record<string, unknown>)
           : {};
       const name = typeof params.name === "string" ? params.name : "";
-      const tool = byName.get(name);
-      if (!tool) return rpcError(request.id, -32602, `Unknown tool: ${name || "(missing)"}`);
+      const definition = baseByName.get(name);
+      if (!definition) return rpcError(request.id, -32602, `Unknown tool: ${name || "(missing)"}`);
       try {
-        requireScope(principal, tool);
+        requireScope(principal, definition);
+        const tool = toolsForPrincipal(principal).find((candidate) => candidate.name === name);
+        if (!tool) throw new Error(`Tool ${name} is not available.`);
         return rpcSuccess(request.id, toolResult(await tool.execute(params.arguments)));
       } catch (error) {
         return rpcSuccess(request.id, toolError(error));
@@ -265,10 +266,10 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
           status: "ok",
           service: "nocturne-mcp",
           oauth: "configured",
-          accountAuth: config.webBaseUrl ? "nocturne_account" : "admin_passsword",
-          accountLinked: Boolean(config.apiBearerToken && config.apiAuthMode === "bearer"),
+          accountAuth: config.webBaseUrl ? "nocturne_account" : "admin_password",
+          apiIdentityMode: config.webBaseUrl ? "per_user" : config.apiAuthMode,
           apiBaseUrl: config.apiBaseUrl,
-          toolCount: tools.length,
+          toolCount: baseTools.length,
         });
       }
       if (
@@ -339,11 +340,7 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
           throw new OAuthError("access_denied", "Nocturne account authorization was invalid.", 403);
         }
         const authorization = new URLSearchParams(rawRequest);
-        const writable = (authorization.get("scope") || "").split(/\s+/).includes("nocturne.write");
-        configureLinkedAccount(config, userId, writable);
-        log("oauth_account_linked", { userId, writable });
-        authorization.set("password", config.adminPassword);
-        const approval = oauth.approveAuthorization(authorization);
+        const approval = oauth.approveAuthorization(authorization, userId);
         if (!approval.ok) {
           throw new OAuthError(
             "server_error",
@@ -351,6 +348,7 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
             500,
           );
         }
+        log("oauth_account_linked", { userId });
         return redirect(response, approval.redirect);
       }
       if (method === "POST" && url.pathname === "/oauth/token") {
@@ -378,13 +376,6 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
             config,
             response,
             error instanceof Error ? error.message : "Authorization failed.",
-          );
-        }
-        if (config.accountLinkSecret && !config.linkedUserId) {
-          return bearerChallenge(
-            config,
-            response,
-            "The linked Nocturne account session must be authorized again.",
           );
         }
         const raw = await readJson(request);
