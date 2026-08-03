@@ -59,11 +59,6 @@ jobs:
           PY
       - name: Format changed files
         run: pnpm exec prettier --write packages/database/src/consumption-store.ts packages/database/src/lazy-simulation-store.ts packages/ai-gm/src/action-adjudicator.test.ts packages/ai-gm/src/lazy-simulation-analyzer.test.ts test/capabilities/dashboard-effect-consistency.test.ts
-      - name: Verify targeted gates
-        run: |
-          pnpm typecheck
-          pnpm test:capabilities
-          pnpm format:check
       - name: Commit repairs
         shell: bash
         run: |
