@@ -19,14 +19,7 @@ const ignoredNameTokens = new Set([
   "item",
   "items",
 ]);
-const intrinsicAnatomyModifiers = new Set([
-  "bare",
-  "open",
-  "closed",
-  "left",
-  "right",
-  "own",
-]);
+const intrinsicAnatomyModifiers = new Set(["bare", "open", "closed", "left", "right", "own"]);
 const intrinsicAnatomyTokens = new Set([
   "ankle",
   "arm",
