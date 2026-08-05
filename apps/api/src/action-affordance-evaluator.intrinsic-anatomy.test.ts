@@ -88,15 +88,19 @@ function frame(actorId: string, possession: string): SemanticActionFrame {
 }
 
 describe("intrinsic anatomy possession fallback", () => {
-  it.each(["bare fist", "open right hand", "right fingertips", "left forearm", "bare palm"])(
-    "does not require inventory ownership for %s",
-    (bodyPart) => {
-      const actorId = randomUUID();
-      expect(evaluateActionAffordance(frame(actorId, bodyPart), context(actorId)).status).toBe(
-        "feasible",
-      );
-    },
-  );
+  it.each([
+    "bare fist",
+    "open right hand",
+    "right fingertips",
+    "left forearm",
+    "bare palm",
+    "right wrist",
+  ])("does not require inventory ownership for %s", (bodyPart) => {
+    const actorId = randomUUID();
+    expect(evaluateActionAffordance(frame(actorId, bodyPart), context(actorId)).status).toBe(
+      "feasible",
+    );
+  });
 
   it("does not exempt a mixed anatomy-and-item phrase", () => {
     const actorId = randomUUID();
