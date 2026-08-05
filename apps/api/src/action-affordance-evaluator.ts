@@ -19,6 +19,51 @@ const ignoredNameTokens = new Set([
   "item",
   "items",
 ]);
+const intrinsicAnatomyModifiers = new Set([
+  "bare",
+  "open",
+  "closed",
+  "left",
+  "right",
+  "own",
+]);
+const intrinsicAnatomyTokens = new Set([
+  "ankle",
+  "arm",
+  "back",
+  "body",
+  "cheek",
+  "chest",
+  "chin",
+  "ear",
+  "elbow",
+  "eye",
+  "face",
+  "finger",
+  "fingertip",
+  "fist",
+  "foot",
+  "forearm",
+  "forehead",
+  "hand",
+  "head",
+  "heel",
+  "hip",
+  "knee",
+  "knuckle",
+  "leg",
+  "mouth",
+  "neck",
+  "nose",
+  "palm",
+  "shoulder",
+  "skin",
+  "thumb",
+  "toe",
+  "tongue",
+  "torso",
+  "wrist",
+]);
 
 function factText(context: RelevanceCompiledContext) {
   return [...(context.playerKnownFacts ?? []), ...(context.authoritativeHiddenFacts ?? [])]
@@ -86,6 +131,16 @@ function nameMatches(requirement: string, entityName: string) {
   );
 }
 
+function isIntrinsicAnatomyRequirement(requirement: string) {
+  const tokens = nameTokens(requirement).filter((token) => !intrinsicAnatomyModifiers.has(token));
+  return (
+    tokens.length > 0 &&
+    tokens.every((token) =>
+      [...tokenVariants(token)].some((variant) => intrinsicAnatomyTokens.has(variant)),
+    )
+  );
+}
+
 function possessionRequirements(frame: SemanticActionFrame) {
   const typed = (frame.claims ?? [])
     .filter((claim) => claim.claimType === "possession" && claim.required)
@@ -95,7 +150,9 @@ function possessionRequirements(frame: SemanticActionFrame) {
     .filter((assumption) => assumption.startsWith(possessionPrefix))
     .map((assumption) => assumption.slice(possessionPrefix.length).trim())
     .filter(Boolean);
-  return [...new Set([...typed, ...legacy])];
+  return [...new Set([...typed, ...legacy])].filter(
+    (requirement) => !isIntrinsicAnatomyRequirement(requirement),
+  );
 }
 
 export function evaluateActionAffordance(
