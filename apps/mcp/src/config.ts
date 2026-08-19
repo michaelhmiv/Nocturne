@@ -17,7 +17,7 @@ export type McpConfig = {
   accessTokenTtlSeconds: number;
   refreshTokenTtlSeconds: number;
   requestTimeoutMs: number;
-  mode: McpMode;
+  mode?: McpMode;
 };
 
 function required(env: Record<string, string | undefined>, key: string) {
