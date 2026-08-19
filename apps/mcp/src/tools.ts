@@ -186,7 +186,7 @@ export function createNocturneTools(config: McpConfig, fetchImpl: FetchLike = fe
     readTool(
       "nocturne_health",
       "Check Nocturne health",
-      "Check the Nocturne API, worker, queue, provider, deployment, and MCP connection before running gameplay tests.",
+      "Read Nocturne service, database, worker, queue, provider, deployment, and MCP readiness. Use when diagnosing connection or runtime problems, not as part of ordinary gameplay.",
       emptySchema,
       async () => {
         const [apiHealth, operationalHealth] = await Promise.all([
@@ -203,21 +203,21 @@ export function createNocturneTools(config: McpConfig, fetchImpl: FetchLike = fe
     readTool(
       "get_world_start",
       "Read starter world",
-      "Read the player-visible starter world and residence information.",
+      "Read the player-visible starter world and residence information for onboarding.",
       emptySchema,
       async () => api.request("/v1/world/start"),
     ),
     readTool(
       "list_characters",
       "List Nocturne characters",
-      "List characters for the configured Nocturne account and identify the selected character.",
+      "List characters for the linked Nocturne account and identify the selected character.",
       emptySchema,
       async () => api.request("/v1/characters"),
     ),
     writeTool(
       "create_character",
-      "Create test character",
-      "Create a character through the same public API used by the game client.",
+      "Create character",
+      "Create a Nocturne character for the linked account.",
       {
         type: "object",
         properties: {
@@ -239,7 +239,7 @@ export function createNocturneTools(config: McpConfig, fetchImpl: FetchLike = fe
           body: JSON.stringify({
             name: requiredString(input, "name", 80),
             conceptSummary: requiredString(input, "conceptSummary", 1000),
-            originSource: "mcp_test",
+            originSource: "chatgpt",
           }),
         });
       },
@@ -247,7 +247,7 @@ export function createNocturneTools(config: McpConfig, fetchImpl: FetchLike = fe
     writeTool(
       "select_character",
       "Select character",
-      "Select the active character for subsequent natural-language actions.",
+      "Select the active character for subsequent natural-language gameplay.",
       {
         type: "object",
         properties: { characterId: { type: "string", format: "uuid" } },
@@ -290,14 +290,14 @@ export function createNocturneTools(config: McpConfig, fetchImpl: FetchLike = fe
     readTool(
       "get_scene",
       "Read current scene",
-      "Read the authoritative player-visible scene for the selected character.",
+      "Read the authoritative player-visible scene for the selected character. Use this to ground the immediate surroundings before describing or acting on them.",
       emptySchema,
       async () => api.request("/v1/persistent-world/scene"),
     ),
     readTool(
       "get_dashboard",
       "Read player dashboard",
-      "Read current location, state, effects, history, plans, and other player-visible projections.",
+      "Read current location, state, effects, recent history, plans, schedules, and other player-visible projections.",
       {
         type: "object",
         properties: { historyLimit: { type: "integer", minimum: 1, maximum: 200, default: 100 } },
@@ -312,7 +312,7 @@ export function createNocturneTools(config: McpConfig, fetchImpl: FetchLike = fe
     readTool(
       "wait_for_dashboard_change",
       "Wait for world state change",
-      "Poll the dashboard until it differs from a prior fingerprint. Use this for real-time travel and scheduled actions.",
+      "Wait until the player dashboard changes from a prior fingerprint. Use for real-time travel or scheduled actions instead of claiming completion before the world advances.",
       {
         type: "object",
         properties: {
@@ -346,7 +346,7 @@ export function createNocturneTools(config: McpConfig, fetchImpl: FetchLike = fe
     writeTool(
       "submit_action",
       "Submit natural-language action",
-      "Submit one natural-language player action to the persistent-world runtime. Do not pre-classify it or provide destination, target, or handler IDs; this tool tests the LLM interpretation and authoritative execution pipeline.",
+      "Submit one natural-language player action to Nocturne. Forward the player's intent without pre-classifying handlers, inventing target or destination IDs, or replacing open-ended intent with a fixed command catalog.",
       {
         type: "object",
         properties: {
@@ -378,7 +378,7 @@ export function createNocturneTools(config: McpConfig, fetchImpl: FetchLike = fe
     readTool(
       "list_actions",
       "List committed actions",
-      "List committed action-history records for a character and compare narration with persisted outcomes.",
+      "Read committed player action history and persisted outcomes for a character.",
       {
         type: "object",
         properties: { actorId: { type: "string", format: "uuid" } },
@@ -393,7 +393,7 @@ export function createNocturneTools(config: McpConfig, fetchImpl: FetchLike = fe
     readTool(
       "list_vehicles",
       "List vehicles",
-      "List available or owned vehicles and their current backend state.",
+      "List available or owned vehicles and their current authoritative state.",
       {
         type: "object",
         properties: { ownerId: { type: "string", format: "uuid" } },
@@ -409,7 +409,7 @@ export function createNocturneTools(config: McpConfig, fetchImpl: FetchLike = fe
     readTool(
       "get_travel_path",
       "Inspect travel path",
-      "Ask the deterministic route engine for a path and duration between authoritative location UUIDs.",
+      "Diagnostic read of the deterministic route engine between two authoritative location IDs. Ordinary travel should be expressed as natural language through submit_action.",
       {
         type: "object",
         properties: {
@@ -432,8 +432,8 @@ export function createNocturneTools(config: McpConfig, fetchImpl: FetchLike = fe
     ),
     readTool(
       "get_operator_dashboard",
-      "Read operator trace dashboard",
-      "Read the operator projection for actions, plans, steps, schedules, events, and mutations for a test actor.",
+      "Read diagnostic action trace",
+      "Diagnostic read of actions, plans, steps, schedules, events, and mutations for an actor. Use for troubleshooting or certification, not ordinary gameplay narration.",
       {
         type: "object",
         properties: {
@@ -454,8 +454,8 @@ export function createNocturneTools(config: McpConfig, fetchImpl: FetchLike = fe
     ),
     readTool(
       "inspect_world_entity",
-      "Inspect world entity",
-      "Inspect one authoritative entity, its relationships, state, history, and active plan references.",
+      "Inspect authoritative world entity",
+      "Diagnostic inspection of one authoritative entity, including relationships, state, history, and active plan references.",
       {
         type: "object",
         properties: { entityId: { type: "string", format: "uuid" } },
