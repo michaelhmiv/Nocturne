@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { McpConfig } from "../apps/mcp/src/config.js";
+import type { McpConfig, McpMode } from "../apps/mcp/src/config.js";
 import { createMcpServer } from "../apps/mcp/src/server.js";
 
 const servers: ReturnType<typeof createMcpServer>[] = [];
@@ -17,7 +17,7 @@ afterEach(async () => {
   );
 });
 
-async function start(fetchImpl: typeof fetch) {
+async function start(fetchImpl: typeof fetch, mode: McpMode = "diagnostic") {
   const config: McpConfig = {
     host: "127.0.0.1",
     port: 0,
@@ -30,6 +30,7 @@ async function start(fetchImpl: typeof fetch) {
     accessTokenTtlSeconds: 3600,
     refreshTokenTtlSeconds: 86400,
     requestTimeoutMs: 5000,
+    mode,
   };
   const server = createMcpServer(config, fetchImpl);
   servers.push(server);
@@ -102,7 +103,7 @@ async function rpc(baseUrl: string, accessToken: string, body: unknown) {
 }
 
 describe("Nocturne MCP service", () => {
-  it("publishes OAuth metadata, rotates refresh tokens, and exposes tools", async () => {
+  it("publishes OAuth metadata, rotates refresh tokens, and exposes diagnostic tools in diagnostic mode", async () => {
     const apiFetch = vi.fn<typeof fetch>(async (input) => {
       if (String(input).endsWith("/health")) {
         return new Response(JSON.stringify({ status: "ok", service: "api" }), {
@@ -164,9 +165,12 @@ describe("Nocturne MCP service", () => {
       params: { protocolVersion: "2025-06-18", clientInfo: { name: "test", version: "1" } },
     });
     expect(initialized.status).toBe(200);
-    expect(await initialized.json()).toMatchObject({
+    const initialization = await initialized.json();
+    expect(initialization).toMatchObject({
       result: { protocolVersion: "2025-06-18", serverInfo: { name: "nocturne-mcp" } },
     });
+    expect((initialization as any).result.instructions).toContain("Diagnostic tools");
+    expect((initialization as any).result.instructions).not.toContain("test the game");
 
     const listed = await rpc(baseUrl, tokens.access_token, {
       jsonrpc: "2.0",
@@ -192,6 +196,43 @@ describe("Nocturne MCP service", () => {
       const requestInit = request as RequestInit;
       expect(new Headers(requestInit.headers).get("x-nocturne-guest-mode")).toBe("1");
     }
+  });
+
+  it("exposes only gameplay tools and gameplay instructions in player mode", async () => {
+    const { baseUrl } = await start(vi.fn<typeof fetch>(), "player");
+    const tokens = await authorize(baseUrl);
+
+    const initialized = await rpc(baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 10,
+      method: "initialize",
+      params: { protocolVersion: "2025-06-18" },
+    }).then((response) => response.json() as Promise<any>);
+    expect(initialized.result.instructions).toContain("authoritative game world");
+    expect(initialized.result.instructions).not.toContain("Diagnostic tools");
+    expect(initialized.result.instructions).not.toContain("test the game");
+
+    const listed = await rpc(baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 11,
+      method: "tools/list",
+    }).then((response) => response.json() as Promise<any>);
+    const names = listed.result.tools.map((tool: { name: string }) => tool.name);
+    expect(names).toContain("submit_action");
+    expect(names).toContain("get_scene");
+    expect(names).toContain("wait_for_dashboard_change");
+    expect(names).not.toContain("nocturne_health");
+    expect(names).not.toContain("get_travel_path");
+    expect(names).not.toContain("get_operator_dashboard");
+    expect(names).not.toContain("inspect_world_entity");
+
+    const hiddenCall = await rpc(baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 12,
+      method: "tools/call",
+      params: { name: "get_operator_dashboard", arguments: { actorId: crypto.randomUUID() } },
+    }).then((response) => response.json() as Promise<any>);
+    expect(hiddenCall.error).toMatchObject({ code: -32602 });
   });
 
   it("submits only natural-language text through the persistent-world endpoint", async () => {
