@@ -15,7 +15,7 @@ concurrency:
 jobs:
   certify:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,4 +25,14 @@ jobs:
         env:
           NOCTURNE_WEB_URL: https://nocturneweb-production.up.railway.app
           NOCTURNE_MCP_URL: https://nocturnemcp-production.up.railway.app
-        run: node scripts/ci/mcp-production-certification.mjs
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          node scripts/ci/mcp-production-certification.mjs 2>&1 | tee artifacts/mcp-production-certification.log
+      - name: Upload MCP production certification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-production-certification-${{ github.run_id }}
+          path: artifacts/mcp-production-certification.log
+          if-no-files-found: error
