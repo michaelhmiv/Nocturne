@@ -177,7 +177,12 @@ async function rpc(accessToken, method, params) {
       accept: "application/json",
       "content-type": "application/json",
     },
-    body: JSON.stringify({ jsonrpc: "2.0", id, method, ...(params === undefined ? {} : { params }) }),
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id,
+      method,
+      ...(params === undefined ? {} : { params }),
+    }),
   });
   const body = await json(response, `MCP ${method}`);
   assert.equal(body.jsonrpc, "2.0");
@@ -245,7 +250,10 @@ async function inspectEntity(accessToken, entityId) {
 }
 
 async function getOperatorDashboard(accessToken, actorId) {
-  const dashboard = await payloadTool(accessToken, "get_operator_dashboard", { actorId, limit: 100 });
+  const dashboard = await payloadTool(accessToken, "get_operator_dashboard", {
+    actorId,
+    limit: 100,
+  });
   assert.equal(dashboard?.actorId, actorId);
   assert.ok(Array.isArray(dashboard?.traces));
   return dashboard;
@@ -277,7 +285,9 @@ async function submitAction(accessToken, actorId, text, options = {}) {
 
 function relationOwnershipFingerprint(entity) {
   return (entity?.relations || [])
-    .filter((relation) => /own|possess|belong/i.test(String(relation.relation_type || relation.relationType || "")))
+    .filter((relation) =>
+      /own|possess|belong/i.test(String(relation.relation_type || relation.relationType || "")),
+    )
     .map((relation) => JSON.stringify(relation))
     .sort();
 }
@@ -295,7 +305,8 @@ async function setupPlayer(accessToken) {
       "A disposable certification character used only for safe MCP action, timing, reference, and persistence tests.",
     idempotencyKey: `mcp-cert-character-${runId}`,
   });
-  const actorId = idFrom(created, ["characterId", "id"]) || idFrom(created?.character, ["id", "characterId"]);
+  const actorId =
+    idFrom(created, ["characterId", "id"]) || idFrom(created?.character, ["id", "characterId"]);
   assert.ok(actorId, `create_character did not return a character id: ${JSON.stringify(created)}`);
 
   await payloadTool(accessToken, "select_character", { characterId: actorId });
@@ -304,7 +315,10 @@ async function setupPlayer(accessToken) {
     idempotencyKey: `mcp-cert-residence-${runId}`,
   });
   const residenceId = idFrom(rent, ["residenceId"]);
-  assert.ok(residenceId, `rent_starter_residence did not return residenceId: ${JSON.stringify(rent)}`);
+  assert.ok(
+    residenceId,
+    `rent_starter_residence did not return residenceId: ${JSON.stringify(rent)}`,
+  );
   const dashboard = await getDashboard(accessToken);
   assert.equal(dashboard.dashboard.character.characterId, actorId);
   assert.equal(dashboard.dashboard.character.residenceId, residenceId);
@@ -315,22 +329,38 @@ async function runCase(regression, execute) {
   const startedAt = new Date().toISOString();
   try {
     const evidence = await execute();
-    results.push({ id: regression.id, title: regression.title, status: "passed", startedAt, evidence });
+    results.push({
+      id: regression.id,
+      title: regression.title,
+      status: "passed",
+      startedAt,
+      evidence,
+    });
     console.log(`PASS ${regression.id}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    results.push({ id: regression.id, title: regression.title, status: "failed", startedAt, error: message });
+    results.push({
+      id: regression.id,
+      title: regression.title,
+      status: "failed",
+      startedAt,
+      error: message,
+    });
     console.error(`FAIL ${regression.id}: ${message}`);
   }
 }
 
 function requireFailureSemantics(result, noun) {
   const text = resultNarrativeText(result);
-  const failedState = ["failed", "completed"].includes(String(resultState(result))) || result?.isError === true;
+  const failedState =
+    ["failed", "completed"].includes(String(resultState(result))) || result?.isError === true;
   assert.ok(failedState, `${noun} action must resolve instead of remaining ambiguous: ${text}`);
   assert.match(
     text,
-    new RegExp(`(${noun}|missing|do not have|don't have|not have|without|cannot|can't|possess)`, "i"),
+    new RegExp(
+      `(${noun}|missing|do not have|don't have|not have|without|cannot|can't|possess)`,
+      "i",
+    ),
     `${noun} failure must be player-visible: ${text}`,
   );
 }
@@ -372,7 +402,9 @@ async function certifyPreflight(accessToken) {
 
 async function certifyKnownRegressions(accessToken, player) {
   const { actorId, residenceId } = player;
-  const byId = new Map(KNOWN_MCP_PRODUCTION_REGRESSIONS.map((regression) => [regression.id, regression]));
+  const byId = new Map(
+    KNOWN_MCP_PRODUCTION_REGRESSIONS.map((regression) => [regression.id, regression]),
+  );
 
   await runCase(byId.get("certification-entities-inspectable"), async () => {
     const [actor, residence] = await Promise.all([
@@ -380,8 +412,16 @@ async function certifyKnownRegressions(accessToken, player) {
       inspectEntity(accessToken, residenceId),
     ]);
     return {
-      actor: { entityId: actor.entityId, version: actor.version, origin: actor.provenance?.[0]?.source_type },
-      residence: { entityId: residence.entityId, version: residence.version, locationId: residence.locationId },
+      actor: {
+        entityId: actor.entityId,
+        version: actor.version,
+        origin: actor.provenance?.[0]?.source_type,
+      },
+      residence: {
+        entityId: residence.entityId,
+        version: residence.version,
+        locationId: residence.locationId,
+      },
     };
   });
 
@@ -400,7 +440,10 @@ async function certifyKnownRegressions(accessToken, player) {
       toLocationId,
       speedFactor: 1,
     });
-    assert.ok(path && typeof path === "object", "dynamic starter unit must have a route to the starter alley");
+    assert.ok(
+      path && typeof path === "object",
+      "dynamic starter unit must have a route to the starter alley",
+    );
     return { fromLocationId, toLocationId, path };
   });
 
@@ -412,14 +455,21 @@ async function certifyKnownRegressions(accessToken, player) {
       requireFailureSemantics(result, id.includes("sandwich") ? "sandwich" : "pistol");
       const requestId = resultRequestId(result);
       const after = await inspectEntity(accessToken, actorId);
-      assert.equal(after.version, before.version, `${id} must not increment character entity version`);
+      assert.equal(
+        after.version,
+        before.version,
+        `${id} must not increment character entity version`,
+      );
       assert.equal(
         after.simulationVersion,
         before.simulationVersion,
         `${id} must not increment character simulation version`,
       );
       if (id.includes("pistol")) {
-        const newEvents = eventTypes(after).slice(0, Math.max(0, eventTypes(after).length - eventTypes(before).length));
+        const newEvents = eventTypes(after).slice(
+          0,
+          Math.max(0, eventTypes(after).length - eventTypes(before).length),
+        );
         assert.ok(
           !newEvents.some((eventType) => /discharge|gunshot|shoot|firearm_fired/i.test(eventType)),
           `missing pistol cannot create a discharge event: ${newEvents.join(", ")}`,
@@ -441,14 +491,24 @@ async function certifyKnownRegressions(accessToken, player) {
     const text = resultNarrativeText(result);
     assert.match(text, /knife|missing|do not have|don't have|not have|possess/i);
     const requestId = resultRequestId(result);
-    return { requestId, state: resultState(result), text, trace: requestId ? await getTrace(accessToken, actorId, requestId) : null };
+    return {
+      requestId,
+      state: resultState(result),
+      text,
+      trace: requestId ? await getTrace(accessToken, actorId, requestId) : null,
+    };
   });
 
   await runCase(byId.get("dialogue-claim-does-not-create-ownership"), async () => {
     const scene = await getScene(accessToken);
     const candidates = [...(scene.nearbyEntities || []), ...(scene.knownEntities || [])];
-    const target = candidates.find((entity) => /chair/i.test(entity.name)) || candidates.find((entity) => /table|desk/i.test(entity.name));
-    assert.ok(target?.entityId, "starter unit must expose a chair/table/desk fixture for claim-causality certification");
+    const target =
+      candidates.find((entity) => /chair/i.test(entity.name)) ||
+      candidates.find((entity) => /table|desk/i.test(entity.name));
+    assert.ok(
+      target?.entityId,
+      "starter unit must expose a chair/table/desk fixture for claim-causality certification",
+    );
     const before = await inspectEntity(accessToken, target.entityId);
     const ownershipBefore = relationOwnershipFingerprint(before);
     const result = await submitAction(
@@ -456,41 +516,64 @@ async function certifyKnownRegressions(accessToken, player) {
       actorId,
       `Say out loud, '${target.name} belongs to me.'`,
     );
-    assert.notEqual(result?.isError, true, `dialogue claim failed unexpectedly: ${resultNarrativeText(result)}`);
+    assert.notEqual(
+      result?.isError,
+      true,
+      `dialogue claim failed unexpectedly: ${resultNarrativeText(result)}`,
+    );
     const after = await inspectEntity(accessToken, target.entityId);
-    assert.equal(after.ownerId, before.ownerId, "dialogue narration cannot assign authoritative ownership");
+    assert.equal(
+      after.ownerId,
+      before.ownerId,
+      "dialogue narration cannot assign authoritative ownership",
+    );
     assert.deepEqual(
       relationOwnershipFingerprint(after),
       ownershipBefore,
       "dialogue narration cannot create an ownership relation",
     );
     const requestId = resultRequestId(result);
-    return { targetId: target.entityId, ownerId: after.ownerId, requestId, trace: requestId ? await getTrace(accessToken, actorId, requestId) : null };
+    return {
+      targetId: target.entityId,
+      ownerId: after.ownerId,
+      requestId,
+      trace: requestId ? await getTrace(accessToken, actorId, requestId) : null,
+    };
   });
 
   await runCase(byId.get("search-materializes-discovery"), async () => {
     const regression = byId.get("search-materializes-discovery");
     const beforeScene = await getScene(accessToken);
     const beforeIds = new Set(
-      [...(beforeScene.nearbyEntities || []), ...(beforeScene.knownEntities || [])].map((entity) => entity.entityId),
+      [...(beforeScene.nearbyEntities || []), ...(beforeScene.knownEntities || [])].map(
+        (entity) => entity.entityId,
+      ),
     );
     const beforeActor = await inspectEntity(accessToken, actorId);
     const result = await submitAction(accessToken, actorId, regression.prompts[0]);
     assert.notEqual(result?.isError, true, `search must resolve: ${resultNarrativeText(result)}`);
     assert.notEqual(resultState(result), "waiting_for_clarification");
     const afterScene = await getScene(accessToken);
-    const newEntities = [...(afterScene.nearbyEntities || []), ...(afterScene.knownEntities || [])].filter(
-      (entity) => !beforeIds.has(entity.entityId),
-    );
+    const newEntities = [
+      ...(afterScene.nearbyEntities || []),
+      ...(afterScene.knownEntities || []),
+    ].filter((entity) => !beforeIds.has(entity.entityId));
     const afterActor = await inspectEntity(accessToken, actorId);
     const newEventText = (afterActor.recentEvents || [])
-      .slice(0, Math.max(0, (afterActor.recentEvents || []).length - (beforeActor.recentEvents || []).length))
+      .slice(
+        0,
+        Math.max(
+          0,
+          (afterActor.recentEvents || []).length - (beforeActor.recentEvents || []).length,
+        ),
+      )
       .map((event) => JSON.stringify(event))
       .join("\n");
     const requestId = resultRequestId(result);
     const trace = requestId ? await getTrace(accessToken, actorId, requestId) : null;
     assert.ok(
-      newEntities.length > 0 || /search|discover|materializ|found/i.test(`${newEventText}\n${JSON.stringify(trace)}`),
+      newEntities.length > 0 ||
+        /search|discover|materializ|found/i.test(`${newEventText}\n${JSON.stringify(trace)}`),
       "search must leave authoritative discovery/materialization evidence",
     );
     for (const entity of newEntities.slice(0, 3)) await inspectEntity(accessToken, entity.entityId);
@@ -501,60 +584,115 @@ async function certifyKnownRegressions(accessToken, player) {
     const regression = byId.get("current-unit-deixis");
     const scene = await getScene(accessToken);
     const result = await submitAction(accessToken, actorId, regression.prompts[0]);
-    assert.notEqual(result?.isError, true, `current-unit action must resolve: ${resultNarrativeText(result)}`);
-    assert.notEqual(resultState(result), "waiting_for_clarification", "'my current unit' must resolve without asking which unit");
+    assert.notEqual(
+      result?.isError,
+      true,
+      `current-unit action must resolve: ${resultNarrativeText(result)}`,
+    );
+    assert.notEqual(
+      resultState(result),
+      "waiting_for_clarification",
+      "'my current unit' must resolve without asking which unit",
+    );
     const requestId = resultRequestId(result);
     const trace = requestId ? await getTrace(accessToken, actorId, requestId) : null;
-    assert.ok(trace?.contextCompilationId, "current-unit deixis must compile authoritative context");
+    assert.ok(
+      trace?.contextCompilationId,
+      "current-unit deixis must compile authoritative context",
+    );
     return { requestId, locationId: scene.location?.locationId, trace };
   });
 
   await runCase(byId.get("unique-vehicle-insufficient-funds"), async () => {
     const before = await inspectEntity(accessToken, actorId);
     const vehiclesPayload = await payloadTool(accessToken, "list_vehicles");
-    const vehicles = Array.isArray(vehiclesPayload) ? vehiclesPayload : vehiclesPayload?.vehicles || [];
+    const vehicles = Array.isArray(vehiclesPayload)
+      ? vehiclesPayload
+      : vehiclesPayload?.vehicles || [];
     const cash = Number((await getDashboard(accessToken)).dashboard.character.cashOnPerson || 0);
     const unowned = vehicles.filter((vehicle) => !vehicle.ownerId);
     const listing = unowned
       .map((vehicle) => ({
         ...vehicle,
-        priceCents: Number(vehicle.priceCents ?? vehicle.price_cents ?? vehicle.state?.priceCents ?? 0),
+        priceCents: Number(
+          vehicle.priceCents ?? vehicle.price_cents ?? vehicle.state?.priceCents ?? 0,
+        ),
       }))
       .filter((vehicle) => vehicle.priceCents > cash)
       .sort((a, b) => b.priceCents - a.priceCents)[0];
-    assert.ok(listing, `production needs a unique unowned vehicle listing priced above starter cash ${cash}`);
+    assert.ok(
+      listing,
+      `production needs a unique unowned vehicle listing priced above starter cash ${cash}`,
+    );
     const name = listing.name || listing.title || listing.state?.name;
-    assert.ok(name, `vehicle listing must have a player-addressable name: ${JSON.stringify(listing)}`);
-    const result = await submitAction(accessToken, actorId, `Buy the ${name} for its listed price.`);
+    assert.ok(
+      name,
+      `vehicle listing must have a player-addressable name: ${JSON.stringify(listing)}`,
+    );
+    const result = await submitAction(
+      accessToken,
+      actorId,
+      `Buy the ${name} for its listed price.`,
+    );
     const text = resultNarrativeText(result);
-    assert.match(text, /insufficient|cannot afford|can't afford|not enough|funds|money|cash/i, `purchase must reach insufficient-funds validation: ${text}`);
+    assert.match(
+      text,
+      /insufficient|cannot afford|can't afford|not enough|funds|money|cash/i,
+      `purchase must reach insufficient-funds validation: ${text}`,
+    );
     const after = await inspectEntity(accessToken, actorId);
-    assert.equal(after.version, before.version, "insufficient-funds purchase must not mutate character version");
+    assert.equal(
+      after.version,
+      before.version,
+      "insufficient-funds purchase must not mutate character version",
+    );
     const requestId = resultRequestId(result);
-    return { listing: { vehicleId: listing.vehicleId, name, priceCents: listing.priceCents }, cash, requestId, trace: requestId ? await getTrace(accessToken, actorId, requestId) : null };
+    return {
+      listing: { vehicleId: listing.vehicleId, name, priceCents: listing.priceCents },
+      cash,
+      requestId,
+      trace: requestId ? await getTrace(accessToken, actorId, requestId) : null,
+    };
   });
 
   await runCase(byId.get("bare-fist-is-anatomy"), async () => {
     const regression = byId.get("bare-fist-is-anatomy");
     const result = await submitAction(accessToken, actorId, regression.prompts[0]);
     const text = resultNarrativeText(result);
-    assert.notEqual(result?.isError, true, `bare-fist action must reach action resolution: ${text}`);
+    assert.notEqual(
+      result?.isError,
+      true,
+      `bare-fist action must reach action resolution: ${text}`,
+    );
     assert.notEqual(resultState(result), "waiting_for_clarification");
-    assert.doesNotMatch(text, /missing (?:a )?fist|do not have (?:a )?fist|don't have (?:a )?fist|possess (?:a )?fist/i);
+    assert.doesNotMatch(
+      text,
+      /missing (?:a )?fist|do not have (?:a )?fist|don't have (?:a )?fist|possess (?:a )?fist/i,
+    );
     const requestId = resultRequestId(result);
     const trace = requestId ? await getTrace(accessToken, actorId, requestId) : null;
-    assert.ok(trace?.planId, "bare-fist action must create an executable plan rather than an inventory prerequisite failure");
+    assert.ok(
+      trace?.planId,
+      "bare-fist action must create an executable plan rather than an inventory prerequisite failure",
+    );
     return { requestId, trace };
   });
 
   await runCase(byId.get("failed-movement-terminalizes"), async () => {
     const regression = byId.get("failed-movement-terminalizes");
     const result = await submitAction(accessToken, actorId, regression.prompts[0]);
-    assert.notEqual(resultState(result), "waiting_for_clarification", "physically impossible movement should terminalize, not remain unresolved");
+    assert.notEqual(
+      resultState(result),
+      "waiting_for_clarification",
+      "physically impossible movement should terminalize, not remain unresolved",
+    );
     const requestId = resultRequestId(result);
     assert.ok(requestId, `failed movement must expose requestId: ${resultNarrativeText(result)}`);
     const trace = await getTrace(accessToken, actorId, requestId);
-    assert.ok(["failed", "completed"].includes(trace.status), `failed movement request must be terminal, got ${trace.status}`);
+    assert.ok(
+      ["failed", "completed"].includes(trace.status),
+      `failed movement request must be terminal, got ${trace.status}`,
+    );
     assert.ok(trace.completedAt, "terminalized movement request must have completedAt");
     assert.ok(
       !(trace.stages || []).some((stage) => ["started", "waiting"].includes(stage.status)),
@@ -574,12 +712,24 @@ async function certifyKnownRegressions(accessToken, player) {
     const regression = byId.get("clarification-reply-resumes-original-request");
     const beforeScene = await getScene(accessToken);
     const first = await submitAction(accessToken, actorId, regression.prompts[0]);
-    assert.equal(resultState(first), "waiting_for_clarification", `ambiguous movement must ask for clarification: ${resultNarrativeText(first)}`);
+    assert.equal(
+      resultState(first),
+      "waiting_for_clarification",
+      `ambiguous movement must ask for clarification: ${resultNarrativeText(first)}`,
+    );
     const firstRequestId = resultRequestId(first);
     assert.ok(firstRequestId);
     const second = await submitAction(accessToken, actorId, regression.prompts[1]);
-    assert.notEqual(second?.isError, true, `clarification reply must resume play: ${resultNarrativeText(second)}`);
-    assert.notEqual(resultState(second), "waiting_for_clarification", `clarification reply must resolve the pending destination: ${resultNarrativeText(second)}`);
+    assert.notEqual(
+      second?.isError,
+      true,
+      `clarification reply must resume play: ${resultNarrativeText(second)}`,
+    );
+    assert.notEqual(
+      resultState(second),
+      "waiting_for_clarification",
+      `clarification reply must resolve the pending destination: ${resultNarrativeText(second)}`,
+    );
     const secondRequestId = resultRequestId(second);
     assert.ok(secondRequestId);
     const [firstTrace, secondTrace, afterScene] = await Promise.all([
@@ -590,24 +740,46 @@ async function certifyKnownRegressions(accessToken, player) {
     assert.equal(firstTrace.status, "waiting_for_clarification");
     const resumedEvidence =
       beforeScene.location?.locationId !== afterScene.location?.locationId ||
-      (afterScene.scheduledWork || []).some((work) => /travel|move|walk/i.test(`${work.kind} ${work.description}`)) ||
-      /walk|move|travel|hallway|destination/i.test(JSON.stringify(secondTrace.playerSafeResult || secondTrace.authoritativeResult || {}));
-    assert.ok(resumedEvidence, "clarification reply must continue the original movement intent, not become an unrelated standalone turn");
-    return { firstRequestId, secondRequestId, beforeLocationId: beforeScene.location?.locationId, afterLocationId: afterScene.location?.locationId, firstTrace, secondTrace };
+      (afterScene.scheduledWork || []).some((work) =>
+        /travel|move|walk/i.test(`${work.kind} ${work.description}`),
+      ) ||
+      /walk|move|travel|hallway|destination/i.test(
+        JSON.stringify(secondTrace.playerSafeResult || secondTrace.authoritativeResult || {}),
+      );
+    assert.ok(
+      resumedEvidence,
+      "clarification reply must continue the original movement intent, not become an unrelated standalone turn",
+    );
+    return {
+      firstRequestId,
+      secondRequestId,
+      beforeLocationId: beforeScene.location?.locationId,
+      afterLocationId: afterScene.location?.locationId,
+      firstTrace,
+      secondTrace,
+    };
   });
 
   await runCase(byId.get("idempotent-replay-original-records"), async () => {
     const regression = byId.get("idempotent-replay-original-records");
     const key = `mcp-cert-replay-${runId}`;
-    const first = await submitAction(accessToken, actorId, regression.prompts[0], { idempotencyKey: key });
+    const first = await submitAction(accessToken, actorId, regression.prompts[0], {
+      idempotencyKey: key,
+    });
     assert.notEqual(first?.isError, true, resultNarrativeText(first));
     const firstRequestId = resultRequestId(first);
     assert.ok(firstRequestId);
     const firstTrace = await getTrace(accessToken, actorId, firstRequestId);
-    const replay = await submitAction(accessToken, actorId, regression.prompts[0], { idempotencyKey: key });
+    const replay = await submitAction(accessToken, actorId, regression.prompts[0], {
+      idempotencyKey: key,
+    });
     assert.notEqual(replay?.isError, true, resultNarrativeText(replay));
     const replayRequestId = resultRequestId(replay);
-    assert.equal(replayRequestId, firstRequestId, "idempotent replay must return original requestId");
+    assert.equal(
+      replayRequestId,
+      firstRequestId,
+      "idempotent replay must return original requestId",
+    );
     const replayTrace = await getTrace(accessToken, actorId, replayRequestId);
     assert.equal(replayTrace.planId, firstTrace.planId);
     assert.equal(replayTrace.createdAt, firstTrace.createdAt);
@@ -616,13 +788,20 @@ async function certifyKnownRegressions(accessToken, player) {
       (firstTrace.stages || []).map((stage) => stage.stageId),
       "idempotent replay must return original execution records rather than duplicating stages",
     );
-    return { idempotencyKey: key, requestId: firstRequestId, planId: firstTrace.planId, stageIds: firstTrace.stages.map((stage) => stage.stageId) };
+    return {
+      idempotencyKey: key,
+      requestId: firstRequestId,
+      planId: firstTrace.planId,
+      stageIds: firstTrace.stages.map((stage) => stage.stageId),
+    };
   });
 
   await runCase(byId.get("idempotency-conflict-rejected"), async () => {
     const regression = byId.get("idempotency-conflict-rejected");
     const key = `mcp-cert-conflict-${runId}`;
-    const first = await submitAction(accessToken, actorId, regression.prompts[0], { idempotencyKey: key });
+    const first = await submitAction(accessToken, actorId, regression.prompts[0], {
+      idempotencyKey: key,
+    });
     assert.notEqual(first?.isError, true, resultNarrativeText(first));
     const firstRequestId = resultRequestId(first);
     assert.ok(firstRequestId);
@@ -632,21 +811,41 @@ async function certifyKnownRegressions(accessToken, player) {
     });
     const payload = toolPayload(conflict);
     const text = resultNarrativeText(conflict);
-    assert.equal(conflict?.isError, true, `same idempotency key with different command must be rejected: ${text}`);
+    assert.equal(
+      conflict?.isError,
+      true,
+      `same idempotency key with different command must be rejected: ${text}`,
+    );
     assert.ok(
-      payload?.status === 409 || /idempoten|conflict|same.*key|different.*request/i.test(`${text}\n${JSON.stringify(payload)}`),
+      payload?.status === 409 ||
+        /idempoten|conflict|same.*key|different.*request/i.test(
+          `${text}\n${JSON.stringify(payload)}`,
+        ),
       `idempotency conflict must be identifiable: ${text}`,
     );
     const firstTrace = await getTrace(accessToken, actorId, firstRequestId);
-    return { idempotencyKey: key, originalRequestId: firstRequestId, conflict: payload, originalTrace: firstTrace };
+    return {
+      idempotencyKey: key,
+      originalRequestId: firstRequestId,
+      conflict: payload,
+      originalTrace: firstTrace,
+    };
   });
 
   await runCase(byId.get("explicit-two-minute-exercise-real-time"), async () => {
     const regression = byId.get("explicit-two-minute-exercise-real-time");
     const startedMs = Date.now();
     const result = await submitAction(accessToken, actorId, regression.prompts[0]);
-    assert.notEqual(result?.isError, true, `timed exercise must schedule: ${resultNarrativeText(result)}`);
-    assert.equal(resultState(result), "waiting", `two-minute exercise must not complete synchronously: ${resultNarrativeText(result)}`);
+    assert.notEqual(
+      result?.isError,
+      true,
+      `timed exercise must schedule: ${resultNarrativeText(result)}`,
+    );
+    assert.equal(
+      resultState(result),
+      "waiting",
+      `two-minute exercise must not complete synchronously: ${resultNarrativeText(result)}`,
+    );
     const requestId = resultRequestId(result);
     assert.ok(requestId);
     const trace = await getTrace(accessToken, actorId, requestId);
@@ -654,11 +853,19 @@ async function certifyKnownRegressions(accessToken, player) {
     assert.ok(planId, "two-minute exercise must have a planId");
     const initialActor = await inspectEntity(accessToken, actorId);
     const scheduled = (initialActor.scheduledWork || []).find(
-      (work) => (work.plan_id || work.planId) === planId && !["completed", "cancelled", "failed"].includes(String(work.status)),
+      (work) =>
+        (work.plan_id || work.planId) === planId &&
+        !["completed", "cancelled", "failed"].includes(String(work.status)),
     );
-    assert.ok(scheduled, `two-minute exercise must create scheduled work: ${JSON.stringify(initialActor.scheduledWork)}`);
+    assert.ok(
+      scheduled,
+      `two-minute exercise must create scheduled work: ${JSON.stringify(initialActor.scheduledWork)}`,
+    );
     const resolvesAt = Date.parse(String(scheduled.resolves_at || scheduled.resolvesAt));
-    assert.ok(Number.isFinite(resolvesAt), `scheduled work must have resolvesAt: ${JSON.stringify(scheduled)}`);
+    assert.ok(
+      Number.isFinite(resolvesAt),
+      `scheduled work must have resolvesAt: ${JSON.stringify(scheduled)}`,
+    );
     const scheduledDelayMs = resolvesAt - startedMs;
     assert.ok(
       scheduledDelayMs >= 110_000 && scheduledDelayMs <= 140_000,
@@ -680,10 +887,24 @@ async function certifyKnownRegressions(accessToken, player) {
       finalTrace = await getTrace(accessToken, actorId, requestId);
       if (["completed", "failed"].includes(finalTrace.status)) break;
     }
-    assert.equal(finalTrace.status, "completed", `two-minute exercise did not complete after real time: ${JSON.stringify(finalTrace)}`);
+    assert.equal(
+      finalTrace.status,
+      "completed",
+      `two-minute exercise did not complete after real time: ${JSON.stringify(finalTrace)}`,
+    );
     const elapsedMs = Date.now() - startedMs;
-    assert.ok(elapsedMs >= 110_000, `two-minute exercise completed before the real-time lower bound: ${elapsedMs}ms`);
-    return { requestId, planId, resolvesAt: new Date(resolvesAt).toISOString(), scheduledDelaySeconds: Math.round(scheduledDelayMs / 1000), observedElapsedSeconds: Math.round(elapsedMs / 1000), trace: finalTrace };
+    assert.ok(
+      elapsedMs >= 110_000,
+      `two-minute exercise completed before the real-time lower bound: ${elapsedMs}ms`,
+    );
+    return {
+      requestId,
+      planId,
+      resolvesAt: new Date(resolvesAt).toISOString(),
+      scheduledDelaySeconds: Math.round(scheduledDelayMs / 1000),
+      observedElapsedSeconds: Math.round(elapsedMs / 1000),
+      trace: finalTrace,
+    };
   });
 }
 
@@ -710,5 +931,9 @@ const report = {
   results,
 };
 console.log(JSON.stringify(report, null, 2));
-assert.equal(results.length, KNOWN_MCP_PRODUCTION_REGRESSIONS.length, "every known regression must execute");
+assert.equal(
+  results.length,
+  KNOWN_MCP_PRODUCTION_REGRESSIONS.length,
+  "every known regression must execute",
+);
 assert.equal(failed.length, 0, `${failed.length} known MCP production regression(s) failed`);

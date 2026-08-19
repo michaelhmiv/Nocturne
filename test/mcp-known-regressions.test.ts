@@ -60,14 +60,12 @@ describe("known MCP production regression catalog", () => {
     expect(timed?.oracle).toBe("real_time_120_seconds");
 
     expect(
-      KNOWN_MCP_PRODUCTION_REGRESSIONS.find(
-        ({ id }) => id === "idempotent-replay-original-records",
-      )?.prompts,
+      KNOWN_MCP_PRODUCTION_REGRESSIONS.find(({ id }) => id === "idempotent-replay-original-records")
+        ?.prompts,
     ).toHaveLength(1);
     expect(
-      KNOWN_MCP_PRODUCTION_REGRESSIONS.find(
-        ({ id }) => id === "idempotency-conflict-rejected",
-      )?.prompts,
+      KNOWN_MCP_PRODUCTION_REGRESSIONS.find(({ id }) => id === "idempotency-conflict-rejected")
+        ?.prompts,
     ).toHaveLength(2);
   });
 
