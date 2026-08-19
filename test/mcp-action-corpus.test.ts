@@ -56,7 +56,7 @@ describe("MCP semantic action corpus", () => {
       const before = requests.filter(({ url }) =>
         url.includes("/v1/persistent-world/actions"),
       ).length;
-      const result = await submit!.execute({ command: testCase.prompt });
+      const result = await submit!.execute({ text: testCase.prompt });
       expect(result).toBeTruthy();
       const actionRequests = requests.filter(({ url }) =>
         url.includes("/v1/persistent-world/actions"),
@@ -94,7 +94,7 @@ describe("MCP semantic action corpus", () => {
       "Repair the engine for two hours.",
       "Walk through the solid wall.",
     ];
-    for (const prompt of prompts) await submit.execute({ command: prompt });
+    for (const prompt of prompts) await submit.execute({ text: prompt });
     expect(bodies.map((body) => body.command)).toEqual(prompts);
     expect(bodies.every((body) => !("actionType" in body))).toBe(true);
   });
