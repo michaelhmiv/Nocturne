@@ -1,4 +1,5 @@
 export type ApiAuthMode = "guest" | "bearer";
+export type McpMode = "player" | "diagnostic";
 
 export type McpConfig = {
   host: string;
@@ -16,6 +17,7 @@ export type McpConfig = {
   accessTokenTtlSeconds: number;
   refreshTokenTtlSeconds: number;
   requestTimeoutMs: number;
+  mode: McpMode;
 };
 
 function required(env: Record<string, string | undefined>, key: string) {
@@ -53,6 +55,10 @@ export function loadMcpConfig(env: Record<string, string | undefined> = process.
   const apiAuthMode = (env.NOCTURNE_API_AUTH_MODE || "guest").trim().toLowerCase();
   if (apiAuthMode !== "guest" && apiAuthMode !== "bearer") {
     throw new Error("NOCTURNE_API_AUTH_MODE must be guest or bearer.");
+  }
+  const mode = (env.MCP_MODE || "diagnostic").trim().toLowerCase();
+  if (mode !== "player" && mode !== "diagnostic") {
+    throw new Error("MCP_MODE must be player or diagnostic.");
   }
   const apiBearerToken = env.NOCTURNE_API_TOKEN?.trim() || undefined;
   const accountLinkSecret = env.MCP_ACCOUNT_LINK_SECRET?.trim()
@@ -124,5 +130,6 @@ export function loadMcpConfig(env: Record<string, string | undefined> = process.
       120_000,
       "MCP_REQUEST_TIMEOUT_MS",
     ),
+    mode,
   };
 }
