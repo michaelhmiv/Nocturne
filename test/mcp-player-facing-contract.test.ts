@@ -25,9 +25,14 @@ describe("ChatGPT player-facing MCP contract", () => {
     expect(byName.get("submit_action")?.description).toContain("natural-language player action");
     expect(byName.get("submit_action")?.description).toContain("fixed command catalog");
     expect(byName.get("get_operator_dashboard")?.description).toContain("Diagnostic");
-    expect(byName.get("nocturne_health")?.description).toContain("not as part of ordinary gameplay");
+    expect(byName.get("nocturne_health")?.description).toContain(
+      "not as part of ordinary gameplay",
+    );
 
-    const publicText = tools.map((tool) => `${tool.title} ${tool.description}`).join("\n").toLowerCase();
+    const publicText = tools
+      .map((tool) => `${tool.title} ${tool.description}`)
+      .join("\n")
+      .toLowerCase();
     expect(publicText).not.toContain("create test character");
     expect(publicText).not.toContain("for a test actor");
     expect(publicText).not.toContain("running gameplay tests");
