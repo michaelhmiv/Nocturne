@@ -24,6 +24,12 @@ const supportedProtocolVersions = ["2025-06-18", "2025-03-26", "2024-11-05"];
 const authorizationWindowMs = 10 * 60 * 1000;
 const authorizationBlockMs = 15 * 60 * 1000;
 const maximumAuthorizationFailures = 5;
+const diagnosticToolNames = new Set([
+  "nocturne_health",
+  "get_travel_path",
+  "get_operator_dashboard",
+  "inspect_world_entity",
+]);
 
 function log(event: string, details: Record<string, unknown> = {}) {
   console.log(JSON.stringify({ level: "info", service: "nocturne-mcp", event, ...details }));
@@ -150,14 +156,26 @@ function clientAddress(request: IncomingMessage) {
   return forwarded || request.socket.remoteAddress || "unknown";
 }
 
+function toolAvailableInMode(config: McpConfig, tool: McpTool) {
+  return config.mode === "diagnostic" || !diagnosticToolNames.has(tool.name);
+}
+
+function serverInstructions(config: McpConfig) {
+  if (config.mode === "diagnostic") {
+    return "Use Nocturne as the authoritative game world for the linked account. Submit player intent through submit_action as natural language without inventing internal IDs or pre-classifying handlers. Ground narration in player-visible scene and dashboard state. For timed travel or scheduled actions, wait for authoritative state changes instead of claiming completion early. Diagnostic tools may be used when troubleshooting or certifying behavior.";
+  }
+  return "Use Nocturne as the authoritative game world for the linked account. Read the selected character and player-visible scene when context is needed. Submit player intent through submit_action as natural language without inventing internal IDs or pre-classifying handlers. Ground narration in returned world state. For timed travel or scheduled actions, use the dashboard and wait-for-change tools instead of claiming completion early.";
+}
+
 export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch) {
   const oauth = new OAuthService(config);
   const baseTools = createNocturneTools(config, fetchImpl);
-  const baseByName = new Map(baseTools.map((tool) => [tool.name, tool]));
+  const exposedBaseTools = baseTools.filter((tool) => toolAvailableInMode(config, tool));
+  const baseByName = new Map(exposedBaseTools.map((tool) => [tool.name, tool]));
   const failedAuthorizations = new Map<string, FailedAuthorization>();
 
   function toolsForPrincipal(principal: AuthorizedPrincipal) {
-    if (!config.accountLinkSecret || !config.webBaseUrl) return baseTools;
+    if (!config.accountLinkSecret || !config.webBaseUrl) return exposedBaseTools;
     const requestConfig: McpConfig = {
       ...config,
       apiAuthMode: "bearer",
@@ -168,7 +186,9 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
         ttlSeconds: Math.min(config.accessTokenTtlSeconds, 60 * 60),
       }),
     };
-    return createNocturneTools(requestConfig, fetchImpl);
+    return createNocturneTools(requestConfig, fetchImpl).filter((tool) =>
+      toolAvailableInMode(requestConfig, tool),
+    );
   }
 
   function assertAuthorizationAllowed(request: IncomingMessage) {
@@ -218,8 +238,7 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
         protocolVersion,
         capabilities: { tools: { listChanged: false } },
         serverInfo,
-        instructions:
-          "Use Nocturne tools to test the game through its public APIs. Submit player intent only through submit_action as natural language. After each write, inspect the scene, dashboard, and operator traces to verify durable state.",
+        instructions: serverInstructions(config),
       });
     }
     if (request.method === "ping") return rpcSuccess(request.id, {});
@@ -230,7 +249,7 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
       return null;
     }
     if (request.method === "tools/list") {
-      const visible = baseTools.filter((tool) => principal.scopes.has(tool.requiredScope));
+      const visible = exposedBaseTools.filter((tool) => principal.scopes.has(tool.requiredScope));
       return rpcSuccess(request.id, {
         tools: visible.map(({ requiredScope: _requiredScope, execute: _execute, ...tool }) => tool),
       });
@@ -270,7 +289,8 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
           accountAuth: config.webBaseUrl ? "nocturne_account" : "admin_password",
           apiIdentityMode: config.webBaseUrl ? "per_user" : config.apiAuthMode,
           apiBaseUrl: config.apiBaseUrl,
-          toolCount: baseTools.length,
+          mode: config.mode,
+          toolCount: exposedBaseTools.length,
         });
       }
       if (
