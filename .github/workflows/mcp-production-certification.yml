@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: mcp-production-certification
@@ -25,6 +26,7 @@ jobs:
         with:
           node-version: 22
       - name: Run OAuth and MCP production certification
+        id: certification
         env:
           NOCTURNE_WEB_URL: https://nocturneweb-production.up.railway.app
           NOCTURNE_MCP_URL: https://nocturnemcp-production.up.railway.app
@@ -39,3 +41,34 @@ jobs:
           name: mcp-production-certification-${{ github.run_id }}
           path: artifacts/mcp-production-certification.log
           if-no-files-found: error
+      - name: Publish certification summary to epic
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CERT_OUTCOME: ${{ steps.certification.outcome }}
+        run: |
+          {
+            echo "### MCP Production Certification — ${CERT_OUTCOME}"
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "- Trigger: \`${GITHUB_EVENT_NAME}\`"
+            echo
+            echo "<details><summary>Case summary</summary>"
+            echo
+            echo '```text'
+            if [[ -f artifacts/mcp-production-certification.log ]]; then
+              summary_lines="$(grep -E '^\s*"(status|passed|failed|expectedCases|id|title|error)"\s*:' artifacts/mcp-production-certification.log || true)"
+              if [[ -n "${summary_lines}" ]]; then
+                printf '%s\n' "${summary_lines}" | tail -n 180
+              else
+                tail -n 80 artifacts/mcp-production-certification.log
+              fi
+            else
+              echo "Certification log was not created."
+            fi
+            echo '```'
+            echo
+            echo "</details>"
+          } > artifacts/mcp-production-certification-summary.md
+          gh issue comment 113 --repo "${GITHUB_REPOSITORY}" --body-file artifacts/mcp-production-certification-summary.md
