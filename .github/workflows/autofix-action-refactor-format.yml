@@ -16,7 +16,7 @@ jobs:
   format:
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
-      (startsWith(github.head_ref, 'feat/') || startsWith(github.head_ref, 'test/'))
+      (startsWith(github.head_ref, 'feat/') || startsWith(github.head_ref, 'test/') || startsWith(github.head_ref, 'fix/mcp-production-cert-consent'))
     runs-on: ubuntu-24.04
     env:
       HEAD_REF: ${{ github.head_ref }}
@@ -24,6 +24,51 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref }}
+      - name: Update production certification consent flow
+        if: startsWith(github.head_ref, 'fix/mcp-production-cert-consent')
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/ci/mcp-production-certification.mjs")
+          text = path.read_text()
+          old = '''  const linked = await request(webAuthorizeUrl, { method: "GET" });
+          assert.equal(linked.status, 302, "Nocturne account linking must redirect to the MCP callback");
+          const accountCallbackUrl = requiredLocation(linked, "Nocturne account linking");
+          assert.equal(new URL(accountCallbackUrl).origin, new URL(mcpBaseUrl).origin);
+          '''
+          new = '''  const linked = await request(webAuthorizeUrl, { method: "GET" });
+          assert.equal(linked.status, 200, "Nocturne account linking must show account confirmation");
+          const confirmationHtml = await linked.text();
+          const hiddenValue = (name) => {
+            const match = confirmationHtml.match(new RegExp(`name="${name}" value="([^"]*)"`));
+            assert.ok(match?.[1], `Nocturne account confirmation must include ${name}`);
+            return match[1];
+          };
+          const oauthRequest = hiddenValue("oauth_request");
+          const callbackValue = hiddenValue("callback");
+          const consentToken = hiddenValue("consent_token");
+          const approval = await request(`${webBaseUrl}/api/mcp/authorize`, {
+            method: "POST",
+            headers: { "content-type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              oauth_request: oauthRequest,
+              callback: callbackValue,
+              consent_token: consentToken,
+            }),
+          });
+          assert.equal(approval.status, 200, "Nocturne account confirmation must approve the MCP connection");
+          const approvalHtml = await approval.text();
+          const callbackMatch = approvalHtml.match(/<a class="button" href="([^"]+)"/i);
+          assert.ok(callbackMatch?.[1], "Nocturne account approval must expose the MCP callback");
+          const accountCallbackUrl = callbackMatch[1].replaceAll("&amp;", "&");
+          assert.equal(new URL(accountCallbackUrl).origin, new URL(mcpBaseUrl).origin);
+          '''
+          if old in text:
+              path.write_text(text.replace(old, new, 1))
+          elif "Nocturne account linking must show account confirmation" not in text:
+              raise SystemExit("expected OAuth certification block was not found")
+          PY
       - uses: pnpm/action-setup@v4
         with:
           version: 11.17.0
