@@ -139,8 +139,34 @@ async function authorize() {
   assert.equal(new URL(webAuthorizeUrl).origin, webOrigin);
 
   const linked = await request(webAuthorizeUrl, { method: "GET" });
-  assert.equal(linked.status, 302, "Nocturne account linking must redirect to the MCP callback");
-  const accountCallbackUrl = requiredLocation(linked, "Nocturne account linking");
+  assert.equal(linked.status, 200, "Nocturne account linking must show account confirmation");
+  const confirmationHtml = await linked.text();
+  const hiddenValue = (name) => {
+    const match = confirmationHtml.match(new RegExp(`name="${name}" value="([^"]*)"`));
+    assert.ok(match?.[1], `Nocturne account confirmation must include ${name}`);
+    return match[1];
+  };
+  const oauthRequest = hiddenValue("oauth_request");
+  const callbackValue = hiddenValue("callback");
+  const consentToken = hiddenValue("consent_token");
+  const approval = await request(`${webBaseUrl}/api/mcp/authorize`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      oauth_request: oauthRequest,
+      callback: callbackValue,
+      consent_token: consentToken,
+    }),
+  });
+  assert.equal(
+    approval.status,
+    200,
+    "Nocturne account confirmation must approve the MCP connection",
+  );
+  const approvalHtml = await approval.text();
+  const callbackMatch = approvalHtml.match(/<a class="button" href="([^"]+)"/i);
+  assert.ok(callbackMatch?.[1], "Nocturne account approval must expose the MCP callback");
+  const accountCallbackUrl = callbackMatch[1].replaceAll("&amp;", "&");
   assert.equal(new URL(accountCallbackUrl).origin, new URL(mcpBaseUrl).origin);
 
   const callback = await request(accountCallbackUrl, { method: "GET" });
