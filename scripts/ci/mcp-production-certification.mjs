@@ -419,10 +419,10 @@ async function certifyPreflight(accessToken) {
   const health = await payloadTool(accessToken, "nocturne_health");
   assert.equal(health?.api?.status, "ok");
   assert.equal(health?.operational?.status, "ready");
-  assert.equal(health?.operational?.database?.ready, true);
-  assert.equal(health?.operational?.database?.migrationsReady, true);
-  assert.equal(health?.operational?.worker?.configured, true);
-  assert.equal(health?.operational?.worker?.online, true);
+  assert.equal(health?.operational?.dependencies?.database?.ready, true);
+  assert.equal(health?.operational?.dependencies?.database?.migrationsReady, true);
+  assert.equal(health?.operational?.dependencies?.worker?.configured, true);
+  assert.equal(health?.operational?.dependencies?.worker?.online, true);
   return health;
 }
 
