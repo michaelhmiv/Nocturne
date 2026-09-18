@@ -66,12 +66,14 @@ function errorDiagnostics(error: unknown, depth = 0): Record<string, unknown> {
 }
 
 export function instrumentAiClient(
-  client: Pick<AiProviderClient, "generateStructured">,
+  client: Pick<AiProviderClient, "generateStructured" | "generateText">,
   telemetry?: GameplayTelemetryWriter,
-): Pick<AiProviderClient, "generateStructured"> {
+): Pick<AiProviderClient, "generateStructured" | "generateText"> {
   return new Proxy(client, {
     get(target, property, receiver) {
-      if (property !== "generateStructured") return Reflect.get(target, property, receiver);
+      if (property !== "generateStructured" && property !== "generateText") {
+        return Reflect.get(target, property, receiver);
+      }
       return async (...args: any[]) => {
         const request = args[0] as {
           task?: string;
@@ -81,8 +83,10 @@ export function instrumentAiClient(
           jsonSchema?: { name?: string; description?: string };
         };
         const startedAt = Date.now();
+        const inferenceMode = property === "generateText" ? "text" : "structured";
         const traceId = currentGameplayTraceId(`provider-${request.task || "unknown"}`);
         const requestDetails = {
+          inferenceMode,
           schemaName: request.jsonSchema?.name,
           promptCharacters: request.prompt?.length || 0,
           systemCharacters: request.system?.length || 0,
@@ -100,9 +104,8 @@ export function instrumentAiClient(
           details: requestDetails,
         });
         try {
-          const result = await (target.generateStructured as (...values: any[]) => Promise<any>)(
-            ...args,
-          );
+          const method = target[property] as (...values: any[]) => Promise<any>;
+          const result = await method.apply(target, args);
           await writeGameplayTelemetry(telemetry, {
             timestamp: new Date().toISOString(),
             level: "info",
@@ -141,7 +144,7 @@ export function instrumentAiClient(
         }
       };
     },
-  }) as Pick<AiProviderClient, "generateStructured">;
+  }) as Pick<AiProviderClient, "generateStructured" | "generateText">;
 }
 
 export function instrumentAiDecisionClient(
