@@ -35,21 +35,32 @@ await writeFile(
 const requested = process.env.EVAL_MODELS?.split(",")
   .map((value) => value.trim())
   .filter(Boolean);
-const candidates = requested || [
-  "deepseek/deepseek-v4-flash",
-  "deepseek/deepseek-v4.1-flash",
-  "google/gemini-3.7-flash",
-  "openai/gpt-5.6-luna",
-];
-const models = candidates.map((id) => catalog.find((model) => model.id === id)).filter(Boolean);
+const candidates = requested?.length
+  ? requested
+  : [
+      "~typesafe/jev-latest",
+      "google/gemini-3.7-flash",
+      "~deepseek/deepseek-flash-latest",
+    ];
+// OpenRouter moving aliases are valid request IDs even when /models omits the alias itself.
+// Preserve them for direct contract testing instead of treating catalog absence as unavailability.
+const models = candidates.map((id) => {
+  const listed = catalog.find((model) => model.id === id);
+  return listed
+    ? { ...listed, catalogListed: true }
+    : { id, pricing: null, supported_parameters: [], catalogListed: false };
+});
 await writeFile(
   `${directory}/catalog-selection.json`,
   JSON.stringify(
     {
       requested: candidates,
-      missing: candidates.filter((id) => !models.some((model) => model.id === id)),
-      selected: models.map(({ id, pricing, supported_parameters }) => ({
+      missingFromCatalog: candidates.filter(
+        (id) => !models.some((model) => model.id === id && model.catalogListed),
+      ),
+      selected: models.map(({ id, pricing, supported_parameters, catalogListed }) => ({
         id,
+        catalogListed,
         pricing,
         supported_parameters,
       })),
@@ -59,7 +70,7 @@ await writeFile(
   ),
 );
 if (models.length < 2)
-  throw new Error("Fewer than two requested models available; inspect catalog-selection.json.");
+  throw new Error("Fewer than two requested model IDs configured; inspect catalog-selection.json.");
 const cases = [
   [
     "missing-gun",
