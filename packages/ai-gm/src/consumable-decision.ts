@@ -240,7 +240,10 @@ function deterministicEffects(input: {
   if (effectiveRisk > 0 && !["ordinary_food", "nonalcoholic_drink"].includes(substanceKind)) {
     risks.push({
       description: "Adverse reaction",
-      chanceBasisPoints: Math.min(8_000, 500 + effectiveRisk * 1_250 + Math.max(0, amount - 1) * 500),
+      chanceBasisPoints: Math.min(
+        8_000,
+        500 + effectiveRisk * 1_250 + Math.max(0, amount - 1) * 500,
+      ),
       resourceDeltas:
         effectProfile === "toxic_systemic"
           ? [
