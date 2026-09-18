@@ -1,14 +1,12 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import {
   ACTION_PARSE_POLICY_VERSION,
-  CONSUMABLE_ANALYSIS_POLICY_VERSION,
   CONSUMABLE_DECISION_POLICY_VERSION,
   EVENT_NARRATION_POLICY_VERSION,
   createAiDecisionClientFromEnv,
   createAiProviderClientFromEnv,
   resolveAiDecisionConfigFromEnv,
   resolveAiProviderConfigFromEnv,
-  analyzeConsumable,
   decideConsumableFastPath,
   deterministicActionFallback,
   deterministicNarrationFallback,
@@ -186,8 +184,8 @@ export function createActionService(
       if (!consumptionStore) {
         throw new Error("The authoritative consumption store is not configured.");
       }
-      if (!aiConfigured) {
-        throw new Error("An AI provider is required to resolve open-ended consumable semantics.");
+      if (!decisionConfigured) {
+        throw new Error("Jev is required to resolve consumable semantics.");
       }
 
       const consumptionContext = await consumptionStore.buildAnalysisRequest({
@@ -196,79 +194,46 @@ export function createActionService(
         rawText: input.rawText,
       });
       const analysisInputHash = hash(consumptionContext);
-      let analysis: ConsumableAnalysis | undefined;
-
-      if (decisionConfigured) {
-        const decisionRun = await store.startAiRun({
-          task: "analyze_consumable",
-          authority: "authoritative",
-          requestedModel: decisionConfiguration.model,
-          policyVersion: CONSUMABLE_DECISION_POLICY_VERSION,
-          inputHash: analysisInputHash,
-          metadata: {
-            actorId: input.actorId,
-            idempotencyKey,
-            candidateCount: consumptionContext.candidates.length,
-            inferenceMode: "jev_decision",
-          },
-        });
-        try {
-          const decision = await decideConsumableFastPath(decisionClient, consumptionContext);
-          await store.finishAiRun(
-            decisionRun,
-            decision.actualModel,
-            decision.providerRequestId,
-            hash({
-              fastPathEligible: decision.fastPathEligible,
-              fallbackReason: decision.fallbackReason || null,
-              analysis: decision.analysis,
-            }),
-          );
-          if (decision.fastPathEligible && decision.analysis) {
-            analysis = decision.analysis;
-          }
-        } catch (error) {
-          await store.failAiRun(
-            decisionRun,
-            error instanceof Error && "code" in error
-              ? String((error as { code: unknown }).code)
-              : "consumable_decision_failed",
+      const decisionRun = await store.startAiRun({
+        task: "analyze_consumable",
+        authority: "authoritative",
+        requestedModel: decisionConfiguration.model,
+        policyVersion: CONSUMABLE_DECISION_POLICY_VERSION,
+        inputHash: analysisInputHash,
+        metadata: {
+          actorId: input.actorId,
+          idempotencyKey,
+          candidateCount: consumptionContext.candidates.length,
+          inferenceMode: "jev_decision",
+        },
+      });
+      let analysis: ConsumableAnalysis;
+      try {
+        const decision = await decideConsumableFastPath(decisionClient, consumptionContext);
+        await store.finishAiRun(
+          decisionRun,
+          decision.actualModel,
+          decision.providerRequestId,
+          hash({
+            fastPathEligible: decision.fastPathEligible,
+            fallbackReason: decision.fallbackReason || null,
+            analysis: decision.analysis,
+          }),
+        );
+        if (!decision.fastPathEligible || !decision.analysis) {
+          throw new Error(
+            `Jev could not resolve consumable semantics: ${decision.fallbackReason || "low confidence"}.`,
           );
         }
-      }
-
-      if (!analysis) {
-        const analysisRun = await store.startAiRun({
-          task: "analyze_consumable",
-          authority: "authoritative",
-          requestedModel,
-          policyVersion: CONSUMABLE_ANALYSIS_POLICY_VERSION,
-          inputHash: analysisInputHash,
-          metadata: {
-            actorId: input.actorId,
-            idempotencyKey,
-            candidateCount: consumptionContext.candidates.length,
-            inferenceMode: "qwen_generation_fallback",
-          },
-        });
-        try {
-          const result = await analyzeConsumable(client, consumptionContext);
-          analysis = result.data;
-          await store.finishAiRun(
-            analysisRun,
-            result.actualModel,
-            result.providerRequestId,
-            hash(analysis),
-          );
-        } catch (error) {
-          await store.failAiRun(
-            analysisRun,
-            error instanceof Error && "code" in error
-              ? String((error as { code: unknown }).code)
-              : "consumable_analysis_failed",
-          );
-          throw error;
-        }
+        analysis = decision.analysis;
+      } catch (error) {
+        await store.failAiRun(
+          decisionRun,
+          error instanceof Error && "code" in error
+            ? String((error as { code: unknown }).code)
+            : "consumable_decision_failed",
+        );
+        throw error;
       }
 
       const mechanics = resolveConsumptionMechanics(analysis, seed);
@@ -283,7 +248,7 @@ export function createActionService(
           seed,
           analysis,
           mechanics,
-          policyVersion: CONSUMABLE_ANALYSIS_POLICY_VERSION,
+          policyVersion: CONSUMABLE_DECISION_POLICY_VERSION,
           analysisInputHash,
         });
       } catch (error) {
