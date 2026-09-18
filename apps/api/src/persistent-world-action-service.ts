@@ -595,6 +595,7 @@ export function createPersistentWorldActionService(dependencies: {
             kind: fastDecision.kind,
             actionType: fastDecision.actionType,
             selectedEntityIds: resolvedEntityIds,
+            selectedEntityRoles: fastDecision.selectedEntityRoles,
             context,
           });
           plannerMode = "jev_fast_path";
