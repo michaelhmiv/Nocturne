@@ -308,8 +308,7 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
       payload: Record<string, unknown>;
     }) => {
       const hintedActionType =
-        typeof payload.actionType === "string" &&
-        /^[a-z][a-z0-9_]{0,63}$/.test(payload.actionType)
+        typeof payload.actionType === "string" && /^[a-z][a-z0-9_]{0,63}$/.test(payload.actionType)
           ? payload.actionType
           : kind === "consume"
             ? "consume"
