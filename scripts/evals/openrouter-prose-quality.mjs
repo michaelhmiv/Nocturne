@@ -84,7 +84,8 @@ async function judgeGroup(group, groupIndex) {
     headers,
     body: JSON.stringify({
       model: judgeModel,
-      max_tokens: 1800,
+      reasoning: { enabled: false },
+      max_tokens: 4000,
       response_format: {
         type: "json_schema",
         json_schema: {
@@ -97,7 +98,7 @@ async function judgeGroup(group, groupIndex) {
         {
           role: "system",
           content:
-            "You are evaluating player-facing prose for a persistent text MMO. Score each candidate independently, not relative to the others. FIDELITY is the highest priority. The committed facts are a closed world: adding a concrete action mechanism, NPC reaction, movement method, body sensation, object property, scenery, payment method, causal explanation, possession state, location detail, or other event detail not explicitly supported counts as invention even when plausible. Connective phrasing and non-factual rhythm are allowed. Naturalness means fluent human prose. Immersion means vivid/engaging without fabricating facts. Concision rewards economical prose. StyleFit evaluates the requested narration/newspaper/dialogue style. Overall must heavily penalize invented concrete facts or contradictions.",
+            "You are evaluating player-facing prose for a persistent text MMO. Score each candidate independently, not relative to the others. FIDELITY is the highest priority. The committed facts are a closed world: adding a concrete action mechanism, NPC reaction, movement method, body sensation, object property, scenery, payment method, causal explanation, possession state, location detail, or other event detail not explicitly supported counts as invention even when plausible. Connective phrasing and non-factual rhythm are allowed. Naturalness means fluent human prose. Immersion means engaging prose without fabricating facts. Concision rewards economical prose. StyleFit evaluates the requested narration/newspaper/dialogue style. SCORE SCALE FOR EVERY NUMERIC FIELD: 5 = excellent / fully satisfies the criterion; 4 = strong with only a minor flaw; 3 = acceptable with noticeable flaws; 2 = weak with substantial flaws; 1 = poor; 0 = unusable or opposite of the criterion. A narration you describe as exact, complete, faithful, natural, or fully compliant should normally score 5, not 1. Overall must heavily penalize invented concrete facts or contradictions. Return every required field for every candidate.",
         },
         {
           role: "user",
@@ -120,6 +121,34 @@ async function judgeGroup(group, groupIndex) {
   const content = payload.choices?.[0]?.message?.content;
   if (!content) throw new Error("Judge returned no content.");
   const decoded = JSON.parse(content);
+  if (!Array.isArray(decoded.scores)) {
+    throw new Error("Judge response did not contain scores.");
+  }
+  const required = [
+    "candidateId",
+    "fidelity",
+    "naturalness",
+    "immersion",
+    "concision",
+    "styleFit",
+    "contradiction",
+    "inventedConcreteFacts",
+    "overall",
+    "notes",
+  ];
+  if (
+    decoded.scores.length !== ordered.length ||
+    decoded.scores.some(
+      (score) =>
+        !score ||
+        required.some((field) => !(field in score)) ||
+        !Array.isArray(score.inventedConcreteFacts),
+    )
+  ) {
+    throw new Error(
+      `Judge returned an incomplete score set for group ${group[0].id} repetition ${group[0].repetition}.`,
+    );
+  }
   const byId = new Map(ordered.map((item) => [item.candidateId, item]));
   return decoded.scores.map((score) => {
     const mapped = byId.get(score.candidateId);
