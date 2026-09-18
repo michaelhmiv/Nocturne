@@ -1,11 +1,13 @@
-import { z } from "zod";
 import {
   ParsedActionEnvelopeSchema,
   type ActionExecutionResponse,
   type ParsedActionEnvelope,
   type SubmitActionRequest,
 } from "@nocturne/contracts";
-import { AiProviderClient, type StructuredGenerationResult } from "./ai-provider.js";
+import {
+  AiProviderClient,
+  type TextGenerationResult,
+} from "./ai-provider.js";
 
 export const ACTION_PARSE_POLICY_VERSION = "action-parse-v3";
 export const EVENT_NARRATION_POLICY_VERSION = "event-narration-v3";
@@ -133,17 +135,6 @@ export function deterministicActionFallback(
   };
 }
 
-const NarrationEnvelopeSchema = z.object({ narration: z.string().min(1).max(4_000) });
-const narrationSchema = {
-  name: "nocturne_event_narration",
-  schema: {
-    type: "object",
-    additionalProperties: false,
-    required: ["narration"],
-    properties: { narration: { type: "string" } },
-  },
-} as const;
-
 type NarrationInput = Omit<ActionExecutionResponse, "narration" | "idempotentReplay"> & {
   factsToPreserve: string[];
   hiddenFactsToExclude: string[];
@@ -260,17 +251,17 @@ export function assertNarrationConsistentWithCommittedEvent(
 }
 
 export async function narrateCommittedEvent(
-  client: AiProviderClient,
+  client: Pick<AiProviderClient, "generateText">,
   input: NarrationInput,
-): Promise<StructuredGenerationResult<{ narration: string }>> {
-  const result = await client.generateStructured({
+): Promise<TextGenerationResult> {
+  const result = await client.generateText({
     task: "narrate_event",
-    system: `Narrate only the committed Nocturne event. Policy ${EVENT_NARRATION_POLICY_VERSION}. Preserve every supplied fact and never reveal excluded facts. The structured event is the sole authority: do not add travel, location progress, mission results, inventory use, death, collapse, injury, unconsciousness, or other state changes that are not explicitly committed. Write immersive player-facing prose. Never mention actor IDs, target IDs, database IDs, enum names, raw intent structures, calculation traces, JSON, truncation, or internal implementation terms. Refer to the player as "you" and use supplied human-readable names when available.`,
+    system: `Narrate only the committed Nocturne event. Policy ${EVENT_NARRATION_POLICY_VERSION}. Treat the committed event as a closed world. Preserve supplied facts and never reveal excluded facts. Do not invent a concrete action mechanism, movement method, body reaction, NPC reaction, sensory detail, object property, payment method, cause, identity, travel progress, mission result, inventory use, possession change, death, collapse, injury, unconsciousness, or other state change that is not explicitly committed. You may add connective phrasing and grounded tone only when they imply no new concrete fact. Never mention actor IDs, target IDs, database IDs, enum names, raw intent structures, calculation traces, JSON, truncation, or implementation terms. Refer to the player as "you" and use supplied human-readable names when available. Return only concise player-facing prose with no labels or commentary.`,
     prompt: JSON.stringify(input),
-    jsonSchema: narrationSchema,
-    validator: NarrationEnvelopeSchema,
+    maxTokens: 480,
+    temperature: 0.35,
   });
-  assertNarrationConsistentWithCommittedEvent(result.data.narration, input);
+  assertNarrationConsistentWithCommittedEvent(result.text, input);
   return result;
 }
 
