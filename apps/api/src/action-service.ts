@@ -94,7 +94,7 @@ export function createActionService(
     userId: string,
     rawInput: unknown,
     idempotencyKey: string = randomUUID(),
-    hints: { actionType?: ActionType } = {},
+    hints: { actionType?: string } = {},
   ): Promise<ActionExecutionResponse> {
     const prior = await store.findByIdempotency(userId, idempotencyKey);
     if (prior) return prior;
