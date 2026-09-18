@@ -268,6 +268,9 @@ jobs:
       AI_JSON_MODE: "true"
       AI_SEND_TEMPERATURE: "true"
       AI_TIMEOUT_MS: "10000"
+      AI_DECISION_MODEL: nocturne-certification-decision-model
+      AI_DECISION_ENDPOINT: http://127.0.0.1:4010/api/alpha/decisions
+      AI_DECISION_TIMEOUT_MS: "10000"
       NOCTURNE_API_URL: http://127.0.0.1:3101
       ACTION_INTEGRATION_RESULTS: artifacts/action-integration-results.json
       API_LOG_PATH: artifacts/api.ndjson
@@ -361,6 +364,9 @@ jobs:
       AI_CREATIVE_MODEL: nocturne-certification-model
       AI_THINKING_MODE: omit
       AI_TIMEOUT_MS: "10000"
+      AI_DECISION_MODEL: nocturne-certification-decision-model
+      AI_DECISION_ENDPOINT: http://127.0.0.1:4010/api/alpha/decisions
+      AI_DECISION_TIMEOUT_MS: "10000"
       API_URL: http://127.0.0.1:3101
       PLAYWRIGHT_HTML_OUTPUT_DIR: artifacts/playwright-report
       FAKE_AI_TRANSCRIPT: artifacts/fake-ai-provider.ndjson

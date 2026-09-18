@@ -1,70 +1,110 @@
-# AI provider and model policy
+# AI decision and generation policy
 
-## Runtime configuration
+## Runtime architecture
 
-Nocturne uses an OpenAI-compatible chat-completions adapter. The active provider and model are server-controlled through Railway variables; player input can never select or override either one.
+Nocturne separates **decision inference** from **generation**.
 
-Primary variables:
+**Jev / OpenRouter Decisions API** is the preferred low-latency decision layer. It receives bounded state plus typed Choice, Score, and Noul questions. It is used where the valid answer space can be enumerated safely: action routing, candidate/reference matching, ambiguity, plausibility buckets, reaction choices, severity bands, newsworthiness decisions, and similar classifications.
 
-| Variable                 | Purpose                                                                          |
-| ------------------------ | -------------------------------------------------------------------------------- |
-| `AI_PROVIDER`            | `deepseek`, `openai`, `openrouter`, or `openai_compatible`                       |
-| `AI_MODEL`               | Default model ID for every task                                                  |
-| `AI_AUTHORITATIVE_MODEL` | Optional override for planning, semantic analysis, and other authoritative tasks |
-| `AI_CREATIVE_MODEL`      | Optional override for narration and other creative tasks                         |
-| `AI_BASE_URL`            | Provider base URL; required for `openai_compatible`                              |
-| `AI_API_KEY`             | Generic provider key; overrides a provider-specific key                          |
-| `AI_THINKING_MODE`       | `enabled`, `disabled`, or `omit`                                                 |
-| `AI_JSON_MODE`           | Whether to send OpenAI-compatible JSON response mode                             |
-| `AI_MAX_TOKENS`          | Maximum generated tokens per structured call                                     |
-| `AI_TIMEOUT_MS`          | Provider request timeout                                                         |
-| `AI_EXTRA_BODY_JSON`     | Optional provider-specific request fields as a JSON object                       |
+**Qwen3.7 Flash / OpenRouter chat completions** is the preferred generative layer. It is used for narration, dialogue wording, newspaper prose, memory summaries, content descriptions, and rich/open-ended structured proposals that cannot be represented as bounded Jev questions.
 
-Provider-specific fallback keys are `DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, and `OPENROUTER_API_KEY`.
+**Deterministic backend code remains authoritative.** Neither model owns inventory, money, ownership, location, access, physical state, clocks, rolls, legal state, idempotency, or database writes. AI answers are evidence used by server code, never commits.
 
-The production default is:
+## Production configuration
+
+| Variable                 | Purpose                                                                 |
+| ------------------------ | ----------------------------------------------------------------------- |
+| `AI_PROVIDER`            | Generation provider. Production default: `openrouter`                   |
+| `AI_GENERATIVE_MODEL`    | Preferred generation model. Default: `qwen/qwen3.7-flash`               |
+| `AI_MODEL`               | Backward-compatible generation-model alias                              |
+| `AI_AUTHORITATIVE_MODEL` | Transitional override for rich structured generation tasks              |
+| `AI_CREATIVE_MODEL`      | Optional override for prose/creative generation                         |
+| `AI_BASE_URL`            | Generation provider base URL                                            |
+| `AI_DECISION_MODEL`      | Jev decision model. Default: `~typesafe/jev-latest`                     |
+| `AI_DECISION_ENDPOINT`   | OpenRouter Decisions endpoint                                           |
+| `AI_DECISION_TIMEOUT_MS` | Hard decision timeout; default 5000 ms                                  |
+| `AI_DECISION_API_KEY`    | Optional separate decision key; otherwise reuses OpenRouter/generic key |
+| `OPENROUTER_API_KEY`     | Preferred shared production credential                                  |
+| `AI_API_KEY`             | Generic generation credential override                                  |
+| `AI_THINKING_MODE`       | Qwen/OpenRouter generation setting; normally `omit`                     |
+| `AI_JSON_MODE`           | Request JSON-object mode for structured generation                      |
+| `AI_MAX_TOKENS`          | Maximum generated tokens per structured call                            |
+| `AI_TIMEOUT_MS`          | Generation timeout                                                      |
+
+Recommended production values:
 
 ```text
-AI_PROVIDER=deepseek
-AI_MODEL=deepseek-v4-flash
-AI_AUTHORITATIVE_MODEL=deepseek-v4-flash
-AI_CREATIVE_MODEL=deepseek-v4-flash
-AI_BASE_URL=https://api.deepseek.com
-AI_THINKING_MODE=disabled
+AI_PROVIDER=openrouter
+AI_GENERATIVE_MODEL=qwen/qwen3.7-flash
+AI_MODEL=qwen/qwen3.7-flash
+AI_AUTHORITATIVE_MODEL=qwen/qwen3.7-flash
+AI_CREATIVE_MODEL=qwen/qwen3.7-flash
+AI_BASE_URL=https://openrouter.ai/api/v1
+AI_DECISION_MODEL=~typesafe/jev-latest
+AI_DECISION_ENDPOINT=https://openrouter.ai/api/alpha/decisions
+AI_DECISION_TIMEOUT_MS=5000
+AI_THINKING_MODE=omit
 ```
 
-Changing the provider or model requires a Railway variable update and service redeployment, not a code change. The effective non-secret configuration is exposed at `GET /v1/system/ai-provider` for operational verification.
+## Routing policy
 
-## Task policy
+The synchronous player-action path is optimized in this order:
 
-| Task                                 | Authority     | Player override |
-| ------------------------------------ | ------------- | --------------- |
-| Parse action intent                  | Authoritative | No              |
-| Resolve persistent entity references | Authoritative | No              |
-| Plan persistent world actions        | Authoritative | No              |
-| Analyze arbitrary consumables        | Authoritative | No              |
-| Analyze searches and materialization | Authoritative | No              |
-| Simulate elapsed entity time         | Authoritative | No              |
-| Normalize generated content          | Authoritative | No              |
-| Propose adjudication factors         | Authoritative | No              |
-| Plan NPC actions                     | Authoritative | No              |
-| Summarize persistent memory          | Authoritative | No              |
-| Brainstorm player content            | Creative      | No              |
-| Narrate committed events             | Creative      | No              |
-| Private character assistant          | Creative      | No              |
+1. Compile authoritative/player-safe context deterministically.
+2. Build and deterministically shortlist persistent reference candidates.
+3. Make **one batched Jev decision request**. It can answer the action kind, ambiguity, multi-step requirement, and per-candidate reference probabilities together.
+4. If Jev is high-confidence and the request is a supported single-step action, deterministic code constructs the persistent plan directly.
+5. If the request is compound, ambiguous, low-confidence, a search, or movement requiring richer payload construction, fall back to the Qwen structured planner.
+6. The backend adjudicates mechanics and commits authoritative events/receipts.
+7. Qwen generates player-facing prose only from committed/player-safe results.
 
-Authority classification controls default temperature and model-class selection. It never grants the model authority to write world state.
+This means ordinary interactions should not pay for a generative planner call before execution. Qwen is a fallback for semantic complexity and a post-commit prose layer.
 
-## Structured output
+## Jev decision rules
 
-Structured calls include:
+Jev must receive a bounded answer space. Prefer a single request containing multiple independent questions over sequential model calls.
 
-- the configured provider and model;
-- an explicit JSON schema and generated example object in the system prompt;
-- OpenAI-compatible JSON mode unless `AI_JSON_MODE=false`;
-- runtime validation with the corresponding Zod schema; and
-- one targeted schema-repair retry when the first JSON object is structurally invalid.
+Typical questions:
 
-For direct DeepSeek V4 structured calls, thinking mode defaults to disabled. Other providers omit the nonstandard `thinking` field unless explicitly configured.
+- Choice: terminal action kind.
+- Noul: does this command require clarification?
+- Noul: is this a compound/multi-step action?
+- Noul per shortlisted candidate: does the command refer to this exact persistent entity?
+- Score: consequence severity, danger, or uncertainty band.
+- Choice: NPC reaction class, evidence/publication class, or another allowlisted semantic bucket.
 
-No model response may mutate world state until it passes runtime validation and the deterministic authority layer commits the resulting operations. Provider rejections, timeouts, malformed output, and schema failures are infrastructure errors and must never be presented as in-world action failures.
+Jev may select only supplied IDs/options. Backend thresholds decide whether a response is accepted, escalated, or rejected. Low confidence never becomes a world-state failure; it triggers clarification or Qwen fallback.
+
+## Generative policy
+
+Qwen3.7 Flash handles:
+
+- narration of committed events;
+- NPC/dialogue wording after semantic choices are known;
+- newspaper article text after deterministic evidence/newsworthiness selection;
+- memory summaries;
+- open-ended descriptions/materialization proposals;
+- complex/compound action-plan proposals when the Jev fast path is not sufficient.
+
+Generation is validated before use. Structured generation continues to use runtime Zod validation and repair because provider JSON mode does not itself grant schema correctness.
+
+## Authority boundary
+
+The labels `authoritative` and `creative` in older telemetry describe **context/task classes**, not permission to mutate the world. All model output is non-authoritative until deterministic server logic validates prerequisites and commits the resulting operation.
+
+No model may directly decide or write:
+
+- balances, prices, inventory counts, ownership, or transfer completion;
+- physical position/access when those facts already exist in world state;
+- damage, injury, death, arrest, recovery, or timed work completion;
+- random rolls or final contest outcomes;
+- idempotency/replay behavior;
+- database events or mutation receipts.
+
+Provider rejection, timeout, malformed output, low confidence, and schema failure are infrastructure/decision-routing conditions—not in-world failures.
+
+## Operational verification
+
+`GET /v1/system/ai-provider` reports the effective non-secret generative configuration. The provider contract in GitHub Actions separately exercises both the Jev Decisions API and the Qwen structured-generation path with the trusted `OPENROUTER_API_KEY`.
+
+Live model evaluations are diagnostic evidence, not release authority. Production promotion requires end-to-end action, browser, database, concurrency, and provider-contract certification.

@@ -324,6 +324,11 @@ function responseFor(schemaName: string, prompt: string) {
         narration:
           "You carry out the committed action, and the world reflects only what actually occurred.",
       };
+    case "nocturne_player_safe_fact_narration":
+      return {
+        narration:
+          "You follow the committed evidence and see only what the search actually established.",
+      };
     case "nocturne_search_discovery_analysis":
       return searchResponse(prompt);
     case "nocturne_provider_contract":
@@ -334,6 +339,77 @@ function responseFor(schemaName: string, prompt: string) {
     default:
       throw new Error(`No deterministic fixture exists for schema ${schemaName}.`);
   }
+}
+
+function decisionResponse(body: Record<string, any>) {
+  const state = body.state && typeof body.state === "object" ? body.state : {};
+  const command = String(state.command || "");
+  const actionKind = worldKind(classifyAction(command));
+  const questions = body.questions && typeof body.questions === "object" ? body.questions : {};
+  const answers: Record<string, unknown> = {};
+
+  for (const [id, question] of Object.entries(questions) as [string, any][]) {
+    if (question?.type === "choice") {
+      const keys = Object.keys(question.criteria || {});
+      let choice = keys.includes(actionKind) ? actionKind : keys[0] || "interact";
+      if (id === "action_type") {
+        const actionType = classifyAction(command);
+        choice = keys.includes(actionType) ? actionType : choice;
+      } else if (id === "target_family" && keys.includes("item")) {
+        choice = "item";
+      } else if (id === "source") {
+        choice =
+          keys.find((key) => key.startsWith("existing_")) ||
+          keys.find((key) => key.startsWith("materialize_")) ||
+          (keys.includes("none") ? "none" : choice);
+      }
+      answers[id] = {
+        type: "choice",
+        choice,
+        confidence: 0.98,
+        probabilities: Object.fromEntries(
+          keys.map((key) => [key, key === choice ? 0.98 : 0.02 / Math.max(1, keys.length - 1)]),
+        ),
+      };
+      continue;
+    }
+    if (question?.type === "score") {
+      const score = id === "actor_capability" ? 6 : id === "target_difficulty" ? 4 : 1;
+      answers[id] = { type: "score", score, confidence: 0.95 };
+      continue;
+    }
+    if (question?.type === "noul") {
+      let probability = 0.02;
+      if (id === "requires_multi_step") {
+        probability = /\bthen\b|\band then\b|;/.test(command.toLowerCase()) ? 0.95 : 0.02;
+      } else if (id === "requires_clarification") {
+        probability = 0.02;
+      } else if (id === "permitted_attempt" || id === "consumable") {
+        probability = 0.98;
+      } else if (id.startsWith("ref_")) {
+        const candidate = question.criteria?.true;
+        const labels = [
+          candidate?.name,
+          ...(Array.isArray(candidate?.aliases) ? candidate.aliases : []),
+          ...(Array.isArray(candidate?.relationships) ? candidate.relationships : []),
+        ]
+          .filter((value) => typeof value === "string")
+          .map((value) => String(value).toLowerCase());
+        const lower = command.toLowerCase();
+        probability = labels.some((label) => label.length >= 2 && lower.includes(label))
+          ? 0.98
+          : 0.02;
+      }
+      answers[id] = { type: "noul", noul: probability };
+    }
+  }
+
+  return {
+    id: `fake-decision-${randomUUID()}`,
+    model: body.model || "nocturne-fake-decision",
+    answers,
+    usage: { input_tokens: 64, output_tokens: 8, cost: 0 },
+  };
 }
 
 async function record(entry: Record<string, unknown>) {
@@ -349,7 +425,7 @@ const server = createServer(async (request, response) => {
     response.end(JSON.stringify({ status: "ok", service: "fake-ai-provider" }));
     return;
   }
-  if (request.method !== "POST" || !request.url?.endsWith("/chat/completions")) {
+  if (request.method !== "POST") {
     response.writeHead(404, { "content-type": "application/json" });
     response.end(JSON.stringify({ error: { message: "not found" } }));
     return;
@@ -358,6 +434,27 @@ const server = createServer(async (request, response) => {
   for await (const chunk of request) chunks.push(Buffer.from(chunk));
   const bodyText = Buffer.concat(chunks).toString("utf8");
   const body = parseJson<Record<string, any>>(bodyText, {});
+
+  if (request.url?.endsWith("/api/alpha/decisions")) {
+    const content = decisionResponse(body);
+    await record({
+      requestId: content.id,
+      schemaName: "jev_decisions",
+      model: body.model,
+      requestBody: body,
+      response: content,
+    });
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify(content));
+    return;
+  }
+
+  if (!request.url?.endsWith("/chat/completions")) {
+    response.writeHead(404, { "content-type": "application/json" });
+    response.end(JSON.stringify({ error: { message: "not found" } }));
+    return;
+  }
+
   const system = String(body.messages?.[0]?.content || "");
   const prompt = String(body.messages?.[1]?.content || "");
   const schemaName = /JSON schema name:\s*([^\n]+)/.exec(system)?.[1]?.trim() || "unknown";

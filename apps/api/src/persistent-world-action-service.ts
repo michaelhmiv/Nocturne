@@ -2,6 +2,7 @@ import {
   GameMasterContextSchema,
   WorldActionPlayerSafeResultSchema,
   WorldActionPlannerRequestSchema,
+  WorldActionPlannerResultSchema,
   type GameMasterContext,
   type PersistentActionPlan,
   type RelevanceCompiledContext,
@@ -10,10 +11,14 @@ import {
 } from "@nocturne/contracts";
 import {
   NOCTURNE_GAME_CONSTITUTION,
+  buildFastSingleStepPlan,
+  decideWorldActionFastPath,
   estimateGameMasterContextTokens,
   interpretEntityReferences,
   planPersistentWorldAction,
+  type AiDecisionClient,
   type AiProviderClient,
+  type FastWorldActionDecision,
 } from "@nocturne/ai-gm";
 import type {
   NarrativeContextProjection,
@@ -153,6 +158,7 @@ function buildGameMasterContext(input: {
 
 export function createPersistentWorldActionService(dependencies: {
   client: Pick<AiProviderClient, "generateStructured">;
+  decisionClient?: Pick<AiDecisionClient, "decide">;
   requests: WorldActionRequestStoreLike;
   context: RelevanceContextStore;
   references: ReferenceResolutionStore;
@@ -469,20 +475,44 @@ export function createPersistentWorldActionService(dependencies: {
       const recentPlayerSafeText = narrative.recentTurns
         .flatMap((turn) => [turn.command, turn.playerSafeResult])
         .slice(-20);
-      const interpreted = await interpretEntityReferences(dependencies.client, {
-        command: input.command,
-        viewpointId: input.actorId,
-        recentPlayerSafeText,
-        candidates,
-      });
+      let fastDecision: FastWorldActionDecision | null = null;
+      let interpretation;
+      if (dependencies.decisionClient) {
+        try {
+          fastDecision = await decideWorldActionFastPath(dependencies.decisionClient, {
+            command: input.command,
+            actorId: input.actorId,
+            enabledHandlers,
+            recentPlayerSafeText,
+            candidates,
+          });
+          interpretation = fastDecision.interpretation;
+        } catch {
+          const interpreted = await interpretEntityReferences(dependencies.client, {
+            command: input.command,
+            viewpointId: input.actorId,
+            recentPlayerSafeText,
+            candidates,
+          });
+          interpretation = interpreted.data;
+        }
+      } else {
+        const interpreted = await interpretEntityReferences(dependencies.client, {
+          command: input.command,
+          viewpointId: input.actorId,
+          recentPlayerSafeText,
+          candidates,
+        });
+        interpretation = interpreted.data;
+      }
       await dependencies.references.recordInterpretation({
         scope: input.scope,
         viewpointId: input.actorId,
         command: input.command,
-        interpretation: interpreted.data,
+        interpretation,
         candidates,
       });
-      const clarification = dependencies.references.clarification(interpreted.data);
+      const clarification = dependencies.references.clarification(interpretation);
       if (clarification) {
         const result = WorldActionPlayerSafeResultSchema.parse({
           state: "waiting_for_clarification",
@@ -498,7 +528,7 @@ export function createPersistentWorldActionService(dependencies: {
         });
         return result;
       }
-      const resolvedEntityIds = dependencies.references.explicitEntityIds(interpreted.data);
+      const resolvedEntityIds = dependencies.references.explicitEntityIds(interpretation);
       if (resolvedEntityIds.length) {
         for (const entityId of resolvedEntityIds) {
           await dependencies.simulateReferencedEntity?.({
@@ -552,12 +582,45 @@ export function createPersistentWorldActionService(dependencies: {
         enabledHandlers,
         gameMasterContext,
       });
-      const planned = await planPersistentWorldAction(dependencies.client, plannerInput);
-      if (planned.data.requiresClarification) {
+      let plannerMode: "jev_fast_path" | "qwen_fallback" = "qwen_fallback";
+      let plannerModel: string | null = null;
+      const plannerFallbackReasons = [...(fastDecision?.fallbackReasons || [])];
+      let plannedData: ReturnType<typeof WorldActionPlannerResultSchema.parse> | null = null;
+
+      if (fastDecision?.fastPathEligible) {
+        try {
+          const fastPlan = buildFastSingleStepPlan({
+            command: input.command,
+            actorId: input.actorId,
+            kind: fastDecision.kind,
+            actionType: fastDecision.actionType,
+            selectedEntityIds: resolvedEntityIds,
+            context,
+          });
+          plannerMode = "jev_fast_path";
+          plannerModel = fastDecision.actualModel;
+          plannedData = WorldActionPlannerResultSchema.parse({
+            primaryKind: fastDecision.kind,
+            requiresClarification: false,
+            plan: fastPlan,
+            rationale:
+              "High-confidence Jev decision routed a single-step command; deterministic code built the persistent plan.",
+          });
+        } catch {
+          plannerFallbackReasons.push("deterministic_plan_compile");
+        }
+      }
+
+      if (!plannedData) {
+        const planned = await planPersistentWorldAction(dependencies.client, plannerInput);
+        plannerModel = planned.actualModel;
+        plannedData = planned.data;
+      }
+      if (plannedData.requiresClarification) {
         const result = WorldActionPlayerSafeResultSchema.parse({
           state: "waiting_for_clarification",
           requestId: reservation.requestId,
-          prompt: planned.data.clarificationPrompt,
+          prompt: plannedData.clarificationPrompt,
         });
         await dependencies.requests.transition({
           scope: input.scope,
@@ -565,14 +628,19 @@ export function createPersistentWorldActionService(dependencies: {
           expectedStatus: currentStatus,
           status: "waiting_for_clarification",
           authoritativeResult: {
-            plannerRationale: planned.data.rationale,
+            plannerMode,
+            plannerModel,
+            plannerRationale: plannedData.rationale,
+            decisionModel: fastDecision?.actualModel || null,
+            decisionLatencyMs: fastDecision?.latencyMs || null,
+            decisionFallbackReasons: plannerFallbackReasons,
             gameMasterContextTokens: gameMasterContext.estimatedTokens,
           },
           playerSafeResult: result,
         });
         return result;
       }
-      if (!planned.data.plan) {
+      if (!plannedData.plan) {
         throw new PersistentWorldActionServiceError(
           "planning_failed",
           "Planner did not return an executable plan.",
@@ -581,7 +649,7 @@ export function createPersistentWorldActionService(dependencies: {
       const plan = await dependencies.plans.create({
         scope: input.scope,
         actorId: input.actorId,
-        proposal: planned.data.plan,
+        proposal: plannedData.plan,
         idempotencyRoot: input.idempotencyKey,
         conflictDecision: activePlanId ? "supersede_existing" : "reject",
       });
@@ -592,7 +660,16 @@ export function createPersistentWorldActionService(dependencies: {
         status: "executing",
         planId: plan.planId,
         authoritativeResult: {
-          plannerRationale: planned.data.rationale,
+          plannerMode,
+          plannerModel,
+          plannerRationale: plannedData.rationale,
+          decisionModel: fastDecision?.actualModel || null,
+          decisionLatencyMs: fastDecision?.latencyMs || null,
+          decisionKindConfidence: fastDecision?.kindConfidence || null,
+          decisionActionType: fastDecision?.actionType || null,
+          decisionActionTypeConfidence: fastDecision?.actionTypeConfidence || null,
+          decisionMultiStepProbability: fastDecision?.multiStepProbability || null,
+          decisionFallbackReasons: plannerFallbackReasons,
           contextCompilationId: context.compilationId,
           gameMasterContextTokens: gameMasterContext.estimatedTokens,
           recentTurnCount: gameMasterContext.recentTurns.length,

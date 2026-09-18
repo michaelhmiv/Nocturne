@@ -233,7 +233,7 @@ export function createWorldActionHandlerRegistry(dependencies: {
         state: "completed",
         outcomeGrade: result.outcomeGrade,
         eventId: result.eventId,
-        narration: result.playerVisibleFacts.join(" "),
+        narration: result.narration || result.playerVisibleFacts.join(" "),
       };
     };
   }

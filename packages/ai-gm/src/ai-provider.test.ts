@@ -156,6 +156,19 @@ describe("AiProviderClient structured requests", () => {
     expect(body.response_format).toEqual({ type: "json_object" });
   });
 
+  it("prefers the dedicated generative model variable on OpenRouter", () => {
+    const configuration = resolveAiProviderConfigFromEnv({
+      AI_PROVIDER: "openrouter",
+      AI_GENERATIVE_MODEL: "qwen/qwen3.7-flash",
+      AI_MODEL: "legacy-model",
+      OPENROUTER_API_KEY: "test-key",
+    });
+
+    expect(configuration.model).toBe("qwen/qwen3.7-flash");
+    expect(configuration.authoritativeModel).toBe("qwen/qwen3.7-flash");
+    expect(configuration.creativeModel).toBe("qwen/qwen3.7-flash");
+  });
+
   it("resolves Railway-style environment variables", () => {
     const configuration = resolveAiProviderConfigFromEnv({
       AI_PROVIDER: "openrouter",

@@ -1,6 +1,7 @@
 import type { ZodType } from "zod";
 import {
   DEFAULT_AI_MODEL,
+  DEFAULT_GENERATIVE_MODEL,
   createModelPolicy,
   type AiAuthority,
   type AiTask,
@@ -132,7 +133,7 @@ type Environment = Record<string, string | undefined>;
 const PROVIDER_DEFAULTS: Record<AiProviderName, { baseUrl: string; model: string }> = {
   deepseek: { baseUrl: "https://api.deepseek.com", model: DEFAULT_AI_MODEL },
   openai: { baseUrl: "https://api.openai.com/v1", model: "gpt-4.1-mini" },
-  openrouter: { baseUrl: "https://openrouter.ai/api/v1", model: "deepseek/deepseek-v4-flash" },
+  openrouter: { baseUrl: "https://openrouter.ai/api/v1", model: DEFAULT_GENERATIVE_MODEL },
   openai_compatible: { baseUrl: "", model: DEFAULT_AI_MODEL },
 };
 
@@ -212,7 +213,10 @@ export function resolveAiProviderConfigFromEnv(
   const provider = parseProvider(environment.AI_PROVIDER);
   const defaults = PROVIDER_DEFAULTS[provider];
   const model =
-    configured(environment.AI_MODEL) || configured(environment.DEEPSEEK_MODEL) || defaults.model;
+    configured(environment.AI_GENERATIVE_MODEL) ||
+    configured(environment.AI_MODEL) ||
+    configured(environment.DEEPSEEK_MODEL) ||
+    defaults.model;
   const baseUrl = configured(environment.AI_BASE_URL) || defaults.baseUrl;
   if (!baseUrl) {
     throw new AiProviderError(

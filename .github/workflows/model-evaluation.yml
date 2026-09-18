@@ -2,9 +2,22 @@ name: OpenRouter Gameplay Evaluation
 on:
   workflow_dispatch:
   pull_request:
+    types: [ready_for_review]
     paths:
       - "scripts/evals/**"
       - ".github/workflows/model-evaluation.yml"
+      - "packages/ai-gm/src/decision-client.ts"
+      - "packages/ai-gm/src/world-action-decision.ts"
+      - "packages/ai-gm/src/consumable-decision.ts"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/evals/**"
+      - ".github/workflows/model-evaluation.yml"
+      - "packages/ai-gm/src/decision-client.ts"
+      - "packages/ai-gm/src/world-action-decision.ts"
+      - "packages/ai-gm/src/consumable-decision.ts"
 permissions:
   contents: read
 concurrency:
@@ -17,18 +30,24 @@ jobs:
     timeout-minutes: 40
     env:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-      EVAL_MODELS: ${{ vars.NOCTURNE_EVAL_MODELS || '~typesafe/jev-latest,google/gemini-3.7-flash,~deepseek/deepseek-flash-latest' }}
+      EVAL_MODELS: ${{ vars.NOCTURNE_EVAL_MODELS || '~typesafe/jev-latest,qwen/qwen3.7-flash' }}
       EVAL_REPETITIONS: "2"
+      NARRATION_MODEL: ${{ vars.NOCTURNE_GENERATIVE_MODEL || vars.AI_GENERATIVE_MODEL || 'qwen/qwen3.7-flash' }}
+      NARRATION_REPETITIONS: "2"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Evaluate live decisions and discover Jev
+      - name: Evaluate live decisions and Jev
         run: node scripts/evals/openrouter-gameplay.mjs
+      - name: Evaluate Qwen narration latency and committed-fact consistency
+        run: node scripts/evals/openrouter-narration.mjs
       - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: openrouter-gameplay-${{ github.sha }}
-          path: artifacts/model-evaluation/
+          path: |
+            artifacts/model-evaluation/
+            artifacts/narration-evaluation/
           retention-days: 30

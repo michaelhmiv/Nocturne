@@ -1,4 +1,4 @@
-import { DEEPSEEK_FLASH_MODEL } from "@nocturne/ai-gm";
+import { resolveAiProviderConfigFromEnv } from "@nocturne/ai-gm";
 import { createDatabase } from "@nocturne/database";
 import type { FastifyInstance } from "fastify";
 
@@ -12,6 +12,8 @@ type OperationalHealthInput = {
   migrationsReady: boolean;
   appliedMigrationCount: number;
   providerConfigured: boolean;
+  providerName?: string;
+  providerModel?: string;
   workerConfigured: boolean;
   workerId: string | null;
   workerLastSeenAt: Date | null;
@@ -76,9 +78,9 @@ export function summarizeOperationalHealth(input: OperationalHealthInput) {
         heartbeatAgeSeconds: workerAgeMs === null ? null : Math.floor(workerAgeMs / 1_000),
       },
       provider: {
-        provider: "deepseek",
+        provider: input.providerName || "unconfigured",
         configured: input.providerConfigured,
-        model: DEEPSEEK_FLASH_MODEL,
+        model: input.providerModel || null,
       },
     },
   };
@@ -88,6 +90,7 @@ export async function registerOperationalHealthRoute(app: FastifyInstance) {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required for operational health.");
   const database = createDatabase(databaseUrl);
+  const providerConfiguration = resolveAiProviderConfigFromEnv(process.env);
 
   app.get("/v1/system/operational-health", async () => {
     let databaseReady = false;
@@ -149,7 +152,9 @@ export async function registerOperationalHealthRoute(app: FastifyInstance) {
       databaseReady,
       migrationsReady,
       appliedMigrationCount,
-      providerConfigured: Boolean(process.env.DEEPSEEK_API_KEY),
+      providerConfigured: Boolean(providerConfiguration.apiKey),
+      providerName: providerConfiguration.provider,
+      providerModel: providerConfiguration.model,
       workerConfigured: Boolean(process.env.AI_JOB_WORKER_SECRET),
       workerId,
       workerLastSeenAt,

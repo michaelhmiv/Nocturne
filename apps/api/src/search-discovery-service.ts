@@ -2,12 +2,16 @@ import { createHash } from "node:crypto";
 import {
   SearchDiscoveryResultSchema,
   type MaterializationAnalysisRequest,
+  type SearchDiscoveryAnalysis,
   type SearchDiscoveryResult,
   type UniversalWorldOperation,
 } from "@nocturne/contracts";
 import {
   analyzeMaterialization,
   analyzeSearchDiscovery,
+  decideSearchDiscovery,
+  narratePlayerSafeFacts,
+  type AiDecisionClient,
   type AiProviderClient,
 } from "@nocturne/ai-gm";
 import type {
@@ -59,6 +63,7 @@ function outcomeText(
 
 export function createSearchDiscoveryService(dependencies: {
   client: Pick<AiProviderClient, "generateStructured">;
+  decisionClient?: Pick<AiDecisionClient, "decide">;
   context: RelevanceContextStore;
   materialization: MaterializationStore;
   executor: UniversalOperationExecutor;
@@ -108,7 +113,7 @@ export function createSearchDiscoveryService(dependencies: {
       .map(({ factId, claim, value }) => `${factId}: ${claim}=${JSON.stringify(value)}`)
       .slice(0, 32);
 
-    const analyzed = await analyzeSearchDiscovery(dependencies.client, {
+    const analysisRequest = {
       rawText: input.rawText,
       actorId: input.actorId,
       areaId: input.areaId,
@@ -129,8 +134,21 @@ export function createSearchDiscoveryService(dependencies: {
           .slice(0, 24),
       })),
       materializationSourceIds: sourceCandidates.map(({ sourceId }) => sourceId),
-    });
-    const analysis = analyzed.data;
+    };
+
+    let analysis: SearchDiscoveryAnalysis | null = null;
+    if (dependencies.decisionClient) {
+      try {
+        const decided = await decideSearchDiscovery(dependencies.decisionClient, analysisRequest);
+        if (decided.fastPathEligible) analysis = decided.analysis;
+      } catch {
+        analysis = null;
+      }
+    }
+    if (!analysis) {
+      const analyzed = await analyzeSearchDiscovery(dependencies.client, analysisRequest);
+      analysis = analyzed.data;
+    }
     const resolution = resolveContest({
       actionType: "search_discovery",
       actorScore: analysis.actorScore,
@@ -296,6 +314,26 @@ export function createSearchDiscoveryService(dependencies: {
       });
     }
 
+    const narrationConstraints = [
+      "Do not claim ownership, control, following, trust, capture, or acquisition unless separately committed.",
+      ...(discoveredEntityId
+        ? ["Describe only the discovered entity and committed observation."]
+        : ["Do not narrate a concrete entity as present."]),
+    ];
+    let narration = outcomeFact;
+    try {
+      const generated = await narratePlayerSafeFacts(dependencies.client, {
+        eventType: "search_discovery",
+        outcomeGrade: resolution.outcomeGrade,
+        playerVisibleFacts: [outcomeFact],
+        constraints: narrationConstraints,
+        style: "immersive",
+      });
+      narration = generated.data.narration;
+    } catch {
+      narration = outcomeFact;
+    }
+
     return SearchDiscoveryResultSchema.parse({
       eventId: receipt.eventId,
       outcomeGrade: resolution.outcomeGrade,
@@ -303,12 +341,8 @@ export function createSearchDiscoveryService(dependencies: {
       materialized,
       informationIds,
       playerVisibleFacts: [outcomeFact],
-      narrationConstraints: [
-        "Do not claim ownership, control, following, trust, capture, or acquisition unless separately committed.",
-        ...(discoveredEntityId
-          ? ["Describe only the discovered entity and committed observation."]
-          : ["Do not narrate a concrete entity as present."]),
-      ],
+      narration,
+      narrationConstraints,
     });
   }
 

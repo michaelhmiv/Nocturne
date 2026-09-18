@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { MaterializationAnalysisRequest, WorldActionKind } from "@nocturne/contracts";
-import type { AiProviderClient } from "@nocturne/ai-gm";
+import type { AiDecisionClient, AiProviderClient } from "@nocturne/ai-gm";
 import {
   createMaterializationStore,
   createNarrativeMemoryStore,
@@ -22,6 +22,7 @@ import {
 import { createGameplayTelemetryWriter } from "./gameplay-telemetry.js";
 import {
   instrumentAiClient,
+  instrumentAiDecisionClient,
   instrumentContextStore,
   instrumentPlanStore,
   instrumentReferenceStore,
@@ -43,6 +44,7 @@ export async function registerPersistentWorldRuntime(
   dependencies: {
     database: ReturnType<typeof createDatabase>;
     client: Pick<AiProviderClient, "generateStructured">;
+    decisionClient?: Pick<AiDecisionClient, "decide">;
     rollSecret: string | Buffer;
     resolveScope(request: FastifyRequest): Promise<WorldScope>;
     /** Compatibility input retained while narrative history moves into the database projection. */
@@ -106,6 +108,9 @@ export async function registerPersistentWorldRuntime(
   const timedActions = createTimedSemanticActionService(executor);
   const telemetry = createGameplayTelemetryWriter(app.log);
   const client = instrumentAiClient(dependencies.client, telemetry);
+  const decisionClient = dependencies.decisionClient
+    ? instrumentAiDecisionClient(dependencies.decisionClient, telemetry)
+    : undefined;
   const context = instrumentContextStore(
     createRelevanceContextStore(dependencies.database),
     telemetry,
@@ -121,6 +126,7 @@ export async function registerPersistentWorldRuntime(
   const narrativeMemory = createNarrativeMemoryStore(dependencies.database);
   const search = createSearchDiscoveryService({
     client,
+    decisionClient,
     context,
     materialization,
     executor,
@@ -139,6 +145,7 @@ export async function registerPersistentWorldRuntime(
   });
   const actions = createPersistentWorldActionService({
     client,
+    decisionClient,
     requests,
     context,
     references,

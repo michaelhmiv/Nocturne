@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import { createAiProviderClientFromEnv, resolveAiProviderConfigFromEnv } from "@nocturne/ai-gm";
+import {
+  createAiDecisionClientFromEnv,
+  createAiProviderClientFromEnv,
+  resolveAiProviderConfigFromEnv,
+} from "@nocturne/ai-gm";
 import { getSessionFromNodeHeaders } from "@nocturne/auth";
 import type { MaterializationAnalysisRequest, WorldActionKind } from "@nocturne/contracts";
 import {
@@ -44,6 +48,7 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
 
   const database = createDatabase(databaseUrl);
   const client = createAiProviderClientFromEnv(process.env);
+  const decisionClient = createAiDecisionClientFromEnv(process.env);
   const providerConfiguration = resolveAiProviderConfigFromEnv(process.env);
   const agents = createAgentStore(database);
   const worlds = createWorldStore(database);
@@ -140,6 +145,7 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
   await registerPersistentWorldRuntime(app, {
     database,
     client,
+    decisionClient,
     rollSecret,
     resolveScope,
     listRecentPlayerSafeText: async ({ scope, limit }) => {
@@ -304,6 +310,7 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
         scope.userId,
         { actorId, rawText },
         idempotencyKey,
+        kind === "consume" ? { actionType: "consume" } : {},
       );
       const unitsConsumed = result.consumption?.unitsConsumed ?? 0;
       const outcomeGrade =

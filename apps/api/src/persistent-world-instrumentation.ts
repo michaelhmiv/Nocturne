@@ -1,5 +1,5 @@
 import type { GameplayTelemetryWriter } from "@nocturne/contracts";
-import type { AiProviderClient } from "@nocturne/ai-gm";
+import type { AiDecisionClient, AiProviderClient } from "@nocturne/ai-gm";
 import type {
   PersistentPlanStore,
   ReferenceResolutionStore,
@@ -142,6 +142,84 @@ export function instrumentAiClient(
       };
     },
   }) as Pick<AiProviderClient, "generateStructured">;
+}
+
+export function instrumentAiDecisionClient(
+  client: Pick<AiDecisionClient, "decide">,
+  telemetry?: GameplayTelemetryWriter,
+): Pick<AiDecisionClient, "decide"> {
+  return new Proxy(client, {
+    get(target, property, receiver) {
+      if (property !== "decide") return Reflect.get(target, property, receiver);
+      return async (...args: any[]) => {
+        const request = args[0] as {
+          task?: string;
+          model?: string;
+          questions?: Record<string, unknown>;
+        };
+        const startedAt = Date.now();
+        const traceId = currentGameplayTraceId(`decision-${request.task || "unknown"}`);
+        const requestDetails = {
+          questionCount: Object.keys(request.questions || {}).length,
+        };
+        await writeGameplayTelemetry(telemetry, {
+          timestamp: new Date().toISOString(),
+          level: "info",
+          eventName: "provider_call_started",
+          status: "started",
+          traceId,
+          actionType: request.task,
+          model: request.model,
+          committed: false,
+          details: {
+            ...requestDetails,
+            inferenceMode: "decision",
+          },
+        });
+        try {
+          const result = await (target.decide as (...values: any[]) => Promise<any>)(...args);
+          await writeGameplayTelemetry(telemetry, {
+            timestamp: new Date().toISOString(),
+            level: "info",
+            eventName: "provider_call_completed",
+            status: "completed",
+            traceId,
+            actionType: request.task,
+            provider: result.provider,
+            model: result.actualModel || result.requestedModel,
+            providerRequestId: result.providerRequestId,
+            durationMs: Date.now() - startedAt,
+            committed: false,
+            details: {
+              ...requestDetails,
+              inferenceMode: "decision",
+              providerLatencyMs: result.latencyMs,
+            },
+          });
+          return result;
+        } catch (error) {
+          await writeGameplayTelemetry(telemetry, {
+            timestamp: new Date().toISOString(),
+            level: "error",
+            eventName: "provider_call_failed",
+            status: "failed",
+            traceId,
+            actionType: request.task,
+            model: request.model,
+            errorCode: stableErrorCode(error, "decision_provider_failure"),
+            durationMs: Date.now() - startedAt,
+            committed: false,
+            details: {
+              ...requestDetails,
+              inferenceMode: "decision",
+              error: errorDiagnostics(error),
+            },
+          });
+          throw error;
+        }
+      };
+    },
+  }) as Pick<AiDecisionClient, "decide">;
 }
 
 export function instrumentContextStore(

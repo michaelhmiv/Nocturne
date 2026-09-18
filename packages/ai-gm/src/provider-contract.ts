@@ -1,8 +1,10 @@
 import { z } from "zod";
 import {
   NOCTURNE_GAME_CONSTITUTION,
+  createAiDecisionClientFromEnv,
   createAiProviderClientFromEnv,
   planPersistentWorldAction,
+  resolveAiDecisionConfigFromEnv,
   resolveAiProviderConfigFromEnv,
 } from "./index.js";
 
@@ -28,14 +30,41 @@ const jsonSchema = {
 } as const;
 
 const configuration = resolveAiProviderConfigFromEnv(process.env);
-if (!configuration.apiKey) {
+const decisionConfiguration = resolveAiDecisionConfigFromEnv(process.env);
+if (!configuration.apiKey || !decisionConfiguration.apiKey) {
   throw new Error(
-    `No API key is configured for provider contract testing (${configuration.provider}).`,
+    "OpenRouter credentials are required for Jev + generative provider contract testing.",
   );
 }
 
 const client = createAiProviderClientFromEnv(process.env);
+const decisionClient = createAiDecisionClientFromEnv(process.env);
 const startedAt = Date.now();
+const decision = await decisionClient.decide({
+  task: "provider_contract_decision",
+  state: {
+    command: "open the door",
+    fact: "The door is directly in front of the actor and unlocked.",
+  },
+  questions: {
+    intent: {
+      type: "choice",
+      instructions: "What kind of action is the actor attempting?",
+      criteria: {
+        interact: "A physical interaction with an object.",
+        dialogue: "Speaking or communicating.",
+      },
+    },
+    permitted_attempt: {
+      type: "noul",
+      instructions: "Do the supplied facts permit the actor to attempt opening the door?",
+      criteria: {
+        true: "The required object and access are present.",
+        false: "A required object or access prerequisite is absent.",
+      },
+    },
+  },
+});
 const authoritative = await client.generateStructured({
   task: "parse_intent",
   system: "You are a provider compatibility probe. Return the requested exact status object.",
@@ -100,6 +129,10 @@ console.log(
       status: "passed",
       provider: configuration.provider,
       configuredModel: configuration.model,
+      decisionModel: decision.actualModel,
+      decisionIntent: decision.answers.intent.choice,
+      decisionPermittedAttempt: decision.answers.permitted_attempt.noul,
+      decisionLatencyMs: decision.latencyMs,
       authoritativeModel: authoritative.actualModel,
       creativeModel: creative.actualModel,
       plannerModel: planner.actualModel,
