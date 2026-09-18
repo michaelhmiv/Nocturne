@@ -510,6 +510,7 @@ export function buildFastSingleStepPlan(input: {
     intentPayload = {
       rawText: input.command,
       actionType: input.actionType,
+      locationId: destination.entityId,
       destinationId: destination.entityId,
     };
   } else if (input.kind === "search") {
