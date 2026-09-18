@@ -302,8 +302,6 @@ for (const row of summary) {
   if (row.p95Ms !== null && row.p95Ms > 1000)
     failures.push(`p95 ${row.p95Ms.toFixed(1)}ms > 1000ms`);
   if (failures.length) {
-    throw new Error(
-      `Narration quality gate failed for ${row.model}: ${failures.join("; ")}`,
-    );
+    throw new Error(`Narration quality gate failed for ${row.model}: ${failures.join("; ")}`);
   }
 }

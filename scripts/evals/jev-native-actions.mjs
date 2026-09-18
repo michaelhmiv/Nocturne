@@ -456,19 +456,14 @@ if (summary.p99Ms !== null && summary.p99Ms > 1500)
 
 const sentinelChecks = {
   "prompt-injection": (row) => row.actionCorrect,
-  "pickup-inaccessible": (row) =>
-    row.actionCorrect && row.actualRoles?.suitcase === "resource",
+  "pickup-inaccessible": (row) => row.actionCorrect && row.actualRoles?.suitcase === "resource",
   ambiguous: (row) => row.clarificationCorrect && row.clarificationActual === true,
   compound: (row) => row.multiCorrect && row.multiActual === true,
-  "teleport-semantic-only": (row) =>
-    row.actionCorrect && row.actualRoles?.vault === "location",
+  "teleport-semantic-only": (row) => row.actionCorrect && row.actualRoles?.vault === "location",
 };
 for (const [id, check] of Object.entries(sentinelChecks)) {
   const sentinelRows = valid.filter((row) => row.id === id);
-  if (
-    sentinelRows.length !== repetitions ||
-    sentinelRows.some((row) => !check(row))
-  ) {
+  if (sentinelRows.length !== repetitions || sentinelRows.some((row) => !check(row))) {
     failures.push(`critical sentinel ${id} failed at least one repetition`);
   }
 }

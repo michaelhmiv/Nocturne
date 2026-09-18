@@ -214,15 +214,16 @@ function referenceInterpretation(
     : undefined;
   const roleAmbiguous = Boolean(
     dominant &&
-      competingSameRole &&
-      dominant.probability - competingSameRole.probability < REFERENCE_DOMINANCE_GAP,
+    competingSameRole &&
+    dominant.probability - competingSameRole.probability < REFERENCE_DOMINANCE_GAP,
   );
   const ambiguous = roleAmbiguous || clarificationProbability >= CLARIFICATION_THRESHOLD;
 
   if (ambiguous && plausible.length >= 2) {
-    const candidates = roleAmbiguous && dominant
-      ? plausible.filter(({ role }) => role === dominant.role).slice(0, 3)
-      : plausible.slice(0, 3);
+    const candidates =
+      roleAmbiguous && dominant
+        ? plausible.filter(({ role }) => role === dominant.role).slice(0, 3)
+        : plausible.slice(0, 3);
     return EntityReferenceInterpretationSchema.parse({
       mentions: [
         {
