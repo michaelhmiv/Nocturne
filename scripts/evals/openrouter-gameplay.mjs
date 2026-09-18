@@ -377,14 +377,13 @@ const summary = models.map((model) => {
       0.95,
     ),
     reportedCostRows: rows.filter((row) => Number.isFinite(Number(row.usage?.cost))).length,
-    reportedCost:
-      rows.some((row) => Number.isFinite(Number(row.usage?.cost)))
-        ? rows.reduce(
-            (sum, row) =>
-              sum + (Number.isFinite(Number(row.usage?.cost)) ? Number(row.usage.cost) : 0),
-            0,
-          )
-        : null,
+    reportedCost: rows.some((row) => Number.isFinite(Number(row.usage?.cost)))
+      ? rows.reduce(
+          (sum, row) =>
+            sum + (Number.isFinite(Number(row.usage?.cost)) ? Number(row.usage.cost) : 0),
+          0,
+        )
+      : null,
   };
 });
 await writeFile(
