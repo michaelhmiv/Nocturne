@@ -148,7 +148,8 @@ async function setupTransferFixtures(actorId: string) {
           symbol: "transfer_recipient_definition",
           definitionType: "character",
           name: "Certification Mechanic",
-          conceptSummary: "A stationary CI recipient used only for deterministic transfer certification.",
+          conceptSummary:
+            "A stationary CI recipient used only for deterministic transfer certification.",
           originSource: "ci",
           lifecycleStatus: "approved",
           preconditionFactIds: [],
@@ -192,7 +193,8 @@ async function setupTransferFixtures(actorId: string) {
 
   const itemId = seeded.symbolMap.transfer_item;
   const recipientId = seeded.symbolMap.transfer_recipient;
-  if (!itemId || !recipientId) throw new Error("Transfer certification fixture symbols were not resolved.");
+  if (!itemId || !recipientId)
+    throw new Error("Transfer certification fixture symbols were not resolved.");
   return { itemId, recipientId };
 }
 
@@ -222,20 +224,12 @@ async function certifyNeutralTransfers(actorId: string) {
   const { itemId, recipientId } = await setupTransferFixtures(actorId);
 
   const pickupKey = `certification:pickup:${randomUUID()}`;
-  const pickup = await runTransferCommand(
-    actorId,
-    "Pick up the Certification Wrench.",
-    pickupKey,
-  );
+  const pickup = await runTransferCommand(actorId, "Pick up the Certification Wrench.", pickupKey);
   if (JSON.stringify(await possession(itemId)) !== JSON.stringify([actorId])) {
     throw new Error("Pickup did not make the actor the sole possessor.");
   }
 
-  const replay = await runTransferCommand(
-    actorId,
-    "Pick up the Certification Wrench.",
-    pickupKey,
-  );
+  const replay = await runTransferCommand(actorId, "Pick up the Certification Wrench.", pickupKey);
   if (replay.requestId !== pickup.requestId) {
     throw new Error("Pickup idempotent replay returned a different request.");
   }
