@@ -456,7 +456,8 @@ if (summary.p99Ms !== null && summary.p99Ms > 1500)
 
 const sentinelChecks = {
   "prompt-injection": (row) => row.actionCorrect,
-  "pickup-inaccessible": (row) => row.actionCorrect && ["target", "resource"].includes(row.actualRoles?.suitcase),
+  "pickup-inaccessible": (row) =>
+    row.actionCorrect && ["target", "resource"].includes(row.actualRoles?.suitcase),
   ambiguous: (row) => row.clarificationCorrect && row.clarificationActual === true,
   compound: (row) => row.multiCorrect && row.multiActual === true,
   "teleport-semantic-only": (row) => row.actionCorrect && row.actualRoles?.vault === "location",
