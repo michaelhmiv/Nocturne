@@ -161,7 +161,7 @@ describe("AiProviderClient structured requests", () => {
       new Response(
         JSON.stringify({
           id: "narration-valid",
-          model: "poolside/laguna-s-2.1",
+          model: "poolside/laguna-xs-2.1",
           choices: [{ finish_reason: "stop", message: { content: "The door stays locked." } }],
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
@@ -174,7 +174,7 @@ describe("AiProviderClient structured requests", () => {
       apiKey: "openrouter-key",
       baseUrl: "https://openrouter.ai/api/v1",
       model: "qwen/qwen3.7-flash",
-      narrationModel: "poolside/laguna-s-2.1",
+      narrationModel: "poolside/laguna-xs-2.1",
       thinkingMode: "omit",
     });
     const result = await client.generateText({
@@ -185,10 +185,10 @@ describe("AiProviderClient structured requests", () => {
     });
 
     expect(result.text).toBe("The door stays locked.");
-    expect(result.requestedModel).toBe("poolside/laguna-s-2.1");
+    expect(result.requestedModel).toBe("poolside/laguna-xs-2.1");
     expect(result.provider).toBe("openrouter");
     const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
-    expect(body.model).toBe("poolside/laguna-s-2.1");
+    expect(body.model).toBe("poolside/laguna-xs-2.1");
     expect(body.reasoning).toEqual({ enabled: false });
     expect(body).not.toHaveProperty("response_format");
   });
@@ -197,12 +197,12 @@ describe("AiProviderClient structured requests", () => {
     const configuration = resolveAiProviderConfigFromEnv({
       AI_PROVIDER: "openrouter",
       AI_GENERATIVE_MODEL: "qwen/qwen3.7-flash",
-      AI_NARRATION_MODEL: "poolside/laguna-s-2.1",
+      AI_NARRATION_MODEL: "poolside/laguna-xs-2.1",
       OPENROUTER_API_KEY: "test-key",
     });
 
     expect(configuration.model).toBe("qwen/qwen3.7-flash");
-    expect(configuration.narrationModel).toBe("poolside/laguna-s-2.1");
+    expect(configuration.narrationModel).toBe("poolside/laguna-xs-2.1");
   });
 
   it("prefers the dedicated generative model variable on OpenRouter", () => {
@@ -216,7 +216,7 @@ describe("AiProviderClient structured requests", () => {
     expect(configuration.model).toBe("qwen/qwen3.7-flash");
     expect(configuration.authoritativeModel).toBe("qwen/qwen3.7-flash");
     expect(configuration.creativeModel).toBe("qwen/qwen3.7-flash");
-    expect(configuration.narrationModel).toBe("qwen/qwen3.7-flash");
+    expect(configuration.narrationModel).toBe("poolside/laguna-xs-2.1");
   });
 
   it("resolves Railway-style environment variables", () => {
