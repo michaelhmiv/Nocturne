@@ -55,7 +55,8 @@ const actionTypeCriteria = {
   steal: "Take property without permission or otherwise commit theft.",
   pick_up: "Pick up or take possession of an available item without implying theft.",
   give: "Give or hand an item/resource to another person or entity.",
-  transfer: "Transfer possession of an item/resource to another person or entity without implying a sale.",
+  transfer:
+    "Transfer possession of an item/resource to another person or entity without implying a sale.",
   drop: "Relinquish possession of an item at the actor's current place.",
   sneak: "Move stealthily or quietly to avoid detection.",
   lockpick: "Manipulate a mechanical lock to open it without the normal key.",
