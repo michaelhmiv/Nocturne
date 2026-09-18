@@ -861,6 +861,9 @@ export function createUniversalOperationExecutor(
                 );
               }
               if (operation.relationType === "contained_in") {
+                await ensureNoContainmentCycle(sql, input, sourceId, targetId);
+              }
+              if (operation.relationType === "contained_in") {
                 await sql`
                   DELETE FROM game.entity_relations
                   WHERE world_id = ${input.scope.worldId}
