@@ -110,6 +110,9 @@ function classifyAction(command: string) {
   if (/\b(sell|list .*for sale)\b/.test(text)) return "sell";
   if (/\b(hide|concealed position|behind the crates)\b/.test(text)) return "hide";
   if (/\b(work|shift|delivery job|available job)\b/.test(text)) return "work";
+  if (/\b(push[ -]?ups?|sit[ -]?ups?|squats?|plank|burpees?)\b/.test(text)) return "exercise";
+  if (/\b(sit down|stand up|stretch|blink|breathe|clap|wave|smile|nod|kneel|lie down)\b/.test(text))
+    return "routine_body_action";
   if (/\b(attack|punch|strike|hit|fight)\b/.test(text)) return "attack";
   if (/\b(talk|ask|conversation|bartender)\b/.test(text)) return "talk";
   if (/\b(detect|scan|check .*watching|hidden threats)\b/.test(text)) return "detect";
