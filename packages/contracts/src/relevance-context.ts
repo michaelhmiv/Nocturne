@@ -16,6 +16,7 @@ export const ContextInclusionReasonSchema = z.enum([
   "explicit_reference",
   "same_location",
   "location_ancestor",
+  "route_neighbor",
   "owned",
   "controlled",
   "possessed",
