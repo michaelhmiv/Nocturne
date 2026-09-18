@@ -146,6 +146,78 @@ describe("Jev world-action fast path", () => {
     expect(result.selectedEntityRoles).toEqual({ [bankId]: "location" });
   });
 
+  it("compiles a Jev give command with resource and recipient roles", async () => {
+    const wrenchId = "00000000-0000-4000-8000-000000000006";
+    const mechanicId = "00000000-0000-4000-8000-000000000007";
+    const client = {
+      decide: async () => ({
+        answers: {
+          action_type: { type: "choice" as const, choice: "give", confidence: 0.99 },
+          requires_clarification: { type: "noul" as const, noul: 0.01 },
+          requires_multi_step: { type: "noul" as const, noul: 0.01 },
+          role_0: {
+            type: "choice" as const,
+            choice: "resource",
+            confidence: 0.98,
+            probabilities: { resource: 0.98, none: 0.02 },
+          },
+          role_1: {
+            type: "choice" as const,
+            choice: "target",
+            confidence: 0.98,
+            probabilities: { target: 0.98, none: 0.02 },
+          },
+        },
+        requestedModel: "~typesafe/jev-latest",
+        actualModel: "typesafe/jev-1.13",
+        provider: "openrouter" as const,
+        latencyMs: 180,
+      }),
+    };
+
+    const decision = await decideWorldActionFastPath(client as never, {
+      command: "Give the wrench to the mechanic.",
+      actorId,
+      enabledHandlers: ["transfer"],
+      recentPlayerSafeText: [],
+      candidates: [
+        candidate({ entityId: wrenchId, displayName: "Wrench", definitionType: "item" }),
+        candidate({ entityId: mechanicId, displayName: "Mechanic", definitionType: "character" }),
+      ],
+    });
+
+    expect(decision.actionType).toBe("give");
+    expect(decision.kind).toBe("transfer");
+    expect(decision.selectedEntityRoles).toEqual({
+      [wrenchId]: "resource",
+      [mechanicId]: "target",
+    });
+
+    const context = {
+      entities: [
+        { entityId: actorId, version: 1, definitionType: "character" },
+        { entityId: wrenchId, version: 2, definitionType: "item" },
+        { entityId: mechanicId, version: 3, definitionType: "character" },
+      ],
+    } as unknown as RelevanceCompiledContext;
+    const plan = buildFastSingleStepPlan({
+      command: "Give the wrench to the mechanic.",
+      actorId,
+      kind: decision.kind,
+      actionType: decision.actionType,
+      selectedEntityIds: decision.selectedEntityIds,
+      selectedEntityRoles: decision.selectedEntityRoles,
+      context,
+    });
+
+    expect(plan.steps[0]?.intentPayload).toEqual({
+      rawText: "Give the wrench to the mechanic.",
+      actionType: "give",
+      targetIds: [mechanicId],
+      resourceIds: [wrenchId],
+    });
+  });
+
   it("compiles known-location travel directly into a movement payload", () => {
     const context = {
       entities: [
