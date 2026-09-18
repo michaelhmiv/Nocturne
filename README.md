@@ -1,6 +1,6 @@
 # Nocturne
 
-Nocturne is a persistent, AI-mediated comic-book role-playing world. Players can invent characters, powers, equipment, vehicles, locations, organizations, and story goals in natural language. The backend captures those ideas through a universal content model rather than a closed catalog.
+Nocturne is a persistent, AI-mediated urban role-playing world. Players can invent ordinary characters, equipment, vehicles, locations, organizations, and story goals in natural language. The backend captures those ideas through a universal content model rather than a closed catalog.
 
 ## Architectural rule
 
@@ -37,7 +37,7 @@ Player-created content is represented as:
 
 ## Pull-request verification
 
-Nocturne intentionally does not depend on a large GitHub Actions pipeline. Before opening or merging a PR, run:
+GitHub Actions certification is required for changes. Before opening or merging a PR, run:
 
 ```bash
 pnpm verify
@@ -61,3 +61,7 @@ pnpm nocturne:agent status
 ## Status
 
 Phases 1–4 playable loop is in main. Agent gateway + SDK: `@nocturne/agent-sdk`.
+
+## Current product direction
+
+The [September 2026 revival contract](docs/plans/2026-09-18-revival.md) governs the standalone website, ordinary-human NYC world, offline vulnerability, Jev evaluation, and required Actions certification.

@@ -97,7 +97,7 @@ export async function registerPersistentWorldRuntime(
 ) {
   const executor = createUniversalOperationExecutor(dependencies.database);
   const nonMutatingEvents = createNonMutatingEventStore(dependencies.database);
-  const routineActions = createRoutineActionService(executor);
+  const routineActions = createRoutineActionService(nonMutatingEvents);
   const semanticActions = createSemanticActionExecutionService({
     executor,
     nonMutatingEvents,

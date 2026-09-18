@@ -7,6 +7,7 @@ import type {
 } from "@nocturne/contracts";
 import type { createDatabase } from "./index.js";
 import { serializeJson as json } from "./json.js";
+import { DEFAULT_WORLD_ID } from "./world-schema.js";
 
 export const STARTER_WORLD_IDS = {
   city: "10000000-0000-4000-8000-000000000001",
@@ -160,7 +161,7 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
           '30000000-0000-4000-8000-000000000001', 'seed:foundry-row:v1', now(),
           'starter_world_seeded', ${json([...STARTER_INSTANCE_IDS])},
           ${json({ version: 1, neighborhoodId: STARTER_WORLD_IDS.neighborhood })}
-        ) ON CONFLICT (idempotency_key) DO NOTHING
+        ) ON CONFLICT (world_id, idempotency_key) DO NOTHING
       `;
     });
     return getStarterWorld();
@@ -219,7 +220,10 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
   ): Promise<CharacterSummary> {
     return database.client.begin(async (sql) => {
       const existing = await sql`
-        SELECT payload FROM game.event_ledger WHERE idempotency_key = ${idempotencyKey}
+        SELECT payload
+        FROM game.event_ledger
+        WHERE world_id = ${DEFAULT_WORLD_ID}
+          AND idempotency_key = ${idempotencyKey}
       `;
       if (existing[0]?.payload) {
         const characterId = String((existing[0].payload as Record<string, unknown>).characterId);

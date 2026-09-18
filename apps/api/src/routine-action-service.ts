@@ -1,5 +1,5 @@
 import type { ActionResolutionDecision, SemanticActionFrame } from "@nocturne/contracts";
-import type { UniversalOperationExecutor, WorldScope } from "@nocturne/database";
+import type { NonMutatingEventStore, WorldScope } from "@nocturne/database";
 
 function successNarration(frame: SemanticActionFrame) {
   if (frame.actionType === "exercise" && frame.quantity === 1) {
@@ -15,7 +15,9 @@ function failureNarration(frame: SemanticActionFrame, resolution: ActionResoluti
   return `You cannot complete that action: ${resolution.rationale}`;
 }
 
-export function createRoutineActionService(executor: UniversalOperationExecutor) {
+export function createRoutineActionService(
+  nonMutatingEvents: Pick<NonMutatingEventStore, "record">,
+) {
   async function execute(input: {
     scope: WorldScope;
     actorId: string;
@@ -28,39 +30,29 @@ export function createRoutineActionService(executor: UniversalOperationExecutor)
     if (!["automatic_success", "automatic_failure"].includes(input.resolution.mode)) {
       throw new Error(`Routine action service cannot execute ${input.resolution.mode}.`);
     }
+
     const succeeded = input.resolution.mode === "automatic_success";
     const narration = succeeded
       ? successNarration(input.frame)
       : failureNarration(input.frame, input.resolution);
-    const receipt = await executor.execute({
+    const receipt = await nonMutatingEvents.record({
       scope: input.scope,
-      authority: "player",
       actorId: input.actorId,
+      idempotencyKey: input.idempotencyKey,
+      eventType: succeeded ? "action_completed_non_mutating" : "action_failed",
       sourcePlanId: input.planId,
       sourceStepId: input.stepId,
-      idempotencyKey: input.idempotencyKey,
-      declaredFactIds: input.resolution.requiredFactIds,
-      branch: {
-        operations: [
-          {
-            type: "set_state_value",
-            entityRef: { kind: "existing", entityId: input.actorId },
-            path: ["activity", "last_deterministic_action"],
-            value: {
-              actionType: input.frame.actionType,
-              objective: input.frame.objective,
-              quantity: input.frame.quantity ?? null,
-              resolutionMode: input.resolution.mode,
-              rationale: input.resolution.rationale,
-              occurredAt: new Date().toISOString(),
-            },
-            preconditionFactIds: [],
-          },
-        ],
+      payload: {
+        actionType: input.frame.actionType,
+        objective: input.frame.objective,
+        quantity: input.frame.quantity ?? null,
+        resolutionMode: input.resolution.mode,
+        rationale: input.resolution.rationale,
       },
       playerVisibleFacts: [narration],
       hiddenFacts: [],
     });
+
     return {
       state: "completed" as const,
       outcomeGrade: succeeded ? "complete_success" : "failure",

@@ -6,12 +6,13 @@ import {
 } from "@nocturne/contracts";
 import type { AiTask } from "./model-policy.js";
 
-export const GAME_CONSTITUTION_VERSION = "nocturne-gm-constitution-v1";
+export const GAME_CONSTITUTION_VERSION = "nocturne-gm-constitution-v2";
 
 export const NOCTURNE_GAME_CONSTITUTION: GameConstitution = GameConstitutionSchema.parse({
   version: GAME_CONSTITUTION_VERSION,
   purpose: [
     "Nocturne is an improvisational open-world roleplaying game where players may attempt arbitrary actions.",
+    "The setting uses real NYC geography with fictional content and ordinary human characters. Superpowers and supernatural capabilities are unavailable.",
     "Resolve player intent in-world whenever a coherent, bounded resolution is possible.",
     "Preserve durable causal truth while allowing flexible narrative texture.",
   ],

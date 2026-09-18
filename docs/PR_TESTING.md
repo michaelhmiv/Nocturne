@@ -1,6 +1,6 @@
 # Pull-request testing
 
-Nocturne uses a manual verification contract rather than a large mandatory GitHub Actions suite.
+Nocturne requires GitHub Actions certification alongside local verification. The September 2026 revival contract governs product behavior and release gates.
 
 ## Every PR
 
@@ -89,7 +89,7 @@ Against disposable PostgreSQL, verify:
 - tenancy, ownership, or access does not imply physical presence;
 - another player's exact location is absent from player-safe state without direct observation or a valid information asset;
 - disconnecting leaves a character present and eligible for observation and area effects;
-- offline characters perform no autonomous actions;
+- offline characters remain vulnerable and use their configured standing response only when an incident requires a response;
 - only explicit committed timed work advances offline, with recorded objective, scope/location, timing, reserved resources, and interruption rules;
 - the worker does not invent follow-up choices when timed work completes or is interrupted; and
 - concurrent movement, timed completion, and area effects resolve from fresh state without duplicate or stale operations.
