@@ -366,6 +366,73 @@ describe("semantic action execution service", () => {
     },
   );
 
+  it("normalizes pickup when Jev supplies the item as the direct target", async () => {
+    const actorId = randomUUID();
+    const objectId = randomUUID();
+    const { service, execute, record } = serviceMocks();
+    const pickupFrame = frame(actorId, "transfer", [objectId]);
+    pickupFrame.actionType = "pick_up";
+    const pickupResolution = resolution("transaction");
+    pickupResolution.requiredFactIds = ["fact:pickup"];
+
+    await service.execute({
+      scope,
+      actorId,
+      planId: randomUUID(),
+      stepId: randomUUID(),
+      idempotencyKey: "semantic:pickup-target-normalization",
+      frame: pickupFrame,
+      resolution: pickupResolution,
+      context: context(actorId, objectId),
+    });
+
+    expect(record).not.toHaveBeenCalled();
+    expect(operationValues(execute.mock.calls[0]![0])).toEqual([
+      expect.objectContaining({
+        type: "transfer_possession",
+        entityRef: { kind: "existing", entityId: objectId },
+        possessorRef: { kind: "existing", entityId: actorId },
+        preconditionFactIds: ["fact:pickup"],
+      }),
+    ]);
+  });
+
+  it("represents put-in as containment while leaving possession unchanged", async () => {
+    const actorId = randomUUID();
+    const containerId = randomUUID();
+    const objectId = randomUUID();
+    const { service, execute, record } = serviceMocks();
+    const putFrame = frame(actorId, "transfer", [containerId]);
+    putFrame.actionType = "put_in";
+    putFrame.objectIds = [objectId];
+    const putResolution = resolution("transaction");
+    putResolution.requiredFactIds = ["fact:object", "fact:container"];
+
+    await service.execute({
+      scope,
+      actorId,
+      planId: randomUUID(),
+      stepId: randomUUID(),
+      idempotencyKey: "semantic:put-in",
+      frame: putFrame,
+      resolution: putResolution,
+      context: context(actorId, containerId),
+    });
+
+    expect(record).not.toHaveBeenCalled();
+    const operations = operationValues(execute.mock.calls[0]![0]);
+    expect(operations).toEqual([
+      expect.objectContaining({
+        type: "set_relation",
+        relationType: "contained_in",
+        sourceRef: { kind: "existing", entityId: objectId },
+        targetRef: { kind: "existing", entityId: containerId },
+        preconditionFactIds: ["fact:object", "fact:container"],
+      }),
+    ]);
+    expect(operations.some((operation) => operation.type === "transfer_possession")).toBe(false);
+  });
+
   it("uses the same deterministic roll for the same idempotency key", async () => {
     const actorId = randomUUID();
     const { service, record } = serviceMocks();
