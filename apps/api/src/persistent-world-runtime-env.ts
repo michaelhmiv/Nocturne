@@ -298,6 +298,7 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
       actorId,
       rawText,
       idempotencyKey,
+      payload,
     }: {
       kind: Exclude<WorldActionKind, "search" | "move">;
       scope: WorldScope;
@@ -306,11 +307,18 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
       idempotencyKey: string;
       payload: Record<string, unknown>;
     }) => {
+      const hintedActionType =
+        typeof payload.actionType === "string" &&
+        /^[a-z][a-z0-9_]{0,63}$/.test(payload.actionType)
+          ? payload.actionType
+          : kind === "consume"
+            ? "consume"
+            : undefined;
       const result = await legacyActions.execute(
         scope.userId,
         { actorId, rawText },
         idempotencyKey,
-        kind === "consume" ? { actionType: "consume" } : {},
+        hintedActionType ? { actionType: hintedActionType } : {},
       );
       const unitsConsumed = result.consumption?.unitsConsumed ?? 0;
       const outcomeGrade =
