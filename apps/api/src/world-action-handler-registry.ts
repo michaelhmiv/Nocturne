@@ -12,10 +12,7 @@ import {
 } from "./gameplay-telemetry.js";
 import type { SearchDiscoveryService } from "./search-discovery-service.js";
 import { adjudicateActionResolution } from "./resolution-mode-adjudicator.js";
-import {
-  deriveSemanticActionFrame,
-  isRoutineSelfDirectedAction,
-} from "./semantic-action-frame.js";
+import { deriveSemanticActionFrame, isRoutineSelfDirectedAction } from "./semantic-action-frame.js";
 import type {
   WorldActionStepHandler,
   WorldActionStepHandlerResult,
