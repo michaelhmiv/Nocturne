@@ -178,6 +178,10 @@ jobs:
         run: |
           set -o pipefail
           pnpm --filter @nocturne/database db:invariants 2>&1 | tee artifacts/invariants.log
+      - name: Run PostgreSQL-backed database tests
+        run: |
+          set -o pipefail
+          pnpm --filter @nocturne/database test 2>&1 | tee artifacts/database-tests.log
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
