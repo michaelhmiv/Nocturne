@@ -88,6 +88,7 @@ async function request(testCase) {
     headers,
     body: JSON.stringify({
       model,
+      reasoning: { enabled: false },
       max_tokens: 220,
       temperature: 0.35,
       response_format: { type: "json_object" },
