@@ -33,6 +33,7 @@ export interface AiProviderConfig {
   model?: string;
   authoritativeModel?: string;
   creativeModel?: string;
+  narrationModel?: string;
   thinkingMode?: AiThinkingMode;
   timeoutMs?: number;
   maxTokens?: number;
@@ -52,6 +53,7 @@ export interface ResolvedAiProviderConfig {
   model: string;
   authoritativeModel: string;
   creativeModel: string;
+  narrationModel: string;
   thinkingMode: AiThinkingMode;
   timeoutMs: number;
   maxTokens: number;
@@ -81,6 +83,26 @@ export interface StructuredGenerationResult<T> {
   providerRequestId?: string;
   attempts?: number;
   latencyMs?: number;
+}
+
+export interface TextGenerationRequest {
+  task: AiTask;
+  system: string;
+  prompt: string;
+  requestedModel?: string;
+  temperature?: number;
+  maxTokens?: number;
+  signal?: AbortSignal;
+}
+
+export interface TextGenerationResult {
+  text: string;
+  requestedModel: string;
+  actualModel: string;
+  provider: AiProviderName;
+  providerRequestId?: string;
+  attempts: number;
+  latencyMs: number;
 }
 
 export type AiProviderErrorCode =
@@ -238,6 +260,10 @@ export function resolveAiProviderConfigFromEnv(
     model,
     authoritativeModel: configured(environment.AI_AUTHORITATIVE_MODEL) || model,
     creativeModel: configured(environment.AI_CREATIVE_MODEL) || model,
+    narrationModel:
+      configured(environment.AI_NARRATION_MODEL) ||
+      configured(environment.AI_CREATIVE_MODEL) ||
+      model,
     thinkingMode,
     timeoutMs: parsePositiveInteger(environment.AI_TIMEOUT_MS, 60_000, 1_000, 300_000),
     maxTokens: parsePositiveInteger(environment.AI_MAX_TOKENS, 4_096, 128, 384_000),
@@ -266,6 +292,8 @@ function resolveClientConfig(config: AiProviderConfig): ResolvedAiProviderConfig
     authoritativeModel:
       configured(config.authoritativeModel) || environmentConfig.authoritativeModel || model,
     creativeModel: configured(config.creativeModel) || environmentConfig.creativeModel || model,
+    narrationModel:
+      configured(config.narrationModel) || environmentConfig.narrationModel || model,
     thinkingMode: config.thinkingMode || environmentConfig.thinkingMode,
     timeoutMs: config.timeoutMs || environmentConfig.timeoutMs,
     maxTokens: config.maxTokens || environmentConfig.maxTokens,
@@ -481,6 +509,7 @@ export class AiProviderClient {
       model: this.resolved.model,
       authoritativeModel: this.resolved.authoritativeModel,
       creativeModel: this.resolved.creativeModel,
+      narrationModel: this.resolved.narrationModel,
       thinkingMode: this.resolved.thinkingMode,
       maxTokens: this.resolved.maxTokens,
       timeoutMs: this.resolved.timeoutMs,
@@ -496,6 +525,51 @@ export class AiProviderClient {
       creativeModel: this.resolved.creativeModel,
       requestedModel,
     }).model;
+  }
+
+  async generateText(
+    request: TextGenerationRequest,
+    retries = 1,
+  ): Promise<TextGenerationResult> {
+    const model = configured(request.requestedModel) || this.resolved.narrationModel;
+    const startedAt = Date.now();
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= retries + 1; attempt += 1) {
+      const attemptStartedAt = Date.now();
+      try {
+        const result = await this.callTextProvider(request, model);
+        this.resolved.logger?.({
+          task: request.task,
+          provider: this.resolved.provider,
+          model,
+          attempt,
+          latencyMs: Date.now() - attemptStartedAt,
+          status: "success",
+        });
+        return {
+          ...result,
+          provider: this.resolved.provider,
+          attempts: attempt,
+          latencyMs: Date.now() - startedAt,
+        };
+      } catch (error) {
+        lastError = error;
+        const code = error instanceof AiProviderError ? error.code : "provider_failure";
+        this.resolved.logger?.({
+          task: request.task,
+          provider: this.resolved.provider,
+          model,
+          attempt,
+          latencyMs: Date.now() - attemptStartedAt,
+          status: "error",
+          errorCode: code,
+        });
+        if (!isTransientAiProviderError(error) || attempt > retries) throw error;
+      }
+    }
+
+    throw lastError;
   }
 
   async generateStructured<T>(
@@ -555,6 +629,108 @@ export class AiProviderClient {
       }
     }
     throw lastError;
+  }
+
+  private async callTextProvider(
+    request: TextGenerationRequest,
+    model: string,
+  ): Promise<Omit<TextGenerationResult, "provider" | "attempts" | "latencyMs">> {
+    const apiKey = this.resolved.apiKey;
+    if (!apiKey) {
+      throw new AiProviderError(
+        "configuration",
+        `No API key is configured for AI_PROVIDER=${this.resolved.provider}. Set AI_API_KEY or the provider-specific key.`,
+      );
+    }
+
+    const timeoutSignal = AbortSignal.timeout(this.resolved.timeoutMs);
+    const signal = request.signal
+      ? AbortSignal.any([request.signal, timeoutSignal])
+      : timeoutSignal;
+    const body: Record<string, unknown> = {
+      ...this.resolved.extraBody,
+      model,
+      max_tokens: request.maxTokens ?? Math.min(this.resolved.maxTokens, 1_024),
+      messages: [
+        { role: "system", content: request.system },
+        { role: "user", content: request.prompt },
+      ],
+    };
+    if (this.resolved.sendTemperature) body.temperature = request.temperature ?? 0.35;
+    if (this.resolved.provider === "openrouter") {
+      body.reasoning = { enabled: false };
+    } else if (this.resolved.thinkingMode !== "omit") {
+      body.thinking = { type: this.resolved.thinkingMode };
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(chatCompletionsUrl(this.resolved.baseUrl), {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          ...this.resolved.extraHeaders,
+        },
+        body: JSON.stringify(body),
+        signal,
+      });
+    } catch (error) {
+      if (request.signal?.aborted) {
+        throw new AiProviderError("aborted", "AI provider text request was aborted.", {
+          cause: error,
+        });
+      }
+      if (timeoutSignal.aborted) {
+        throw new AiProviderError("timeout", "AI provider text request timed out.", {
+          cause: error,
+        });
+      }
+      throw new AiProviderError("provider_failure", "AI provider text request failed.", {
+        cause: error,
+      });
+    }
+
+    const responseText = await response.text();
+    let payload: ProviderResponse;
+    try {
+      payload = JSON.parse(responseText) as ProviderResponse;
+    } catch (error) {
+      throw new AiProviderError(
+        "malformed_response",
+        `AI provider returned malformed text response envelope (content_length=${responseText.length}).`,
+        { cause: error },
+      );
+    }
+
+    if (!response.ok) {
+      const code: AiProviderErrorCode =
+        response.status === 429
+          ? "rate_limited"
+          : response.status >= 500
+            ? "provider_failure"
+            : "provider_rejected";
+      throw new AiProviderError(
+        code,
+        `${this.resolved.provider} rejected text model ${model} (${response.status}): ${payload.error?.message || "unknown provider error"}`,
+        { cause: payload.error },
+      );
+    }
+
+    const content = payload.choices?.[0]?.message?.content?.trim();
+    if (!content) {
+      throw new AiProviderError(
+        "malformed_response",
+        `AI provider returned empty text content (finish_reason=${payload.choices?.[0]?.finish_reason ?? "unknown"}).`,
+      );
+    }
+
+    return {
+      text: content,
+      requestedModel: model,
+      actualModel: payload.model || model,
+      providerRequestId: payload.id,
+    };
   }
 
   private async callProvider<T>(
