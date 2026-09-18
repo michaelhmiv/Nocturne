@@ -3,7 +3,10 @@ import { mkdir, writeFile } from "node:fs/promises";
 const key = process.env.OPENROUTER_API_KEY;
 if (!key) throw new Error("OPENROUTER_API_KEY is required.");
 
-const models = (process.env.NARRATION_MODELS || "qwen/qwen3.7-flash,poolside/laguna-s-2.1,bytedance-seed/seed-2.0-mini")
+const models = (
+  process.env.NARRATION_MODELS ||
+  "qwen/qwen3.7-flash,poolside/laguna-s-2.1,bytedance-seed/seed-2.0-mini"
+)
   .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
