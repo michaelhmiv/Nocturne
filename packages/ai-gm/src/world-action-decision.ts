@@ -57,6 +57,8 @@ const actionTypeCriteria = {
   give: "Give or hand an item/resource to another person or entity.",
   transfer:
     "Transfer possession of an item/resource to another person or entity without implying a sale.",
+  put_in:
+    "Place an item into or onto a specified container or destination without implying abandonment or sale.",
   drop: "Relinquish possession of an item at the actor's current place.",
   sneak: "Move stealthily or quietly to avoid detection.",
   lockpick: "Manipulate a mechanical lock to open it without the normal key.",
@@ -98,6 +100,7 @@ const actionTypeKind: Record<DetailedActionType, WorldActionKind> = {
   pick_up: "transfer",
   give: "transfer",
   transfer: "transfer",
+  put_in: "transfer",
   drop: "transfer",
   sneak: "interact",
   lockpick: "interact",
@@ -112,7 +115,7 @@ const actionTypeKind: Record<DetailedActionType, WorldActionKind> = {
   disguise: "interact",
   forge: "interact",
   plant: "interact",
-  observe: "search",
+  observe: "interact",
   arrest: "combat",
   buy: "transfer",
   sell: "transfer",
@@ -334,7 +337,7 @@ export async function decideWorldActionFastPath(
     requires_multi_step: {
       type: "noul",
       instructions:
-        "Does fulfilling the command require multiple ordered in-world actions, prerequisites, travel plus another action, or a compound sequence rather than one action step?",
+        "Did the player explicitly request multiple ordered in-world actions or a compound sequence? Do not count implicit prerequisites, tool use, entering a vehicle, physical feasibility problems, or actions the engine might require to make an impossible request possible. A single requested action remains one step even if the engine later rejects it.",
       criteria: {
         true: "Multiple ordered action steps or dependencies are required.",
         false: "One action step can represent the command.",
@@ -345,7 +348,7 @@ export async function decideWorldActionFastPath(
   shortlisted.forEach((candidate, index) => {
     questions[`role_${index}`] = {
       type: "choice",
-      instructions: `For candidate ${JSON.stringify(candidate.displayName)} (${candidate.entityId}), choose the semantic role it plays in the player's command. Choose none when it is merely nearby/relevant and not actually referenced.`,
+      instructions: `For candidate ${JSON.stringify(candidate.displayName)} (${candidate.entityId}), choose the semantic role it plays in the player's command. Choose none when it is merely nearby/relevant and not actually referenced. For transfer-like actions (pick up, drop, give, buy, sell, steal, transfer, put into), the item being moved is resource; a recipient/person acted upon is target; a destination receptacle is container.`,
       criteria: referenceRoleCriteria,
     };
   });
