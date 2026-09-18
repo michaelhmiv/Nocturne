@@ -99,6 +99,7 @@ function classifyAction(command: string) {
   if (/\b(steal|pickpocket|slip .*pocket)\b/.test(text)) return "steal";
   if (/\b(pick up|take possession|grab)\b/.test(text)) return "pick_up";
   if (/\b(give|hand .* to)\b/.test(text)) return "give";
+  if (/\b(put|place)\b.*\b(?:into|in|inside|onto|on)\b/.test(text)) return "put_in";
   if (/\b(transfer .* to)\b/.test(text)) return "transfer";
   if (/\b(drop|put down)\b/.test(text)) return "drop";
   if (/\b(sneak|quietly through|silently)\b/.test(text)) return "sneak";
@@ -131,7 +132,7 @@ function worldKind(actionType: string) {
   if (actionType === "consume") return "consume";
   if (["bribe", "persuade", "threaten"].includes(actionType)) return "relationship";
   if (["attack", "arrest"].includes(actionType)) return "combat";
-  if (["steal", "buy", "sell", "pick_up", "give", "transfer", "drop"].includes(actionType))
+  if (["steal", "buy", "sell", "pick_up", "give", "transfer", "put_in", "drop"].includes(actionType))
     return "transfer";
   if (actionType === "talk") return "dialogue";
   return "interact";
