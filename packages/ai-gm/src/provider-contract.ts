@@ -1,9 +1,7 @@
 import { z } from "zod";
 import {
-  NOCTURNE_GAME_CONSTITUTION,
   createAiDecisionClientFromEnv,
   createAiProviderClientFromEnv,
-  planPersistentWorldAction,
   resolveAiDecisionConfigFromEnv,
   resolveAiProviderConfigFromEnv,
 } from "./index.js";
@@ -72,57 +70,14 @@ const authoritative = await client.generateStructured({
   jsonSchema,
   validator: ContractSchema,
 });
-const creative = await client.generateStructured({
+const narration = await client.generateText({
   task: "narrate_event",
-  system: "You are a provider compatibility probe. Return the requested exact status object.",
-  prompt: '{"status":"ok","capability":"creative-json"}',
-  jsonSchema,
-  validator: ContractSchema,
+  system:
+    "You are the Nocturne presentation layer. State only the supplied committed result in one short sentence.",
+  prompt: "Committed result: the unlocked door opened successfully.",
+  maxTokens: 80,
+  temperature: 0.2,
 });
-const actorId = "00000000-0000-4000-8000-000000000101";
-const areaId = "00000000-0000-4000-8000-000000000102";
-const planner = await planPersistentWorldAction(client, {
-  command: "I look around.",
-  actorId,
-  resolvedEntityIds: [],
-  playerKnownFacts: [
-    {
-      entityId: actorId,
-      claim: "entity.location",
-      value: areaId,
-      confidence: 1,
-    },
-  ],
-  activePlanSummary: null,
-  enabledHandlers: [
-    "search",
-    "move",
-    "consume",
-    "relationship",
-    "combat",
-    "transfer",
-    "interact",
-    "dialogue",
-    "question",
-  ],
-  gameMasterContext: {
-    constitution: NOCTURNE_GAME_CONSTITUTION,
-    currentCommand: "I look around.",
-    currentScene: {
-      locationId: areaId,
-      locationName: "Provider Contract Room",
-      locationDescription: "A deterministic room used for provider compatibility testing.",
-      summary: "The actor is standing in the room.",
-      unresolvedThreads: [],
-    },
-    recentTurns: [],
-    relevantMemories: [],
-    playerKnownFacts: [],
-    activePlan: null,
-    estimatedTokens: 256,
-  },
-});
-
 console.log(
   JSON.stringify(
     {
@@ -134,13 +89,10 @@ console.log(
       decisionPermittedAttempt: decision.answers.permitted_attempt.noul,
       decisionLatencyMs: decision.latencyMs,
       authoritativeModel: authoritative.actualModel,
-      creativeModel: creative.actualModel,
-      plannerModel: planner.actualModel,
-      plannerKind: planner.data.primaryKind,
-      plannerStepCount: planner.data.plan?.steps.length || 0,
+      narrationModel: narration.actualModel,
+      narrationText: narration.text,
       authoritativeRequestId: authoritative.providerRequestId || null,
-      creativeRequestId: creative.providerRequestId || null,
-      plannerRequestId: planner.providerRequestId || null,
+      narrationRequestId: narration.providerRequestId || null,
       durationMs: Date.now() - startedAt,
     },
     null,
