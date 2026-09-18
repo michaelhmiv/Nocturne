@@ -302,7 +302,7 @@ async function run(testCase) {
     requires_multi_step: {
       type: "noul",
       instructions:
-        "Does fulfilling this command require multiple ordered in-world actions or dependencies rather than one action step?",
+        "Did the player explicitly request multiple ordered in-world actions or a compound sequence? Do not count implicit prerequisites, tool use, entering a vehicle, physical feasibility problems, or actions the engine might require to make an impossible request possible.",
       criteria: {
         true: "Multiple ordered steps are required.",
         false: "One action step represents the command.",
@@ -312,7 +312,7 @@ async function run(testCase) {
   testCase.candidates.forEach((candidate, index) => {
     questions[`role_${index}`] = {
       type: "choice",
-      instructions: `Choose the semantic role of candidate ${candidate.name} (${candidate.id}) in the player's command. Choose none if merely nearby/relevant.`,
+      instructions: `Choose the semantic role of candidate ${candidate.name} (${candidate.id}) in the player's command. Choose none if merely nearby/relevant. For transfer-like actions, the item being moved is resource; a recipient/person acted upon is target; a destination receptacle is container.`,
       criteria: roleCriteria,
     };
   });
@@ -361,8 +361,8 @@ async function run(testCase) {
     actionCorrect: action === testCase.action,
     clarificationExpected: testCase.clarify,
     clarificationProbability: clarification,
-    clarificationActual: clarification >= 0.5,
-    clarificationCorrect: clarification >= 0.5 === testCase.clarify,
+    clarificationActual: clarification >= 0.65,
+    clarificationCorrect: clarification >= 0.65 === testCase.clarify,
     multiExpected: testCase.multi,
     multiProbability: multi,
     multiActual: multi >= 0.5,
