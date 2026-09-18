@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { createDatabase } from "../../packages/database/src/index.js";
+import { createUniversalOperationExecutor } from "../../packages/database/src/universal-operation-executor.js";
 import {
   ACTION_CAPABILITIES,
   ACTION_CAPABILITY_NAMES,
@@ -91,6 +92,194 @@ async function setupCharacter() {
     body: JSON.stringify({ characterId: actorId }),
   });
   return actorId;
+}
+
+async function setupTransferFixtures(actorId: string) {
+  const actorRows = await database.client<
+    { world_id: string; shard_id: string; location_id: string | null }[]
+  >`
+    SELECT world_id, shard_id, location_id
+    FROM game.entity_instances
+    WHERE instance_id = ${actorId}
+  `;
+  const actor = actorRows[0];
+  if (!actor?.location_id) throw new Error("Certification actor has no physical location.");
+
+  const executor = createUniversalOperationExecutor(database);
+  const seeded = await executor.execute({
+    scope: {
+      worldId: actor.world_id,
+      shardId: actor.shard_id,
+      userId: "ci-certification-operator",
+      role: "owner",
+    },
+    authority: "operator",
+    idempotencyKey: `certification:transfer-fixtures:${actorId}`,
+    declaredFactIds: [],
+    branch: {
+      operations: [
+        {
+          type: "create_definition",
+          symbol: "transfer_item_definition",
+          definitionType: "item",
+          name: "Certification Wrench",
+          conceptSummary: "A plain steel wrench used for deterministic transfer certification.",
+          originSource: "ci",
+          lifecycleStatus: "approved",
+          preconditionFactIds: [],
+        },
+        {
+          type: "create_instance",
+          symbol: "transfer_item",
+          definitionRef: { kind: "symbol", symbol: "transfer_item_definition" },
+          locationRef: { kind: "existing", entityId: actor.location_id },
+          condition: 100,
+          state: { certificationFixture: true },
+          provenance: {
+            sourceType: "administrative_repair",
+            sourceId: "action-integration",
+            policyVersion: "ci-transfer-v1",
+            payload: { purpose: "neutral transfer certification" },
+          },
+          preconditionFactIds: [],
+        },
+        {
+          type: "create_definition",
+          symbol: "transfer_recipient_definition",
+          definitionType: "character",
+          name: "Certification Mechanic",
+          conceptSummary: "A stationary CI recipient used only for deterministic transfer certification.",
+          originSource: "ci",
+          lifecycleStatus: "approved",
+          preconditionFactIds: [],
+        },
+        {
+          type: "create_instance",
+          symbol: "transfer_recipient",
+          definitionRef: { kind: "symbol", symbol: "transfer_recipient_definition" },
+          locationRef: { kind: "existing", entityId: actor.location_id },
+          condition: 100,
+          state: { certificationFixture: true },
+          provenance: {
+            sourceType: "administrative_repair",
+            sourceId: "action-integration",
+            policyVersion: "ci-transfer-v1",
+            payload: { purpose: "neutral transfer certification" },
+          },
+          preconditionFactIds: [],
+        },
+        {
+          type: "set_relation",
+          sourceRef: { kind: "existing", entityId: actorId },
+          targetRef: { kind: "symbol", symbol: "transfer_item" },
+          relationType: "observed",
+          parameters: { visibility: "player_known" },
+          preconditionFactIds: [],
+        },
+        {
+          type: "set_relation",
+          sourceRef: { kind: "existing", entityId: actorId },
+          targetRef: { kind: "symbol", symbol: "transfer_recipient" },
+          relationType: "observed",
+          parameters: { visibility: "player_known" },
+          preconditionFactIds: [],
+        },
+      ],
+    },
+    playerVisibleFacts: [],
+    hiddenFacts: [],
+  });
+
+  const itemId = seeded.symbolMap.transfer_item;
+  const recipientId = seeded.symbolMap.transfer_recipient;
+  if (!itemId || !recipientId) throw new Error("Transfer certification fixture symbols were not resolved.");
+  return { itemId, recipientId };
+}
+
+async function possession(itemId: string) {
+  const rows = await database.client<{ possessor_id: string }[]>`
+    SELECT target_instance_id AS possessor_id
+    FROM game.entity_relations
+    WHERE source_instance_id = ${itemId}
+      AND relation_type = 'possessed_by'
+  `;
+  return rows.map((row) => row.possessor_id);
+}
+
+async function runTransferCommand(actorId: string, command: string, idempotencyKey: string) {
+  const response = await request("/v1/persistent-world/actions", {
+    method: "POST",
+    headers: { "idempotency-key": idempotencyKey },
+    body: JSON.stringify({ actorId, command }),
+  });
+  if (!response.response.ok || response.payload.state !== "completed") {
+    throw new Error(`Transfer command failed: ${command}: ${response.text}`);
+  }
+  return response.payload;
+}
+
+async function certifyNeutralTransfers(actorId: string) {
+  const { itemId, recipientId } = await setupTransferFixtures(actorId);
+
+  const pickupKey = `certification:pickup:${randomUUID()}`;
+  const pickup = await runTransferCommand(
+    actorId,
+    "Pick up the Certification Wrench.",
+    pickupKey,
+  );
+  if (JSON.stringify(await possession(itemId)) !== JSON.stringify([actorId])) {
+    throw new Error("Pickup did not make the actor the sole possessor.");
+  }
+
+  const replay = await runTransferCommand(
+    actorId,
+    "Pick up the Certification Wrench.",
+    pickupKey,
+  );
+  if (replay.requestId !== pickup.requestId) {
+    throw new Error("Pickup idempotent replay returned a different request.");
+  }
+  if (JSON.stringify(await possession(itemId)) !== JSON.stringify([actorId])) {
+    throw new Error("Pickup replay duplicated or changed possession.");
+  }
+
+  await runTransferCommand(
+    actorId,
+    "Drop the Certification Wrench.",
+    `certification:drop:${randomUUID()}`,
+  );
+  if ((await possession(itemId)).length !== 0) {
+    throw new Error("Drop did not relinquish possession.");
+  }
+
+  await runTransferCommand(
+    actorId,
+    "Pick up the Certification Wrench.",
+    `certification:pickup-again:${randomUUID()}`,
+  );
+  await runTransferCommand(
+    actorId,
+    "Give the Certification Wrench to the Certification Mechanic.",
+    `certification:give:${randomUUID()}`,
+  );
+  if (JSON.stringify(await possession(itemId)) !== JSON.stringify([recipientId])) {
+    throw new Error("Give did not transfer possession to the resolved recipient.");
+  }
+
+  const ownerRows = await database.client<{ owner_id: string | null }[]>`
+    SELECT owner_id FROM game.entity_instances WHERE instance_id = ${itemId}
+  `;
+  if (ownerRows[0]?.owner_id !== null) {
+    throw new Error("Possession transfer unexpectedly changed authoritative ownership.");
+  }
+
+  return {
+    itemId,
+    recipientId,
+    pickupRequestId: pickup.requestId,
+    givePossessorId: recipientId,
+    ownerId: ownerRows[0]?.owner_id ?? null,
+  };
 }
 
 async function databaseSnapshot(requestId: string) {
@@ -282,12 +471,14 @@ try {
   for (const actionType of ACTION_CAPABILITY_NAMES) {
     results.push(await runAction(actorId, actionType));
   }
+  const neutralTransfers = await certifyNeutralTransfers(actorId);
   const providerFailure = await runInfrastructureFailure(actorId);
   const report = {
     status: "passed",
     actorId,
     actionCount: results.length,
     results,
+    neutralTransfers,
     providerFailure,
   };
   await writeFile(resultPath, JSON.stringify(report, null, 2));
