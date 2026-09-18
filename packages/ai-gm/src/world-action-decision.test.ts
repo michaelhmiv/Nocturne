@@ -150,29 +150,32 @@ describe("Jev world-action fast path", () => {
     const wrenchId = "00000000-0000-4000-8000-000000000006";
     const mechanicId = "00000000-0000-4000-8000-000000000007";
     const client = {
-      decide: async () => ({
-        answers: {
+      decide: async (request: { state: unknown }) => {
+        const state = request.state as {
+          candidates?: Array<{ id?: string; type?: string }>;
+        };
+        const answers: Record<string, unknown> = {
           action_type: { type: "choice" as const, choice: "give", confidence: 0.99 },
           requires_clarification: { type: "noul" as const, noul: 0.01 },
           requires_multi_step: { type: "noul" as const, noul: 0.01 },
-          role_0: {
+        };
+        for (const [index, candidateValue] of (state.candidates || []).entries()) {
+          const role = candidateValue.id === wrenchId ? "resource" : "target";
+          answers[`role_${index}`] = {
             type: "choice" as const,
-            choice: "resource",
+            choice: role,
             confidence: 0.98,
-            probabilities: { resource: 0.98, none: 0.02 },
-          },
-          role_1: {
-            type: "choice" as const,
-            choice: "target",
-            confidence: 0.98,
-            probabilities: { target: 0.98, none: 0.02 },
-          },
-        },
-        requestedModel: "~typesafe/jev-latest",
-        actualModel: "typesafe/jev-1.13",
-        provider: "openrouter" as const,
-        latencyMs: 180,
-      }),
+            probabilities: { [role]: 0.98, none: 0.02 },
+          };
+        }
+        return {
+          answers,
+          requestedModel: "~typesafe/jev-latest",
+          actualModel: "typesafe/jev-1.13",
+          provider: "openrouter" as const,
+          latencyMs: 180,
+        };
+      },
     };
 
     const decision = await decideWorldActionFastPath(client as never, {
