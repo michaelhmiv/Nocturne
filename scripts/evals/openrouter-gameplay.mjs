@@ -37,11 +37,7 @@ const requested = process.env.EVAL_MODELS?.split(",")
   .filter(Boolean);
 const candidates = requested?.length
   ? requested
-  : [
-      "~typesafe/jev-latest",
-      "google/gemini-3.7-flash",
-      "~deepseek/deepseek-flash-latest",
-    ];
+  : ["~typesafe/jev-latest", "google/gemini-3.7-flash", "~deepseek/deepseek-flash-latest"];
 // OpenRouter moving aliases are valid request IDs even when /models omits the alias itself.
 // Preserve them for direct contract testing instead of treating catalog absence as unavailability.
 const models = candidates.map((id) => {
