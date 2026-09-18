@@ -132,7 +132,9 @@ function worldKind(actionType: string) {
   if (actionType === "consume") return "consume";
   if (["bribe", "persuade", "threaten"].includes(actionType)) return "relationship";
   if (["attack", "arrest"].includes(actionType)) return "combat";
-  if (["steal", "buy", "sell", "pick_up", "give", "transfer", "put_in", "drop"].includes(actionType))
+  if (
+    ["steal", "buy", "sell", "pick_up", "give", "transfer", "put_in", "drop"].includes(actionType)
+  )
     return "transfer";
   if (actionType === "talk") return "dialogue";
   return "interact";
