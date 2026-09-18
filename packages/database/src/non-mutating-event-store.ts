@@ -81,6 +81,16 @@ export function createNonMutatingEventStore(database: ReturnType<typeof createDa
     const hiddenFacts = input.hiddenFacts ?? [];
 
     return database.client.begin(async (transaction) => {
+      // A row lock cannot serialize the first use of an idempotency key because no
+      // receipt exists yet. Lock the world/key pair before checking so concurrent
+      // first submissions deterministically become one commit plus one replay.
+      await transaction`
+        SELECT pg_advisory_xact_lock(
+          hashtext(${input.scope.worldId}),
+          hashtext(${input.idempotencyKey})
+        )
+      `;
+
       const existing = await transaction<
         Array<{
           receipt_id: string;
