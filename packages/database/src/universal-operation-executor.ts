@@ -860,6 +860,15 @@ export function createUniversalOperationExecutor(
                   "Entity cannot hold this relation to itself.",
                 );
               }
+              if (operation.relationType === "contained_in") {
+                await sql`
+                  DELETE FROM game.entity_relations
+                  WHERE world_id = ${input.scope.worldId}
+                    AND source_instance_id = ${sourceId}
+                    AND relation_type = 'contained_in'
+                    AND target_instance_id <> ${targetId}
+                `;
+              }
               const relationRows = await sql<{ relation_id: string }[]>`
                 INSERT INTO game.entity_relations (
                   world_id, source_instance_id, target_instance_id,
