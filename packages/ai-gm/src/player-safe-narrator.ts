@@ -1,21 +1,6 @@
-import { z } from "zod";
-import type { AiProviderClient, StructuredGenerationResult } from "./ai-provider.js";
+import type { AiProviderClient, TextGenerationResult } from "./ai-provider.js";
 
 export const PLAYER_SAFE_FACT_NARRATION_POLICY_VERSION = "player-safe-facts-v1";
-
-const NarrationSchema = z.object({ narration: z.string().trim().min(1).max(4_000) }).strict();
-
-const narrationJsonSchema = {
-  name: "nocturne_player_safe_fact_narration",
-  schema: {
-    type: "object",
-    additionalProperties: false,
-    required: ["narration"],
-    properties: {
-      narration: { type: "string" },
-    },
-  },
-} as const;
 
 export type PlayerSafeFactNarrationInput = {
   eventType: string;
@@ -89,9 +74,9 @@ export function assertPlayerSafeFactNarration(
 }
 
 export async function narratePlayerSafeFacts(
-  client: Pick<AiProviderClient, "generateStructured">,
+  client: Pick<AiProviderClient, "generateText">,
   input: PlayerSafeFactNarrationInput,
-): Promise<StructuredGenerationResult<{ narration: string }>> {
+): Promise<TextGenerationResult> {
   const safeInput = {
     eventType: input.eventType,
     outcomeGrade: input.outcomeGrade,
@@ -99,13 +84,13 @@ export async function narratePlayerSafeFacts(
     constraints: (input.constraints || []).slice(0, 32),
     style: input.style || "immersive",
   };
-  const result = await client.generateStructured({
+  const result = await client.generateText({
     task: "narrate_event",
-    system: `You are Nocturne's player-facing prose layer. Policy ${PLAYER_SAFE_FACT_NARRATION_POLICY_VERSION}. Write only from supplied player-visible committed facts. Never invent causes, identities, injuries, deaths, movement, ownership, possession, arrests, hidden facts, or state changes. Obey narration constraints. Do not expose database IDs, implementation terms, JSON, or internal enum names.`,
+    system: `You are Nocturne's player-facing prose layer. Policy ${PLAYER_SAFE_FACT_NARRATION_POLICY_VERSION}. Treat supplied player-visible committed facts as a closed world. Do not invent a concrete action mechanism, movement mode, location, object property, body reaction, NPC reaction, sensory detail, payment method, possession state, cause, identity, injury, death, arrest, hidden fact, or state change that is not explicitly supplied. You may add connective phrasing and tone only when they imply no new concrete fact. Obey narration constraints. Do not expose database IDs, implementation terms, JSON, or internal enum names. Return only player-facing prose with no labels or commentary. Prefer 1-2 concise sentences.`,
     prompt: JSON.stringify(safeInput),
-    jsonSchema: narrationJsonSchema,
-    validator: NarrationSchema,
+    maxTokens: 320,
+    temperature: 0.35,
   });
-  assertPlayerSafeFactNarration(result.data.narration, input);
+  assertPlayerSafeFactNarration(result.text, input);
   return result;
 }
