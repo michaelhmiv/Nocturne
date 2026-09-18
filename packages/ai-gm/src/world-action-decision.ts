@@ -24,25 +24,24 @@ const REFERENCE_DOMINANCE_GAP = 0.15;
 const CLARIFICATION_THRESHOLD = 0.65;
 const MULTI_STEP_THRESHOLD = 0.5;
 type PlanReferenceRole =
-  | "target"
-  | "location"
-  | "method"
-  | "resource"
-  | "companion"
-  | "vehicle"
-  | "container"
-  | "other";
+  "target" | "location" | "method" | "resource" | "companion" | "vehicle" | "container" | "other";
 type CandidateReferenceRole = PlanReferenceRole | "none";
 
 const referenceRoleCriteria: Record<CandidateReferenceRole, string> = {
   none: "The player's command does not materially refer to this candidate.",
-  target: "The candidate is the direct person/object acted upon, spoken to, attacked, inspected, bought, sold, taken, or otherwise targeted.",
-  location: "The candidate is the destination, searched area, current place reference, or other location central to the action.",
-  method: "The candidate is a tool, weapon, instrument, method, or item explicitly used to perform the action.",
-  resource: "The candidate is a substance, item, money-like resource, or transferable thing consumed, acquired, sold, given, or spent.",
-  companion: "The candidate is a person or entity accompanying/following the actor rather than the direct target.",
+  target:
+    "The candidate is the direct person/object acted upon, spoken to, attacked, inspected, bought, sold, taken, or otherwise targeted.",
+  location:
+    "The candidate is the destination, searched area, current place reference, or other location central to the action.",
+  method:
+    "The candidate is a tool, weapon, instrument, method, or item explicitly used to perform the action.",
+  resource:
+    "The candidate is a substance, item, money-like resource, or transferable thing consumed, acquired, sold, given, or spent.",
+  companion:
+    "The candidate is a person or entity accompanying/following the actor rather than the direct target.",
   vehicle: "The candidate is the vehicle used for travel or transport.",
-  container: "The candidate is a container that something is put into, removed from, opened, or searched within.",
+  container:
+    "The candidate is a container that something is put into, removed from, opened, or searched within.",
   other: "The candidate is materially referenced but none of the more specific supplied roles fit.",
 };
 
@@ -342,8 +341,7 @@ export async function decideWorldActionFastPath(
   shortlisted.forEach((candidate, index) => {
     questions[`role_${index}`] = {
       type: "choice",
-      instructions:
-        `For candidate ${JSON.stringify(candidate.displayName)} (${candidate.entityId}), choose the semantic role it plays in the player's command. Choose none when it is merely nearby/relevant and not actually referenced.`,
+      instructions: `For candidate ${JSON.stringify(candidate.displayName)} (${candidate.entityId}), choose the semantic role it plays in the player's command. Choose none when it is merely nearby/relevant and not actually referenced.`,
       criteria: referenceRoleCriteria,
     };
   });
@@ -374,7 +372,9 @@ export async function decideWorldActionFastPath(
       const answer = requireDecisionChoice(result.answers[`role_${index}`], `role_${index}`);
       const role = answer.choice as CandidateReferenceRole;
       if (!(role in referenceRoleCriteria)) {
-        throw new Error(`Jev returned unsupported reference role ${JSON.stringify(answer.choice)}.`);
+        throw new Error(
+          `Jev returned unsupported reference role ${JSON.stringify(answer.choice)}.`,
+        );
       }
       const probability =
         role === "none"
@@ -399,9 +399,7 @@ export async function decideWorldActionFastPath(
   const selectedSet = new Set(selectedEntityIds);
   const selectedEntityRoles = Object.fromEntries(
     ranked
-      .filter(
-        ({ candidate, role }) => selectedSet.has(candidate.entityId) && role !== "none",
-      )
+      .filter(({ candidate, role }) => selectedSet.has(candidate.entityId) && role !== "none")
       .map(({ candidate, role }) => [candidate.entityId, role as PlanReferenceRole]),
   );
 
