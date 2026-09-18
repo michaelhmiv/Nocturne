@@ -45,25 +45,6 @@ const referenceRoleCriteria: Record<CandidateReferenceRole, string> = {
   other: "The candidate is materially referenced but none of the more specific supplied roles fit.",
 };
 
-const kindCriteria: Record<WorldActionKind, string> = {
-  search:
-    "Search for or attempt to discover something not already identified or located. Use this for finding hidden/unknown people, items, routes, entrances, evidence, resources, or information; do not use it merely to look at a specific already-known object.",
-  move: "Travel or move from the current place to another location.",
-  consume:
-    "Eat, drink, swallow, inhale, inject, taste, or otherwise consume a substance or resource.",
-  relationship:
-    "Attempt to change an ongoing social relationship, affiliation, following, companionship, trust, or similar persistent social state.",
-  combat: "Attack, fight, restrain, physically harm, or violently oppose another entity.",
-  transfer:
-    "Give, take, buy, sell, pick up, drop, steal, hand over, or otherwise change possession or ownership.",
-  interact:
-    "Ordinary interaction with a specific already-known object, person, or environment that is not movement, combat, consumption, or transfer. Looking at or inspecting an already-identified object belongs here unless the player is searching for something unknown.",
-  dialogue:
-    "Speak, ask conversationally, communicate, call, message, threaten verbally, persuade, or otherwise converse.",
-  question:
-    "Ask the game/system for player-safe factual information rather than performing an in-world social interaction.",
-};
-
 const actionTypeCriteria = {
   detect: "Actively scan or check for hidden threats, surveillance, danger, or signs of presence.",
   move: "Move on foot or otherwise relocate without specifically operating a vehicle.",
@@ -93,6 +74,10 @@ const actionTypeCriteria = {
   work: "Perform a job, shift, gig, task, or employment-like activity.",
   interact:
     "Perform an ordinary physical interaction not covered by a more specific supported action type.",
+  exercise:
+    "Perform a deliberate ordinary exercise repetition or set such as a push-up, sit-up, squat, plank, or similar body exercise.",
+  routine_body_action:
+    "Perform a simple ordinary self-directed body action such as sitting, standing, stretching, blinking, breathing, clapping, waving, smiling, nodding, kneeling, or lying down.",
   ask: "Ask the game/system for player-safe factual information rather than speaking to an in-world person.",
 } as const;
 
@@ -125,6 +110,8 @@ const actionTypeKind: Record<DetailedActionType, WorldActionKind> = {
   hide: "interact",
   work: "interact",
   interact: "interact",
+  exercise: "interact",
+  routine_body_action: "interact",
   ask: "question",
 };
 
@@ -301,22 +288,18 @@ export async function decideWorldActionFastPath(
   },
 ): Promise<FastWorldActionDecision> {
   const shortlisted = shortlistDecisionCandidates(input.command, input.candidates);
-  const intentCriteria = Object.fromEntries(
-    input.enabledHandlers.map((kind) => [kind, kindCriteria[kind]]),
+  const enabledActionTypes = Object.fromEntries(
+    Object.entries(actionTypeCriteria).filter(([actionType]) =>
+      input.enabledHandlers.includes(actionTypeKind[actionType as DetailedActionType]),
+    ),
   );
 
   const questions: Record<string, DecisionChoiceQuestion | DecisionNoulQuestion> = {
-    primary_kind: {
-      type: "choice",
-      instructions:
-        "Choose the player's terminal action kind. Choose the action they ultimately want to perform, not an incidental supporting motion.",
-      criteria: intentCriteria,
-    },
     action_type: {
       type: "choice",
       instructions:
-        "Choose the most specific supported Nocturne action type that describes the player's terminal action. Use the action itself, not an incidental prerequisite.",
-      criteria: actionTypeCriteria,
+        "Choose the most specific supported Nocturne action type that describes the player's terminal action. Use the action itself, not an incidental prerequisite. Prefer a specific action type over generic interact when one applies.",
+      criteria: enabledActionTypes,
     },
     requires_clarification: {
       type: "noul",
@@ -357,10 +340,12 @@ export async function decideWorldActionFastPath(
     questions,
   });
 
-  const primary = requireDecisionChoice(result.answers.primary_kind, "primary_kind");
   const detailed = requireDecisionChoice(result.answers.action_type, "action_type");
-  const kind = WorldActionKindSchema.parse(primary.choice);
+  if (!(detailed.choice in actionTypeKind)) {
+    throw new Error(`Jev returned unsupported action type ${JSON.stringify(detailed.choice)}.`);
+  }
   const actionType = detailed.choice as DetailedActionType;
+  const kind = WorldActionKindSchema.parse(actionTypeKind[actionType]);
   const clarification = requireDecisionNoul(
     result.answers.requires_clarification,
     "requires_clarification",
@@ -404,13 +389,9 @@ export async function decideWorldActionFastPath(
   );
 
   const fallbackReasons: string[] = [];
-  const kindConfidence =
-    primary.confidence ?? Math.max(...Object.values(primary.probabilities || {}), 0);
   const actionTypeConfidence =
     detailed.confidence ?? Math.max(...Object.values(detailed.probabilities || {}), 0);
-  if (!(actionType in actionTypeKind)) fallbackReasons.push("unknown_action_type");
-  if (actionTypeKind[actionType] !== kind) fallbackReasons.push("action_type_kind_mismatch");
-  if (kindConfidence < MIN_KIND_CONFIDENCE) fallbackReasons.push("low_kind_confidence");
+  const kindConfidence = actionTypeConfidence;
   if (actionTypeConfidence < MIN_KIND_CONFIDENCE)
     fallbackReasons.push("low_action_type_confidence");
   if (clarification.noul >= CLARIFICATION_THRESHOLD) fallbackReasons.push("clarification");
