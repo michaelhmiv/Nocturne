@@ -149,13 +149,18 @@ function operations(input: {
     });
   }
   const objectId = input.frame.objectIds[0];
-  if (input.succeeded && input.frame.kind === "transfer" && objectId && targetId) {
-    result.push({
-      type: "transfer_possession",
-      entityRef: { kind: "existing", entityId: objectId },
-      possessorRef: { kind: "existing", entityId: targetId },
-      preconditionFactIds: [],
-    });
+  if (input.succeeded && input.frame.kind === "transfer" && objectId) {
+    const actorReceives = ["pick_up", "steal", "buy"].includes(input.frame.actionType);
+    const actorDrops = input.frame.actionType === "drop";
+    const possessorId = actorReceives ? input.frame.actorId : actorDrops ? null : targetId;
+    if (possessorId || actorDrops) {
+      result.push({
+        type: "transfer_possession",
+        entityRef: { kind: "existing", entityId: objectId },
+        possessorRef: possessorId ? { kind: "existing", entityId: possessorId } : null,
+        preconditionFactIds: input.resolution.requiredFactIds,
+      });
+    }
   }
   return result;
 }
