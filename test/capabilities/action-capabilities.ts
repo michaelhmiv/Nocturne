@@ -104,7 +104,7 @@ export const ACTION_CAPABILITIES = {
   move: deterministic("movement", {
     worldKind: "move",
     skill: "athletics",
-    canonicalPrompts: ["I walk into the street.", "Head toward the alley."],
+    canonicalPrompts: ["I walk to the Rear Alley.", "Head toward the alley."],
     requiredLogEvents: [...STANDARD_LOGS, "schedule_created", "step_waiting", "request_waiting"],
     requiredDatabaseAssertions: [
       "one movement plan",
