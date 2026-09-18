@@ -334,7 +334,7 @@ export function createActionService(
             ],
             hiddenFactsToExclude: context.hiddenMechanics.hiddenFacts,
           });
-          narration = result.data.narration;
+          narration = result.text;
           await store.finishAiRun(
             narrationRun,
             result.actualModel,
@@ -488,7 +488,7 @@ export function createActionService(
           ],
           hiddenFactsToExclude: context.hiddenMechanics.hiddenFacts,
         });
-        narration = result.data.narration;
+        narration = result.text;
         await store.finishAiRun(
           narrationRun,
           result.actualModel,
