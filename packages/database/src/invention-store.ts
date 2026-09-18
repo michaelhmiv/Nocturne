@@ -197,13 +197,13 @@ export function createInventionStore(database: ReturnType<typeof createDatabase>
       }
       await sql`
         INSERT INTO game.event_ledger (
-          idempotency_key, world_time, event_type, involved_entity_ids, payload
+          world_id, idempotency_key, world_time, event_type, involved_entity_ids, payload
         ) VALUES (
-          ${`normalize:${input.requestId}`}, now(), 'content_normalized',
+          ${request.world_id}, ${`normalize:${input.requestId}`}, now(), 'content_normalized',
           ${json([String(request.creator_id), ...(definitionId ? [definitionId] : [])])},
           ${json({ requestId: input.requestId, definitionId, status, validation: input.validation })}
         )
-        ON CONFLICT (idempotency_key) DO NOTHING
+        ON CONFLICT (world_id, idempotency_key) DO NOTHING
       `;
       const updated = await sql`
         SELECT * FROM game.generated_content_requests
@@ -239,7 +239,11 @@ export function createInventionStore(database: ReturnType<typeof createDatabase>
     }
 
     const prior = await database.client`
-      SELECT 1 FROM game.event_ledger WHERE idempotency_key = ${input.idempotencyKey}
+      SELECT 1
+      FROM game.event_ledger event
+      JOIN game.entity_instances actor ON actor.instance_id = ${input.characterId}
+      WHERE event.world_id = actor.world_id
+        AND event.idempotency_key = ${input.idempotencyKey}
     `;
     if (prior[0]) return getRequest(input.userId, input.requestId);
 
@@ -281,9 +285,9 @@ export function createInventionStore(database: ReturnType<typeof createDatabase>
       `;
       await sql`
         INSERT INTO game.event_ledger (
-          event_id, idempotency_key, world_time, event_type, involved_entity_ids, payload
+          event_id, world_id, idempotency_key, world_time, event_type, involved_entity_ids, payload
         ) VALUES (
-          ${eventId}, ${input.idempotencyKey}, now(), 'invention_installed',
+          ${eventId}, ${request.world_id}, ${input.idempotencyKey}, now(), 'invention_installed',
           ${json([input.characterId, input.residenceId, instanceId])},
           ${json({
             requestId: input.requestId,
