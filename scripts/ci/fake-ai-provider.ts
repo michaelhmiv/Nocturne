@@ -362,6 +362,27 @@ function decisionResponse(body: Record<string, any>) {
           keys.find((key) => key.startsWith("existing_")) ||
           keys.find((key) => key.startsWith("materialize_")) ||
           (keys.includes("none") ? "none" : choice);
+      } else if (id.startsWith("role_")) {
+        const index = Number(id.slice("role_".length));
+        const candidate = Array.isArray(state.candidates) ? state.candidates[index] : null;
+        const labels = [
+          candidate?.name,
+          ...(Array.isArray(candidate?.aliases) ? candidate.aliases : []),
+          ...(Array.isArray(candidate?.relationships) ? candidate.relationships : []),
+        ]
+          .filter((value) => typeof value === "string")
+          .map((value) => String(value).toLowerCase());
+        const referenced = labels.some(
+          (label) => label.length >= 2 && command.toLowerCase().includes(label),
+        );
+        const type = String(candidate?.type || "").toLowerCase();
+        choice = !referenced
+          ? "none"
+          : actionKind === "move" || /location|residence|room|building|area/.test(type)
+            ? "location"
+            : actionKind === "consume"
+              ? "resource"
+              : "target";
       }
       answers[id] = {
         type: "choice",
@@ -460,6 +481,29 @@ const server = createServer(async (request, response) => {
   const schemaName = /JSON schema name:\s*([^\n]+)/.exec(system)?.[1]?.trim() || "unknown";
   const requestId = `fake-${randomUUID()}`;
   await record({ requestId, schemaName, model: body.model, prompt, requestBody: body });
+
+  if (
+    schemaName === "unknown" &&
+    /player-facing prose layer|Narrate only the committed Nocturne event/i.test(system)
+  ) {
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(
+      JSON.stringify({
+        id: requestId,
+        model: body.model || "nocturne-fake-narrator",
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              content:
+                "You carry out the committed action, and the world reflects only what actually occurred.",
+            },
+          },
+        ],
+      }),
+    );
+    return;
+  }
 
   if (prompt.includes("[fake:timeout]")) {
     await new Promise((resolve) => setTimeout(resolve, 120_000));
