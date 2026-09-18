@@ -379,15 +379,6 @@ export async function decideWorldActionFastPath(
     fallbackReasons.push("low_action_type_confidence");
   if (clarification.noul >= CLARIFICATION_THRESHOLD) fallbackReasons.push("clarification");
   if (multiStep.noul >= MULTI_STEP_THRESHOLD) fallbackReasons.push("multi_step");
-  if (
-    kind !== "move" &&
-    ranked.some(
-      ({ candidate, probability }) =>
-        probability >= REFERENCE_RESOLVE_THRESHOLD && !candidate.accessible,
-    )
-  ) {
-    fallbackReasons.push("referenced_entity_inaccessible");
-  }
   if (interpretation.mentions.some(({ status }) => status === "ambiguous")) {
     fallbackReasons.push("ambiguous_reference");
   }
