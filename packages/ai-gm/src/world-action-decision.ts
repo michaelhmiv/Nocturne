@@ -23,6 +23,28 @@ const REFERENCE_AMBIGUOUS_THRESHOLD = 0.55;
 const REFERENCE_DOMINANCE_GAP = 0.15;
 const CLARIFICATION_THRESHOLD = 0.65;
 const MULTI_STEP_THRESHOLD = 0.5;
+type PlanReferenceRole =
+  | "target"
+  | "location"
+  | "method"
+  | "resource"
+  | "companion"
+  | "vehicle"
+  | "container"
+  | "other";
+type CandidateReferenceRole = PlanReferenceRole | "none";
+
+const referenceRoleCriteria: Record<CandidateReferenceRole, string> = {
+  none: "The player's command does not materially refer to this candidate.",
+  target: "The candidate is the direct person/object acted upon, spoken to, attacked, inspected, bought, sold, taken, or otherwise targeted.",
+  location: "The candidate is the destination, searched area, current place reference, or other location central to the action.",
+  method: "The candidate is a tool, weapon, instrument, method, or item explicitly used to perform the action.",
+  resource: "The candidate is a substance, item, money-like resource, or transferable thing consumed, acquired, sold, given, or spent.",
+  companion: "The candidate is a person or entity accompanying/following the actor rather than the direct target.",
+  vehicle: "The candidate is the vehicle used for travel or transport.",
+  container: "The candidate is a container that something is put into, removed from, opened, or searched within.",
+  other: "The candidate is materially referenced but none of the more specific supplied roles fit.",
+};
 
 const kindCriteria: Record<WorldActionKind, string> = {
   search:
@@ -175,6 +197,7 @@ function mentionKind(command: string, candidate: EntityReferenceCandidate) {
 type ReferenceProbability = {
   candidate: EntityReferenceCandidate;
   probability: number;
+  role: CandidateReferenceRole;
 };
 
 function referenceInterpretation(
@@ -259,6 +282,7 @@ export type FastWorldActionDecision = {
   multiStepProbability: number;
   interpretation: EntityReferenceInterpretation;
   selectedEntityIds: string[];
+  selectedEntityRoles: Record<string, PlanReferenceRole>;
   fastPathEligible: boolean;
   fallbackReasons: string[];
   requestedModel: string;
@@ -316,14 +340,11 @@ export async function decideWorldActionFastPath(
   };
 
   shortlisted.forEach((candidate, index) => {
-    questions[`ref_${index}`] = {
-      type: "noul",
+    questions[`role_${index}`] = {
+      type: "choice",
       instructions:
-        "Does the player's command materially refer to this specific supplied persistent entity? Do not select it merely because it is nearby or relevant.",
-      criteria: {
-        true: compactCandidate(candidate),
-        false: "The command does not refer to this candidate.",
-      },
+        `For candidate ${JSON.stringify(candidate.displayName)} (${candidate.entityId}), choose the semantic role it plays in the player's command. Choose none when it is merely nearby/relevant and not actually referenced.`,
+      criteria: referenceRoleCriteria,
     };
   });
 
@@ -350,10 +371,19 @@ export async function decideWorldActionFastPath(
 
   const ranked = shortlisted
     .map((candidate, index) => {
-      const answer = requireDecisionNoul(result.answers[`ref_${index}`], `ref_${index}`);
+      const answer = requireDecisionChoice(result.answers[`role_${index}`], `role_${index}`);
+      const role = answer.choice as CandidateReferenceRole;
+      if (!(role in referenceRoleCriteria)) {
+        throw new Error(`Jev returned unsupported reference role ${JSON.stringify(answer.choice)}.`);
+      }
+      const probability =
+        role === "none"
+          ? Math.max(0, 1 - (answer.probabilities?.none ?? answer.confidence ?? 1))
+          : (answer.probabilities?.[role] ?? answer.confidence ?? 0);
       return {
         candidate,
-        probability: answer.noul,
+        probability,
+        role,
       };
     })
     .sort(
@@ -365,6 +395,14 @@ export async function decideWorldActionFastPath(
   const interpretation = referenceInterpretation(input.command, ranked, clarification.noul);
   const selectedEntityIds = interpretation.mentions.flatMap((mention) =>
     mention.status === "resolved" && mention.selectedEntityId ? [mention.selectedEntityId] : [],
+  );
+  const selectedSet = new Set(selectedEntityIds);
+  const selectedEntityRoles = Object.fromEntries(
+    ranked
+      .filter(
+        ({ candidate, role }) => selectedSet.has(candidate.entityId) && role !== "none",
+      )
+      .map(({ candidate, role }) => [candidate.entityId, role as PlanReferenceRole]),
   );
 
   const fallbackReasons: string[] = [];
@@ -392,6 +430,7 @@ export async function decideWorldActionFastPath(
     multiStepProbability: multiStep.noul,
     interpretation,
     selectedEntityIds,
+    selectedEntityRoles,
     fastPathEligible: fallbackReasons.length === 0,
     fallbackReasons,
     requestedModel: result.requestedModel,
@@ -424,6 +463,7 @@ export function buildFastSingleStepPlan(input: {
   kind: WorldActionKind;
   actionType: string;
   selectedEntityIds: string[];
+  selectedEntityRoles?: Record<string, PlanReferenceRole>;
   context: RelevanceCompiledContext;
 }): PersistentActionPlanProposal {
   const entityMap = new Map(input.context.entities.map((entity) => [entity.entityId, entity]));
@@ -437,14 +477,31 @@ export function buildFastSingleStepPlan(input: {
       .filter((entityId) => entityId !== input.actorId)
       .map((entityId) => ({
         entityId,
-        role: "target" as const,
+        role: input.selectedEntityRoles?.[entityId] || ("target" as const),
         expectedVersion: entityMap.get(entityId)?.version,
       })),
   ];
 
+  const idsForRole = (role: PlanReferenceRole) =>
+    input.selectedEntityIds.filter((entityId) => input.selectedEntityRoles?.[entityId] === role);
+  const targetIds = idsForRole("target");
+  const methodIds = idsForRole("method");
+  const resourceIds = idsForRole("resource");
+  const vehicleIds = idsForRole("vehicle");
+  const containerIds = idsForRole("container");
+  const companionIds = idsForRole("companion");
+  const locationIds = idsForRole("location");
+
   let intentPayload: Record<string, unknown> = {
     rawText: input.command,
     actionType: input.actionType,
+    ...(targetIds.length ? { targetIds } : {}),
+    ...(methodIds.length ? { methodIds } : {}),
+    ...(resourceIds.length ? { resourceIds } : {}),
+    ...(vehicleIds.length ? { vehicleIds } : {}),
+    ...(containerIds.length ? { containerIds } : {}),
+    ...(companionIds.length ? { companionIds } : {}),
+    ...(locationIds.length === 1 ? { locationId: locationIds[0] } : {}),
   };
 
   if (input.kind === "move") {
