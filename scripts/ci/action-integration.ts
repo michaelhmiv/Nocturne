@@ -497,6 +497,32 @@ async function runAction(actorId: string, actionType: keyof typeof ACTION_CAPABI
   };
 }
 
+async function certifyDriveFailsClosed(actorId: string) {
+  const idempotencyKey = `certification:drive-unsupported:${randomUUID()}`;
+  const response = await request("/v1/persistent-world/actions", {
+    method: "POST",
+    headers: { "idempotency-key": idempotencyKey },
+    body: JSON.stringify({ actorId, command: "Drive to the Rear Alley." }),
+  });
+  if (!response.response.ok || response.payload.state !== "waiting_for_clarification") {
+    throw new Error(
+      `Drive should fail closed until cohort travel is implemented: ${response.text}`,
+    );
+  }
+  const rows = await database.client<
+    { request_id: string; status: string; plan_id: string | null }[]
+  >`
+    SELECT request_id, status, plan_id
+    FROM game.world_action_requests
+    WHERE idempotency_key = ${idempotencyKey}
+  `;
+  const row = rows[0];
+  if (!row || row.status !== "waiting_for_clarification" || row.plan_id !== null) {
+    throw new Error(`Unsupported drive created durable travel state: ${JSON.stringify(row)}`);
+  }
+  return { requestId: row.request_id, status: row.status };
+}
+
 async function runInfrastructureFailure(actorId: string) {
   const idempotencyKey = `certification:provider-failure:${randomUUID()}`;
   const traceId = `certification-provider-failure-${randomUUID()}`;
@@ -533,8 +559,10 @@ const actorId = await setupCharacter();
 const results = [];
 try {
   for (const actionType of ACTION_CAPABILITY_NAMES) {
+    if (actionType === "drive") continue;
     results.push(await runAction(actorId, actionType));
   }
+  const driveFailsClosed = await certifyDriveFailsClosed(actorId);
   const routineExercise = await certifyRoutineExercise(actorId);
   const neutralTransfers = await certifyNeutralTransfers(actorId);
   const providerFailure = await runInfrastructureFailure(actorId);
@@ -543,6 +571,7 @@ try {
     actorId,
     actionCount: results.length,
     results,
+    driveFailsClosed,
     routineExercise,
     neutralTransfers,
     providerFailure,
