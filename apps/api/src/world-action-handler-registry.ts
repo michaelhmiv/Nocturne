@@ -12,7 +12,10 @@ import {
 } from "./gameplay-telemetry.js";
 import type { SearchDiscoveryService } from "./search-discovery-service.js";
 import { adjudicateActionResolution } from "./resolution-mode-adjudicator.js";
-import { deriveSemanticActionFrame } from "./semantic-action-frame.js";
+import {
+  deriveSemanticActionFrame,
+  isRoutineSelfDirectedAction,
+} from "./semantic-action-frame.js";
 import type {
   WorldActionStepHandler,
   WorldActionStepHandlerResult,
@@ -312,6 +315,7 @@ export function createWorldActionHandlerRegistry(dependencies: {
         });
         if (
           dependencies.executeRoutineAction &&
+          isRoutineSelfDirectedAction(frame) &&
           ["automatic_success", "automatic_failure"].includes(resolution.mode)
         ) {
           return dependencies.executeRoutineAction({
@@ -356,25 +360,25 @@ export function createWorldActionHandlerRegistry(dependencies: {
             context,
           });
         }
-        if (!dependencies.executeExistingAction) {
-          throw new WorldActionHandlerRegistryError(
-            "unsupported_handler",
-            `No executor is configured for ${kind}:${resolution.mode}.`,
-          );
+        if (kind === "consume" && dependencies.executeExistingAction) {
+          return dependencies.executeExistingAction({
+            kind,
+            scope,
+            actorId,
+            rawText,
+            idempotencyKey: step.idempotencyKey,
+            payload: {
+              ...step.intentPayload,
+              actionFrame: frame,
+              actionType: frame.actionType,
+              resolution,
+            },
+          });
         }
-        return dependencies.executeExistingAction({
-          kind,
-          scope,
-          actorId,
-          rawText,
-          idempotencyKey: step.idempotencyKey,
-          payload: {
-            ...step.intentPayload,
-            actionFrame: frame,
-            actionType: frame.actionType,
-            resolution,
-          },
-        });
+        throw new WorldActionHandlerRegistryError(
+          "unsupported_handler",
+          `No Jev-native executor is configured for ${kind}:${resolution.mode}.`,
+        );
       };
     }
   }
