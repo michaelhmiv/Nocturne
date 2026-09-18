@@ -1,6 +1,7 @@
 import { AiProviderError, type AiProviderErrorCode } from "./ai-provider.js";
 
-export const DEFAULT_DECISION_MODEL = "~typesafe/jev-latest";
+export const DEFAULT_DECISION_MODEL = "typesafe/jev-1.13-20260917";
+export const LATEST_DECISION_MODEL_ALIAS = "~typesafe/jev-latest";
 export const DEFAULT_DECISION_ENDPOINT = "https://openrouter.ai/api/alpha/decisions";
 
 export type DecisionState = string | string[] | Record<string, unknown>;
