@@ -2,13 +2,13 @@ name: AI Provider Contract
 
 on:
   pull_request:
-    types: [ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches:
       - main
   workflow_dispatch:
   schedule:
-    - cron: "17 9 * * 1"
+    - cron: "17 9 * * *"
 
 permissions:
   contents: read
