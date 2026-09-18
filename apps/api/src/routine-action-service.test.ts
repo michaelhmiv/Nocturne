@@ -52,7 +52,10 @@ const frame = SemanticActionFrameSchema.parse({
 function resolution(mode: "automatic_success" | "automatic_failure") {
   return ActionResolutionDecisionSchema.parse({
     mode,
-    rationale: mode === "automatic_success" ? "The action has no meaningful uncertainty." : "A prerequisite is missing.",
+    rationale:
+      mode === "automatic_success"
+        ? "The action has no meaningful uncertainty."
+        : "A prerequisite is missing.",
     meaningfulUncertainty: false,
     difficulty: 0,
     opposition: 0,
