@@ -44,7 +44,7 @@ export async function registerPersistentWorldRuntime(
   dependencies: {
     database: ReturnType<typeof createDatabase>;
     client: Pick<AiProviderClient, "generateStructured" | "generateText">;
-    decisionClient?: Pick<AiDecisionClient, "decide">;
+    decisionClient: Pick<AiDecisionClient, "decide">;
     rollSecret: string | Buffer;
     resolveScope(request: FastifyRequest): Promise<WorldScope>;
     /** Compatibility input retained while narrative history moves into the database projection. */
@@ -108,9 +108,7 @@ export async function registerPersistentWorldRuntime(
   const timedActions = createTimedSemanticActionService(executor);
   const telemetry = createGameplayTelemetryWriter(app.log);
   const client = instrumentAiClient(dependencies.client, telemetry);
-  const decisionClient = dependencies.decisionClient
-    ? instrumentAiDecisionClient(dependencies.decisionClient, telemetry)
-    : undefined;
+  const decisionClient = instrumentAiDecisionClient(dependencies.decisionClient, telemetry);
   const context = instrumentContextStore(
     createRelevanceContextStore(dependencies.database),
     telemetry,
@@ -144,7 +142,6 @@ export async function registerPersistentWorldRuntime(
     executeExistingAction: dependencies.executeExistingAction,
   });
   const actions = createPersistentWorldActionService({
-    client,
     decisionClient,
     requests,
     context,
