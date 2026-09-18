@@ -52,11 +52,13 @@ The synchronous player-action path is optimized in this order:
 
 1. Compile authoritative/player-safe context deterministically.
 2. Build and deterministically shortlist persistent reference candidates.
-3. Make **one batched Jev decision request**. It can answer the action kind, ambiguity, multi-step requirement, and per-candidate reference probabilities together.
+3. Make **one batched Jev decision request**. It answers the coarse handler kind, fine-grained Nocturne action type, ambiguity, multi-step requirement, and per-candidate reference probabilities together.
 4. If Jev is high-confidence and the request is a supported single-step action, deterministic code constructs the persistent plan directly.
-5. If the request is compound, ambiguous, low-confidence, a search, or movement requiring richer payload construction, fall back to the Qwen structured planner.
-6. The backend adjudicates mechanics and commits authoritative events/receipts.
-7. Qwen generates player-facing prose only from committed/player-safe results.
+5. Simple movement to a resolved persistent location and explicit searches such as "find/search for X" are compiled deterministically without a generative planner call. If required payload fields cannot be proven safely, fall back to Qwen.
+6. Consumption gets a second bounded Jev decision when needed. Ordinary food, ordinary nonalcoholic drinks, and clearly non-consumable cases use conservative deterministic mechanics; medicines, alcohol, drugs, toxins, fictional/unusual substances, and low-confidence cases fall back to Qwen semantic generation.
+7. Search discovery uses Jev for bounded target-family/source selection and relative capability/difficulty scoring. The deterministic rules engine resolves the contest and commits discovery/materialization effects.
+8. The backend adjudicates mechanics and commits authoritative events/receipts.
+9. Qwen generates player-facing prose only **after** commit from player-visible facts. Trivial outcomes may remain deterministic rather than paying an unnecessary generation call.
 
 This means ordinary interactions should not pay for a generative planner call before execution. Qwen is a fallback for semantic complexity and a post-commit prose layer.
 
@@ -67,11 +69,12 @@ Jev must receive a bounded answer space. Prefer a single request containing mult
 Typical questions:
 
 - Choice: terminal action kind.
+- Choice: fine-grained action type such as detect, search, talk, attack, drive, arrest, buy, sell, interact, or ask.
 - Noul: does this command require clarification?
 - Noul: is this a compound/multi-step action?
 - Noul per shortlisted candidate: does the command refer to this exact persistent entity?
-- Score: consequence severity, danger, or uncertainty band.
-- Choice: NPC reaction class, evidence/publication class, or another allowlisted semantic bucket.
+- Score: search capability/difficulty, consequence severity, danger, or uncertainty band.
+- Choice: authoritative candidate/source selection, NPC reaction class, evidence/publication class, or another allowlisted semantic bucket.
 
 Jev may select only supplied IDs/options. Backend thresholds decide whether a response is accepted, escalated, or rejected. Low confidence never becomes a world-state failure; it triggers clarification or Qwen fallback.
 
@@ -79,14 +82,14 @@ Jev may select only supplied IDs/options. Backend thresholds decide whether a re
 
 Qwen3.7 Flash handles:
 
-- narration of committed events;
+- narration of committed events when richer prose is worth the extra call;
 - NPC/dialogue wording after semantic choices are known;
 - newspaper article text after deterministic evidence/newsworthiness selection;
 - memory summaries;
 - open-ended descriptions/materialization proposals;
 - complex/compound action-plan proposals when the Jev fast path is not sufficient.
 
-Generation is validated before use. Structured generation continues to use runtime Zod validation and repair because provider JSON mode does not itself grant schema correctness.
+Generation is validated before use. Post-commit player-safe narration is additionally checked for unsupported death, injury, movement/arrival, ownership/possession, arrest/custody, and opaque persistent IDs. Structured generation continues to use runtime Zod validation and repair because provider JSON mode does not itself grant schema correctness.
 
 ## Authority boundary
 
