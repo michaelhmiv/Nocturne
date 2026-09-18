@@ -47,7 +47,12 @@ describe("Jev world-action fast path", () => {
           action_type: { type: "choice" as const, choice: "interact", confidence: 0.97 },
           requires_clarification: { type: "noul" as const, noul: 0.03 },
           requires_multi_step: { type: "noul" as const, noul: 0.05 },
-          ref_0: { type: "noul" as const, noul: 0.97 },
+          role_0: {
+            type: "choice" as const,
+            choice: "target",
+            confidence: 0.97,
+            probabilities: { target: 0.97, none: 0.03 },
+          },
         },
         requestedModel: "~typesafe/jev-latest",
         actualModel: "typesafe/jev-1.13-20260917",
@@ -67,6 +72,7 @@ describe("Jev world-action fast path", () => {
     expect(result.kind).toBe("interact");
     expect(result.fastPathEligible).toBe(true);
     expect(result.selectedEntityIds).toEqual([doorId]);
+    expect(result.selectedEntityRoles).toEqual({ [doorId]: "target" });
     expect(result.interpretation.mentions[0]?.selectedEntityId).toBe(doorId);
   });
 
@@ -104,7 +110,12 @@ describe("Jev world-action fast path", () => {
           action_type: { type: "choice" as const, choice: "move", confidence: 0.99 },
           requires_clarification: { type: "noul" as const, noul: 0.01 },
           requires_multi_step: { type: "noul" as const, noul: 0.03 },
-          ref_0: { type: "noul" as const, noul: 0.98 },
+          role_0: {
+            type: "choice" as const,
+            choice: "location",
+            confidence: 0.98,
+            probabilities: { location: 0.98, none: 0.02 },
+          },
         },
         requestedModel: "~typesafe/jev-latest",
         actualModel: "typesafe/jev-1.13",
@@ -132,6 +143,7 @@ describe("Jev world-action fast path", () => {
     expect(result.kind).toBe("move");
     expect(result.fastPathEligible).toBe(true);
     expect(result.selectedEntityIds).toEqual([bankId]);
+    expect(result.selectedEntityRoles).toEqual({ [bankId]: "location" });
   });
 
   it("compiles known-location travel directly into a movement payload", () => {
@@ -147,14 +159,17 @@ describe("Jev world-action fast path", () => {
       kind: "move",
       actionType: "move",
       selectedEntityIds: [bankId],
+      selectedEntityRoles: { [bankId]: "location" },
       context,
     });
 
     expect(plan.steps[0]?.intentPayload).toEqual({
       rawText: "go to the bank",
       actionType: "move",
+      locationId: bankId,
       destinationId: bankId,
     });
+    expect(plan.steps[0]?.referencedEntities[1]?.role).toBe("location");
   });
 
   it("compiles an explicit simple search in the actor's current area", () => {
@@ -200,6 +215,7 @@ describe("Jev world-action fast path", () => {
       kind: "interact",
       actionType: "interact",
       selectedEntityIds: [doorId],
+      selectedEntityRoles: { [doorId]: "target" },
       context,
     });
 
@@ -208,6 +224,7 @@ describe("Jev world-action fast path", () => {
     expect(plan.steps[0]?.intentPayload).toEqual({
       rawText: "open the red door",
       actionType: "interact",
+      targetIds: [doorId],
     });
     expect(plan.steps[0]?.referencedEntities).toEqual([
       { entityId: actorId, role: "actor", expectedVersion: 4 },
