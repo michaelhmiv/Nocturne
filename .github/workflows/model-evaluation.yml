@@ -32,7 +32,7 @@ jobs:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       EVAL_MODELS: ${{ vars.NOCTURNE_EVAL_MODELS || '~typesafe/jev-latest,qwen/qwen3.7-flash' }}
       EVAL_REPETITIONS: "2"
-      NARRATION_MODELS: ${{ vars.NOCTURNE_NARRATION_MODELS || 'qwen/qwen3.7-flash,poolside/laguna-s-2.1,bytedance-seed/seed-2.0-mini' }}
+      NARRATION_MODELS: ${{ vars.NOCTURNE_NARRATION_MODELS || 'qwen/qwen3.7-flash,poolside/laguna-xs-2.1,poolside/laguna-s-2.1,bytedance-seed/seed-2.0-mini' }}
       NARRATION_REPETITIONS: "2"
     steps:
       - uses: actions/checkout@v4
