@@ -6,8 +6,8 @@ describe("player-safe fact narration", () => {
     const client = {
       generateText: async () => ({
         text: "You find a bent steel crowbar beneath the workbench.",
-        requestedModel: "qwen/qwen3.7-flash",
-        actualModel: "qwen/qwen3.7-flash",
+        requestedModel: "poolside/laguna-xs-2.1",
+        actualModel: "poolside/laguna-xs-2.1",
         provider: "openrouter" as const,
         attempts: 1,
         latencyMs: 10,
@@ -22,12 +22,42 @@ describe("player-safe fact narration", () => {
     expect(result.text).toContain("crowbar");
   });
 
+  it("retries the same Laguna model once after a hard factual guard rejection", async () => {
+    const calls: Array<Record<string, unknown>> = [];
+    const client = {
+      generateText: async (request: Record<string, unknown>) => {
+        calls.push(request);
+        return {
+          text:
+            calls.length === 1
+              ? "You find the crowbar and it is added to your inventory."
+              : "You find the crowbar beneath the workbench.",
+          requestedModel: "poolside/laguna-xs-2.1",
+          actualModel: "poolside/laguna-xs-2.1",
+          provider: "openrouter" as const,
+          attempts: 1,
+          latencyMs: 10,
+        };
+      },
+    };
+
+    const result = await narratePlayerSafeFacts(client as never, {
+      eventType: "search_discovery",
+      playerVisibleFacts: ["You discover a crowbar beneath the workbench."],
+      constraints: ["Discovery does not establish ownership or possession."],
+    });
+
+    expect(result.text).toBe("You find the crowbar beneath the workbench.");
+    expect(calls).toHaveLength(2);
+    expect(calls[1]?.requestedModel).toBe("poolside/laguna-xs-2.1");
+  });
+
   it("rejects invented possession after discovery", async () => {
     const client = {
       generateText: async () => ({
         text: "You find the crowbar and it is added to your inventory.",
-        requestedModel: "qwen/qwen3.7-flash",
-        actualModel: "qwen/qwen3.7-flash",
+        requestedModel: "poolside/laguna-xs-2.1",
+        actualModel: "poolside/laguna-xs-2.1",
         provider: "openrouter" as const,
         attempts: 1,
         latencyMs: 10,
@@ -46,8 +76,8 @@ describe("player-safe fact narration", () => {
     const client = {
       generateText: async () => ({
         text: "You search the room, trip, and break your wrist.",
-        requestedModel: "qwen/qwen3.7-flash",
-        actualModel: "qwen/qwen3.7-flash",
+        requestedModel: "poolside/laguna-xs-2.1",
+        actualModel: "poolside/laguna-xs-2.1",
         provider: "openrouter" as const,
         attempts: 1,
         latencyMs: 10,
