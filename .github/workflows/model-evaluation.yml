@@ -32,7 +32,7 @@ jobs:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       EVAL_MODELS: ${{ vars.NOCTURNE_EVAL_MODELS || '~typesafe/jev-latest,qwen/qwen3.7-flash' }}
       EVAL_REPETITIONS: "2"
-      NARRATION_MODEL: ${{ vars.NOCTURNE_GENERATIVE_MODEL || vars.AI_GENERATIVE_MODEL || 'qwen/qwen3.7-flash' }}
+      NARRATION_MODELS: ${{ vars.NOCTURNE_NARRATION_MODELS || 'qwen/qwen3.7-flash,poolside/laguna-s-2.1,bytedance-seed/seed-2.0-mini' }}
       NARRATION_REPETITIONS: "2"
     steps:
       - uses: actions/checkout@v4
@@ -41,7 +41,7 @@ jobs:
           node-version: 22
       - name: Evaluate live decisions and Jev
         run: node scripts/evals/openrouter-gameplay.mjs
-      - name: Evaluate Qwen narration latency and committed-fact consistency
+      - name: Compare narration models on latency and committed-fact consistency
         run: node scripts/evals/openrouter-narration.mjs
       - if: always()
         uses: actions/upload-artifact@v4
