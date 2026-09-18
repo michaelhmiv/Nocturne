@@ -62,7 +62,7 @@ function outcomeText(
 }
 
 export function createSearchDiscoveryService(dependencies: {
-  client: Pick<AiProviderClient, "generateStructured">;
+  client: Pick<AiProviderClient, "generateStructured" | "generateText">;
   decisionClient?: Pick<AiDecisionClient, "decide">;
   context: RelevanceContextStore;
   materialization: MaterializationStore;
@@ -329,7 +329,7 @@ export function createSearchDiscoveryService(dependencies: {
         constraints: narrationConstraints,
         style: "immersive",
       });
-      narration = generated.data.narration;
+      narration = generated.text;
     } catch {
       narration = outcomeFact;
     }
