@@ -26,7 +26,7 @@ const MULTI_STEP_THRESHOLD = 0.5;
 
 const kindCriteria: Record<WorldActionKind, string> = {
   search:
-    "Look for, inspect for, or attempt to discover a person, item, route, entrance, evidence, resource, or information.",
+    "Search for or attempt to discover something not already identified or located. Use this for finding hidden/unknown people, items, routes, entrances, evidence, resources, or information; do not use it merely to look at a specific already-known object.",
   move: "Travel or move from the current place to another location.",
   consume:
     "Eat, drink, swallow, inhale, inject, taste, or otherwise consume a substance or resource.",
@@ -36,7 +36,7 @@ const kindCriteria: Record<WorldActionKind, string> = {
   transfer:
     "Give, take, buy, sell, pick up, drop, steal, hand over, or otherwise change possession or ownership.",
   interact:
-    "Ordinary physical interaction with an object, person, or environment that is not movement, combat, consumption, or transfer.",
+    "Ordinary interaction with a specific already-known object, person, or environment that is not movement, combat, consumption, or transfer. Looking at or inspecting an already-identified object belongs here unless the player is searching for something unknown.",
   dialogue:
     "Speak, ask conversationally, communicate, call, message, threaten verbally, persuade, or otherwise converse.",
   question:
