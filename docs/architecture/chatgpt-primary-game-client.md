@@ -1,3 +1,5 @@
+> Superseded: the [September 2026 revival contract](../plans/2026-09-18-revival.md) makes the standalone website the primary client. This document is historical.
+
 # ChatGPT-Primary Game Client Architecture
 
 Status: adopted product direction as of 2026-08-19.
