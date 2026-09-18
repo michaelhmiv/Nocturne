@@ -436,5 +436,43 @@ const summary = {
 };
 await writeFile(`${directory}/summary.json`, JSON.stringify(summary, null, 2));
 console.log(JSON.stringify(summary, null, 2));
-if (summary.invalid > 0)
-  throw new Error(`Jev native evaluation had ${summary.invalid} invalid responses.`);
+
+const failures = [];
+if (summary.invalid > 0) failures.push(`${summary.invalid} invalid responses`);
+if (summary.actionTypeAccuracy < 0.9)
+  failures.push(`actionTypeAccuracy ${summary.actionTypeAccuracy.toFixed(3)} < 0.900`);
+if (summary.clarificationAccuracy < 0.8)
+  failures.push(`clarificationAccuracy ${summary.clarificationAccuracy.toFixed(3)} < 0.800`);
+if (summary.multiStepAccuracy < 0.85)
+  failures.push(`multiStepAccuracy ${summary.multiStepAccuracy.toFixed(3)} < 0.850`);
+if (summary.roleAccuracy < 0.85)
+  failures.push(`roleAccuracy ${summary.roleAccuracy.toFixed(3)} < 0.850`);
+if (summary.exactSemanticPacketRate < 0.5)
+  failures.push(`exactSemanticPacketRate ${summary.exactSemanticPacketRate.toFixed(3)} < 0.500`);
+if (summary.p95Ms !== null && summary.p95Ms > 750)
+  failures.push(`p95 ${summary.p95Ms.toFixed(1)}ms > 750ms`);
+if (summary.p99Ms !== null && summary.p99Ms > 1500)
+  failures.push(`p99 ${summary.p99Ms.toFixed(1)}ms > 1500ms`);
+
+const sentinelChecks = {
+  "prompt-injection": (row) => row.actionCorrect,
+  "pickup-inaccessible": (row) =>
+    row.actionCorrect && row.actualRoles?.suitcase === "resource",
+  ambiguous: (row) => row.clarificationCorrect && row.clarificationActual === true,
+  compound: (row) => row.multiCorrect && row.multiActual === true,
+  "teleport-semantic-only": (row) =>
+    row.actionCorrect && row.actualRoles?.vault === "location",
+};
+for (const [id, check] of Object.entries(sentinelChecks)) {
+  const sentinelRows = valid.filter((row) => row.id === id);
+  if (
+    sentinelRows.length !== repetitions ||
+    sentinelRows.some((row) => !check(row))
+  ) {
+    failures.push(`critical sentinel ${id} failed at least one repetition`);
+  }
+}
+
+if (failures.length) {
+  throw new Error(`Jev native quality gate failed: ${failures.join("; ")}`);
+}
