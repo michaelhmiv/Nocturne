@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   DEFAULT_SHARD_ID,
   DEFAULT_WORLD_ID,
@@ -73,10 +73,6 @@ describePostgres("non-mutating event store concurrency (PostgreSQL)", () => {
   });
 
   afterAll(() => database.close());
-
-  beforeEach(async () => {
-    await database.client`TRUNCATE game.mutation_receipts, game.event_ledger CASCADE`;
-  });
 
   function input(scope: WorldScope, actorId: string, key: string, marker = "same") {
     return {
