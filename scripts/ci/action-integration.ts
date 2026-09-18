@@ -94,6 +94,76 @@ async function setupCharacter() {
   return actorId;
 }
 
+async function certifyRoutineExercise(actorId: string) {
+  const beforeRows = await database.client<
+    { version: string; state: Record<string, unknown>; condition: number }[]
+  >`
+    SELECT version::text, state, condition
+    FROM game.entity_instances
+    WHERE instance_id = ${actorId}
+  `;
+  const before = beforeRows[0];
+  if (!before) throw new Error("Certification actor was not found before routine action.");
+
+  const idempotencyKey = `certification:routine-exercise:${randomUUID()}`;
+  const first = await request("/v1/persistent-world/actions", {
+    method: "POST",
+    headers: { "idempotency-key": idempotencyKey },
+    body: JSON.stringify({ actorId, command: "Do one push-up." }),
+  });
+  if (!first.response.ok || first.payload.state !== "completed") {
+    throw new Error(`Routine exercise failed: ${first.text}`);
+  }
+
+  const requestId = String(first.payload.requestId || "");
+  const snapshot = await databaseSnapshot(requestId);
+  const eventId = snapshot.steps[0]?.result_event_id;
+  if (!eventId) throw new Error("Routine exercise completed without a result event.");
+  const eventRows = await database.client<{ event_type: string }[]>`
+    SELECT event_type FROM game.event_ledger WHERE event_id = ${eventId}
+  `;
+  if (eventRows[0]?.event_type !== "action_completed_non_mutating") {
+    throw new Error(
+      `Routine exercise used unexpected event type ${String(eventRows[0]?.event_type)}.`,
+    );
+  }
+
+  const afterRows = await database.client<
+    { version: string; state: Record<string, unknown>; condition: number }[]
+  >`
+    SELECT version::text, state, condition
+    FROM game.entity_instances
+    WHERE instance_id = ${actorId}
+  `;
+  const after = afterRows[0];
+  if (
+    !after ||
+    after.version !== before.version ||
+    after.condition !== before.condition ||
+    JSON.stringify(after.state) !== JSON.stringify(before.state)
+  ) {
+    throw new Error(
+      `Routine exercise mutated authoritative actor state: ${JSON.stringify({ before, after })}`,
+    );
+  }
+
+  const replay = await request("/v1/persistent-world/actions", {
+    method: "POST",
+    headers: { "idempotency-key": idempotencyKey },
+    body: JSON.stringify({ actorId, command: "Do one push-up." }),
+  });
+  if (!replay.response.ok || replay.payload.requestId !== requestId) {
+    throw new Error("Routine exercise idempotent replay did not return the original request.");
+  }
+
+  return {
+    requestId,
+    eventId,
+    eventType: eventRows[0].event_type,
+    actorVersion: after.version,
+  };
+}
+
 async function setupTransferFixtures(actorId: string) {
   const actorRows = await database.client<
     { world_id: string; shard_id: string; location_id: string | null }[]
@@ -465,6 +535,7 @@ try {
   for (const actionType of ACTION_CAPABILITY_NAMES) {
     results.push(await runAction(actorId, actionType));
   }
+  const routineExercise = await certifyRoutineExercise(actorId);
   const neutralTransfers = await certifyNeutralTransfers(actorId);
   const providerFailure = await runInfrastructureFailure(actorId);
   const report = {
@@ -472,6 +543,7 @@ try {
     actorId,
     actionCount: results.length,
     results,
+    routineExercise,
     neutralTransfers,
     providerFailure,
   };
