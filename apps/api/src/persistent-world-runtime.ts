@@ -43,7 +43,7 @@ export async function registerPersistentWorldRuntime(
   app: FastifyInstance,
   dependencies: {
     database: ReturnType<typeof createDatabase>;
-    client: Pick<AiProviderClient, "generateStructured">;
+    client: Pick<AiProviderClient, "generateStructured" | "generateText">;
     decisionClient?: Pick<AiDecisionClient, "decide">;
     rollSecret: string | Buffer;
     resolveScope(request: FastifyRequest): Promise<WorldScope>;
