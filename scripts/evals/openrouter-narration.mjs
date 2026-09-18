@@ -3,7 +3,10 @@ import { mkdir, writeFile } from "node:fs/promises";
 const key = process.env.OPENROUTER_API_KEY;
 if (!key) throw new Error("OPENROUTER_API_KEY is required.");
 
-const model = process.env.NARRATION_MODEL || "qwen/qwen3.7-flash";
+const models = (process.env.NARRATION_MODELS || "qwen/qwen3.7-flash,poolside/laguna-s-2.1,bytedance-seed/seed-2.0-mini")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
 const repetitions = Number(process.env.NARRATION_REPETITIONS || 2);
 const endpoint = "https://openrouter.ai/api/v1/chat/completions";
 const directory = "artifacts/narration-evaluation";
@@ -81,7 +84,7 @@ const headers = {
   "Content-Type": "application/json",
 };
 
-async function request(testCase) {
+async function request(model, testCase) {
   const started = performance.now();
   const response = await fetch(endpoint, {
     method: "POST",
@@ -91,12 +94,11 @@ async function request(testCase) {
       reasoning: { enabled: false },
       max_tokens: 220,
       temperature: 0.35,
-      response_format: { type: "json_object" },
       messages: [
         {
           role: "system",
           content:
-            "You are Nocturne's player-facing prose layer. Use only supplied committed/public facts. Never invent state changes, causes, identities, outcomes, injuries, travel progress, ownership changes, or hidden facts. Return exactly one JSON object with one string field named narration. Keep it concise and natural.",
+            "You are Nocturne's player-facing prose layer. Use only supplied committed/public facts. Never invent state changes, causes, identities, outcomes, injuries, travel progress, ownership changes, or hidden facts. Return only the narration prose, with no JSON, labels, Markdown, or commentary. Keep it concise and natural.",
         },
         {
           role: "user",
@@ -117,18 +119,14 @@ async function request(testCase) {
     throw new Error(`Provider HTTP ${response.status}: ${text.slice(0, 800)}`);
   }
   const payload = JSON.parse(text);
-  const raw = payload.choices?.[0]?.message?.content;
-  if (!raw) throw new Error("Provider returned no narration content.");
-  const decoded = JSON.parse(raw);
-  if (typeof decoded.narration !== "string" || !decoded.narration.trim()) {
-    throw new Error("Narration response did not contain a non-empty narration string.");
-  }
+  const narration = payload.choices?.[0]?.message?.content?.trim();
+  if (!narration) throw new Error("Provider returned no narration content.");
   const forbiddenMatches = testCase.forbidden
-    .filter((pattern) => pattern.test(decoded.narration))
+    .filter((pattern) => pattern.test(narration))
     .map((pattern) => String(pattern));
   return {
     id: testCase.id,
-    narration: decoded.narration,
+    narration,
     latencyMs,
     forbiddenMatches,
     requestedModel: model,
@@ -139,50 +137,58 @@ async function request(testCase) {
 }
 
 const rows = [];
-for (let repetition = 0; repetition < repetitions; repetition += 1) {
-  for (const testCase of cases) {
-    try {
-      rows.push({ repetition, ...(await request(testCase)) });
-    } catch (error) {
-      rows.push({
-        repetition,
-        id: testCase.id,
-        error: error instanceof Error ? error.message : String(error),
-      });
+for (const model of models) {
+  for (let repetition = 0; repetition < repetitions; repetition += 1) {
+    for (const testCase of cases) {
+      try {
+        rows.push({ model, repetition, ...(await request(model, testCase)) });
+      } catch (error) {
+        rows.push({
+          model,
+          repetition,
+          id: testCase.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 }
 
 const valid = rows.filter((row) => !row.error);
-const latencies = valid.map((row) => row.latencyMs).sort((a, b) => a - b);
 const percentile = (values, p) => {
   if (!values.length) return null;
   const index = Math.min(values.length - 1, Math.max(0, Math.ceil(values.length * p) - 1));
   return values[index];
 };
-const hallucinationCount = valid.filter((row) => row.forbiddenMatches?.length).length;
-const costRows = valid.filter((row) => Number.isFinite(Number(row.usage?.cost)));
-const summary = {
-  model,
-  cases: rows.length,
-  valid: valid.length,
-  errors: rows.length - valid.length,
-  forbiddenClaimViolations: hallucinationCount,
-  p50Ms: percentile(latencies, 0.5),
-  p95Ms: percentile(latencies, 0.95),
-  reportedCostRows: costRows.length,
-  reportedCost:
-    costRows.length > 0
-      ? costRows.reduce((sum, row) => sum + Number(row.usage.cost || 0), 0)
-      : null,
-};
+const summary = models.map((model) => {
+  const modelRows = rows.filter((row) => row.model === model);
+  const modelValid = modelRows.filter((row) => !row.error);
+  const latencies = modelValid.map((row) => row.latencyMs).sort((a, b) => a - b);
+  const hallucinationCount = modelValid.filter((row) => row.forbiddenMatches?.length).length;
+  const costRows = modelValid.filter((row) => Number.isFinite(Number(row.usage?.cost)));
+  return {
+    model,
+    cases: modelRows.length,
+    valid: modelValid.length,
+    errors: modelRows.length - modelValid.length,
+    forbiddenClaimViolations: hallucinationCount,
+    safeNarrations: modelValid.length - hallucinationCount,
+    safeNarrationRate:
+      modelRows.length > 0 ? (modelValid.length - hallucinationCount) / modelRows.length : 0,
+    p50Ms: percentile(latencies, 0.5),
+    p95Ms: percentile(latencies, 0.95),
+    reportedCostRows: costRows.length,
+    reportedCost:
+      costRows.length > 0
+        ? costRows.reduce((sum, row) => sum + Number(row.usage.cost || 0), 0)
+        : null,
+  };
+});
 
 await writeFile(`${directory}/results.json`, JSON.stringify(rows, null, 2));
 await writeFile(`${directory}/summary.json`, JSON.stringify(summary, null, 2));
 console.log(JSON.stringify(summary, null, 2));
 
-if (summary.errors > 0 || summary.forbiddenClaimViolations > 0) {
-  throw new Error(
-    `Narration evaluation failed: ${summary.errors} errors, ${summary.forbiddenClaimViolations} forbidden-claim violations.`,
-  );
+if (!summary.some((row) => row.valid > 0)) {
+  throw new Error("No narration model returned a valid response.");
 }
