@@ -18,7 +18,8 @@ await mkdir(directory, { recursive: true });
 const cases = [
   {
     id: "routine_pushup",
-    instruction: "Narrate the committed event in second person as concise, grounded immersive game prose.",
+    instruction:
+      "Narrate the committed event in second person as concise, grounded immersive game prose.",
     committed: [
       "The actor attempted one push-up.",
       "The action completed successfully.",
@@ -31,7 +32,8 @@ const cases = [
   },
   {
     id: "failed_locked_door",
-    instruction: "Narrate the committed event in second person as concise, grounded immersive game prose.",
+    instruction:
+      "Narrate the committed event in second person as concise, grounded immersive game prose.",
     committed: [
       "The actor attempted to open a locked door.",
       "The attempt failed.",
@@ -44,7 +46,8 @@ const cases = [
   },
   {
     id: "travel_started",
-    instruction: "Narrate the committed travel state in second person. Do not invent a vehicle, transport service, scenery, route details, or arrival.",
+    instruction:
+      "Narrate the committed travel state in second person. Do not invent a vehicle, transport service, scenery, route details, or arrival.",
     committed: [
       "Travel toward the destination was scheduled.",
       "The actor has not arrived yet.",
@@ -54,7 +57,8 @@ const cases = [
   },
   {
     id: "combat_no_injury",
-    instruction: "Narrate the committed event in second person. Do not invent why the attack failed or any reaction by the guard.",
+    instruction:
+      "Narrate the committed event in second person. Do not invent why the attack failed or any reaction by the guard.",
     committed: [
       "The actor attempted to punch the guard.",
       "The attack failed.",
@@ -64,7 +68,8 @@ const cases = [
   },
   {
     id: "purchase_committed",
-    instruction: "Narrate the completed purchase in second person. Do not invent payment method, vendor behavior, handoff mechanics, or physical object details.",
+    instruction:
+      "Narrate the completed purchase in second person. Do not invent payment method, vendor behavior, handoff mechanics, or physical object details.",
     committed: [
       "A purchase completed successfully.",
       "Ownership of the toolbox transferred to the actor.",
@@ -95,7 +100,9 @@ const cases = [
       "The crowbar remains beneath the workbench.",
       "No ownership or possession transfer occurred.",
     ],
-    forbidden: [/\b(?:your crowbar|now yours|pick(?:ed)? up|in your hands?|inventory|take possession)\b/i],
+    forbidden: [
+      /\b(?:your crowbar|now yours|pick(?:ed)? up|in your hands?|inventory|take possession)\b/i,
+    ],
   },
   {
     id: "partial_search",
