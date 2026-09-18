@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 40
     env:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-      EVAL_MODELS: ${{ vars.NOCTURNE_EVAL_MODELS }}
+      EVAL_MODELS: ${{ vars.NOCTURNE_EVAL_MODELS || '~typesafe/jev-latest,google/gemini-3.7-flash,~deepseek/deepseek-flash-latest' }}
       EVAL_REPETITIONS: "2"
     steps:
       - uses: actions/checkout@v4
