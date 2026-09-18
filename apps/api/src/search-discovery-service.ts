@@ -8,7 +8,6 @@ import {
 } from "@nocturne/contracts";
 import {
   analyzeMaterialization,
-  analyzeSearchDiscovery,
   decideSearchDiscovery,
   narratePlayerSafeFacts,
   type AiDecisionClient,
@@ -43,7 +42,7 @@ function seedFor(secret: string | Buffer, idempotencyKey: string) {
 
 function outcomeText(
   grade: ReturnType<typeof resolveContest>["outcomeGrade"],
-  analysis: Awaited<ReturnType<typeof analyzeSearchDiscovery>>["data"],
+  analysis: SearchDiscoveryAnalysis,
 ) {
   switch (grade) {
     case "complete_success":
@@ -63,7 +62,7 @@ function outcomeText(
 
 export function createSearchDiscoveryService(dependencies: {
   client: Pick<AiProviderClient, "generateStructured" | "generateText">;
-  decisionClient?: Pick<AiDecisionClient, "decide">;
+  decisionClient: Pick<AiDecisionClient, "decide">;
   context: RelevanceContextStore;
   materialization: MaterializationStore;
   executor: UniversalOperationExecutor;
@@ -136,18 +135,24 @@ export function createSearchDiscoveryService(dependencies: {
       materializationSourceIds: sourceCandidates.map(({ sourceId }) => sourceId),
     };
 
-    let analysis: SearchDiscoveryAnalysis | null = null;
-    if (dependencies.decisionClient) {
-      try {
-        const decided = await decideSearchDiscovery(dependencies.decisionClient, analysisRequest);
-        if (decided.fastPathEligible) analysis = decided.analysis;
-      } catch {
-        analysis = null;
+    let analysis: SearchDiscoveryAnalysis;
+    try {
+      const decided = await decideSearchDiscovery(dependencies.decisionClient, analysisRequest);
+      if (!decided.fastPathEligible || !decided.analysis) {
+        throw new SearchDiscoveryServiceError(
+          "analysis_rejected",
+          `Jev could not resolve search semantics: ${decided.fallbackReason || "low confidence"}.`,
+        );
       }
-    }
-    if (!analysis) {
-      const analyzed = await analyzeSearchDiscovery(dependencies.client, analysisRequest);
-      analysis = analyzed.data;
+      analysis = decided.analysis;
+    } catch (error) {
+      if (error instanceof SearchDiscoveryServiceError) throw error;
+      throw new SearchDiscoveryServiceError(
+        "analysis_rejected",
+        error instanceof Error
+          ? `Jev search interpretation failed: ${error.message}`
+          : "Jev search interpretation failed.",
+      );
     }
     const resolution = resolveContest({
       actionType: "search_discovery",
