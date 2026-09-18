@@ -89,6 +89,7 @@ export function createActionService(
   const aiConfigured = Boolean(providerConfiguration.apiKey);
   const decisionConfigured = Boolean(decisionConfiguration.apiKey);
   const requestedModel = providerConfiguration.model;
+  const narrationModel = providerConfiguration.narrationModel;
 
   async function execute(
     userId: string,
@@ -307,7 +308,7 @@ export function createActionService(
         const narrationRun = await store.startAiRun({
           task: "narrate_event",
           authority: "creative",
-          requestedModel,
+          requestedModel: narrationModel,
           policyVersion: EVENT_NARRATION_POLICY_VERSION,
           inputHash: hash(committed),
           metadata: { eventId: committed.eventId, actionType: "consume" },
@@ -339,7 +340,7 @@ export function createActionService(
             narrationRun,
             result.actualModel,
             result.providerRequestId,
-            hash(result.data),
+            hash(result.text),
           );
         } catch (error) {
           await store.failAiRun(
@@ -473,7 +474,7 @@ export function createActionService(
       const narrationRun = await store.startAiRun({
         task: "narrate_event",
         authority: "creative",
-        requestedModel,
+        requestedModel: narrationModel,
         policyVersion: EVENT_NARRATION_POLICY_VERSION,
         inputHash: hash(committed),
         metadata: { eventId: committed.eventId },
@@ -493,7 +494,7 @@ export function createActionService(
           narrationRun,
           result.actualModel,
           result.providerRequestId,
-          hash(result.data),
+          hash(result.text),
         );
       } catch (error) {
         await store.failAiRun(
