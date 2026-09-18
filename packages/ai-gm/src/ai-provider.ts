@@ -2,6 +2,7 @@ import type { ZodType } from "zod";
 import {
   DEFAULT_AI_MODEL,
   DEFAULT_GENERATIVE_MODEL,
+  DEFAULT_NARRATION_MODEL,
   createModelPolicy,
   type AiAuthority,
   type AiTask,
@@ -262,8 +263,9 @@ export function resolveAiProviderConfigFromEnv(
     creativeModel: configured(environment.AI_CREATIVE_MODEL) || model,
     narrationModel:
       configured(environment.AI_NARRATION_MODEL) ||
-      configured(environment.AI_CREATIVE_MODEL) ||
-      model,
+      (provider === "openrouter"
+        ? DEFAULT_NARRATION_MODEL
+        : configured(environment.AI_CREATIVE_MODEL) || model),
     thinkingMode,
     timeoutMs: parsePositiveInteger(environment.AI_TIMEOUT_MS, 60_000, 1_000, 300_000),
     maxTokens: parsePositiveInteger(environment.AI_MAX_TOKENS, 4_096, 128, 384_000),
