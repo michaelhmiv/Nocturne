@@ -18,6 +18,7 @@ await mkdir(directory, { recursive: true });
 const cases = [
   {
     id: "routine_pushup",
+    instruction: "Narrate the committed event in second person as concise, grounded immersive game prose.",
     committed: [
       "The actor attempted one push-up.",
       "The action completed successfully.",
@@ -30,6 +31,7 @@ const cases = [
   },
   {
     id: "failed_locked_door",
+    instruction: "Narrate the committed event in second person as concise, grounded immersive game prose.",
     committed: [
       "The actor attempted to open a locked door.",
       "The attempt failed.",
@@ -42,6 +44,7 @@ const cases = [
   },
   {
     id: "travel_started",
+    instruction: "Narrate the committed travel state in second person. Do not invent a vehicle, transport service, scenery, route details, or arrival.",
     committed: [
       "Travel toward the destination was scheduled.",
       "The actor has not arrived yet.",
@@ -51,6 +54,7 @@ const cases = [
   },
   {
     id: "combat_no_injury",
+    instruction: "Narrate the committed event in second person. Do not invent why the attack failed or any reaction by the guard.",
     committed: [
       "The actor attempted to punch the guard.",
       "The attack failed.",
@@ -60,6 +64,7 @@ const cases = [
   },
   {
     id: "purchase_committed",
+    instruction: "Narrate the completed purchase in second person. Do not invent payment method, vendor behavior, handoff mechanics, or physical object details.",
     committed: [
       "A purchase completed successfully.",
       "Ownership of the toolbox transferred to the actor.",
@@ -70,7 +75,7 @@ const cases = [
   {
     id: "public_news_copy",
     instruction:
-      "Write one short newspaper-style paragraph for the public city feed. Attribute uncertainty plainly.",
+      "Write one short newspaper-style paragraph for the public city feed. Attribute uncertainty plainly. Do not convert absence of public evidence into a claim that police have not identified anyone privately.",
     committed: [
       "A storefront window was reported broken overnight.",
       "Police responded after the report.",
@@ -79,6 +84,88 @@ const cases = [
     forbidden: [
       /\b(?:the suspect was|the attacker was|identified as|arrested the offender|named the offender)\b/i,
     ],
+  },
+  {
+    id: "search_found_not_possessed",
+    instruction:
+      "Narrate the search discovery in second person. Discovery does not imply pickup, possession, or ownership.",
+    committed: [
+      "The actor searched the garage for a crowbar.",
+      "A steel crowbar was discovered beneath the workbench.",
+      "The crowbar remains beneath the workbench.",
+      "No ownership or possession transfer occurred.",
+    ],
+    forbidden: [/\b(?:your crowbar|now yours|pick(?:ed)? up|in your hands?|inventory|take possession)\b/i],
+  },
+  {
+    id: "partial_search",
+    instruction:
+      "Narrate the partial search result in second person without claiming the missing person was found.",
+    committed: [
+      "The actor searched the alley for the missing courier.",
+      "Fresh tire tracks were discovered.",
+      "The courier was not located.",
+      "The search produced partial progress only.",
+    ],
+    forbidden: [/\b(?:found the courier|located the courier|courier appears|courier is here)\b/i],
+  },
+  {
+    id: "committed_injury",
+    instruction:
+      "Narrate only the exact committed injury in second person. Do not add additional injuries, unconsciousness, or medical consequences.",
+    committed: [
+      "The guard struck the actor once.",
+      "The actor suffered a bruised left cheek.",
+      "The actor remains conscious.",
+      "No other injury was committed.",
+    ],
+    forbidden: [/\b(?:fractur|broken|unconscious|collapse|blood|bleed|concussion|hospital)\b/i],
+  },
+  {
+    id: "committed_arrest",
+    instruction:
+      "Narrate the committed custody state in second person. Do not imply conviction, sentencing, or guilt.",
+    committed: [
+      "Police arrested the actor.",
+      "The actor is now in police custody.",
+      "No conviction or sentence has occurred.",
+    ],
+    forbidden: [/\b(?:convicted|sentenced|guilty|prison term|years in prison)\b/i],
+  },
+  {
+    id: "dialogue_fact",
+    instruction:
+      "Render the committed dialogue exchange concisely in second person. Do not invent agreement, purchase, attitude, or additional conversation.",
+    committed: [
+      "The actor asked when the store closes.",
+      "The clerk said the store closes at 9 PM.",
+      "No purchase or agreement occurred.",
+    ],
+    forbidden: [/\b(?:buy|purchase|agreed|smiled|laughed|angry|friendly|rude)\b/i],
+  },
+  {
+    id: "property_damage",
+    instruction:
+      "Narrate the committed property damage in second person. Do not add injuries, alarms, witnesses, police response, or additional damage.",
+    committed: [
+      "The actor threw one brick at a storefront window.",
+      "The storefront window shattered.",
+      "No person was injured.",
+      "No other property damage was committed.",
+    ],
+    forbidden: [/\b(?:alarm|police|witness|sirens?|injur|bleed|door|wall|car)\b/i],
+  },
+  {
+    id: "fire_news_uncertain",
+    instruction:
+      "Write one short newspaper-style paragraph from the public facts. Preserve uncertainty and do not invent a cause, victim, suspect, or damage estimate.",
+    committed: [
+      "A warehouse fire was reported this morning.",
+      "Firefighters responded.",
+      "The cause is not publicly determined.",
+      "No injuries are publicly confirmed.",
+    ],
+    forbidden: [/\b(?:caused by|arson|electrical|injured|dead|killed|damage estimate|\$[0-9])\b/i],
   },
 ];
 
@@ -101,14 +188,14 @@ async function request(model, testCase) {
         {
           role: "system",
           content:
-            "You are Nocturne's player-facing prose layer. Use only supplied committed/public facts. Never invent state changes, causes, identities, outcomes, injuries, travel progress, ownership changes, or hidden facts. Return only the narration prose, with no JSON, labels, Markdown, or commentary. Keep it concise and natural.",
+            "You are Nocturne's player-facing prose layer. Treat supplied committed/public facts as a closed world: every concrete event, action mechanism, movement mode, location, object property, body reaction, NPC reaction, sensory detail, payment method, possession state, cause, identity, injury, and consequence must be explicitly supported by those facts. You may add connective phrasing, rhythm, and tone only when it does not imply a new concrete fact. Never infer why an action succeeded or failed. Never turn missing public evidence into a stronger private-state claim. Return only the prose, with no JSON, labels, Markdown, or commentary. Prefer 1-2 compact sentences.",
         },
         {
           role: "user",
           content: JSON.stringify({
             instruction:
               testCase.instruction ||
-              "Narrate the committed event in second person as concise immersive game prose.",
+              "Narrate the committed event in second person as concise, grounded immersive game prose.",
             committedFacts: testCase.committed,
           }),
         },
@@ -129,6 +216,10 @@ async function request(model, testCase) {
     .map((pattern) => String(pattern));
   return {
     id: testCase.id,
+    instruction:
+      testCase.instruction ||
+      "Narrate the committed event in second person as concise, grounded immersive game prose.",
+    committed: testCase.committed,
     narration,
     latencyMs,
     forbiddenMatches,
