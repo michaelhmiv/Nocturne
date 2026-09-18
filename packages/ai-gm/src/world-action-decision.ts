@@ -495,10 +495,13 @@ export function buildFastSingleStepPlan(input: {
   const companionIds = idsForRole("companion");
   const locationIds = idsForRole("location");
 
+  const effectiveTargetIds =
+    input.actionType === "put_in" && containerIds.length ? containerIds : targetIds;
+
   let intentPayload: Record<string, unknown> = {
     rawText: input.command,
     actionType: input.actionType,
-    ...(targetIds.length ? { targetIds } : {}),
+    ...(effectiveTargetIds.length ? { targetIds: effectiveTargetIds } : {}),
     ...(methodIds.length ? { methodIds } : {}),
     ...(resourceIds.length ? { resourceIds } : {}),
     ...(vehicleIds.length ? { vehicleIds } : {}),
