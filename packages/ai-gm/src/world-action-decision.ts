@@ -511,6 +511,11 @@ export function buildFastSingleStepPlan(input: {
   };
 
   if (input.kind === "move") {
+    if (input.actionType === "drive") {
+      throw new Error(
+        "Vehicle travel requires authoritative actor-and-vehicle cohort movement, which is not enabled in this runtime yet.",
+      );
+    }
     const destination = locationEntity(input.context, input.selectedEntityIds);
     if (!destination) {
       throw new Error("Jev fast-path movement requires one resolved persistent destination.");
