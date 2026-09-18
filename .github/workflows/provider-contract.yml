@@ -23,11 +23,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      AI_PROVIDER: ${{ vars.AI_PROVIDER || 'deepseek' }}
-      AI_MODEL: ${{ vars.AI_MODEL || 'deepseek-v4-flash' }}
-      AI_AUTHORITATIVE_MODEL: ${{ vars.AI_AUTHORITATIVE_MODEL || vars.AI_MODEL || 'deepseek-v4-flash' }}
-      AI_CREATIVE_MODEL: ${{ vars.AI_CREATIVE_MODEL || vars.AI_MODEL || 'deepseek-v4-flash' }}
-      AI_BASE_URL: ${{ vars.AI_BASE_URL || 'https://api.deepseek.com' }}
+      AI_PROVIDER: openrouter
+      AI_MODEL: ${{ vars.NOCTURNE_GENERATIVE_MODEL || vars.AI_MODEL || 'google/gemini-3.7-flash' }}
+      AI_AUTHORITATIVE_MODEL: ${{ vars.AI_AUTHORITATIVE_MODEL || vars.NOCTURNE_GENERATIVE_MODEL || vars.AI_MODEL || 'google/gemini-3.7-flash' }}
+      AI_CREATIVE_MODEL: ${{ vars.AI_CREATIVE_MODEL || vars.NOCTURNE_GENERATIVE_MODEL || vars.AI_MODEL || 'google/gemini-3.7-flash' }}
+      AI_BASE_URL: https://openrouter.ai/api/v1
       AI_THINKING_MODE: ${{ vars.AI_THINKING_MODE || 'disabled' }}
       AI_JSON_MODE: ${{ vars.AI_JSON_MODE || 'true' }}
       AI_SEND_TEMPERATURE: ${{ vars.AI_SEND_TEMPERATURE || 'true' }}
@@ -53,11 +53,12 @@ jobs:
         id: configuration
         shell: bash
         run: |
-          if [ -n "$AI_API_KEY" ] || [ -n "$DEEPSEEK_API_KEY" ] || [ -n "$OPENAI_API_KEY" ] || [ -n "$OPENROUTER_API_KEY" ]; then
+          if [ -n "$OPENROUTER_API_KEY" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::notice::No provider credential is stored in GitHub. The required deterministic provider-resilience tests still run in Nocturne Certification, and the deployed Railway environment is exercised by Production Deployment Smoke."
+            echo "::error::OPENROUTER_API_KEY is required for the trusted live provider contract."
             echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 1
           fi
       - name: Verify configured provider, model, and production planner schema
         if: steps.configuration.outputs.enabled == 'true'
@@ -65,11 +66,6 @@ jobs:
           mkdir -p artifacts
           set -o pipefail
           pnpm --filter @nocturne/ai-gm test:provider-contract 2>&1 | tee artifacts/provider-contract.log
-      - name: Record delegated production validation
-        if: steps.configuration.outputs.enabled != 'true'
-        run: |
-          mkdir -p artifacts
-          echo "Live provider validation is delegated to the mandatory post-deployment gameplay smoke running against Railway's configured provider." | tee artifacts/provider-contract-delegated.log
       - if: always()
         uses: actions/upload-artifact@v4
         with:
