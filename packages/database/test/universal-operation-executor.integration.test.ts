@@ -100,9 +100,7 @@ describePostgres("universal operation containment invariants (PostgreSQL)", () =
         AND source_instance_id = ANY(${[containerA, containerB]}::uuid[])
       ORDER BY source_instance_id, target_instance_id
     `;
-    expect(relations).toEqual([
-      { source_instance_id: containerA, target_instance_id: containerB },
-    ]);
+    expect(relations).toEqual([{ source_instance_id: containerA, target_instance_id: containerB }]);
   });
 
   it("maintains one active containment parent when an item is moved", async () => {
