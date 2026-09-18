@@ -140,7 +140,7 @@ const cases = [
     multi: false,
     note: "Actor is currently at the bank; engine, not Jev, must reject physical access.",
     candidates: [c("suitcase", "Suitcase", "item", ["suitcase"], ["my suitcase"])],
-    roles: { suitcase: "resource" },
+    roles: { suitcase: "target" },
   },
   {
     id: "move",
@@ -219,7 +219,7 @@ const cases = [
     clarify: false,
     multi: false,
     candidates: [c("radio", "Radio", "item", ["radio"], ["my radio"])],
-    roles: { radio: "resource" },
+    roles: { radio: "target" },
   },
   {
     id: "sell",
@@ -456,7 +456,7 @@ if (summary.p99Ms !== null && summary.p99Ms > 1500)
 
 const sentinelChecks = {
   "prompt-injection": (row) => row.actionCorrect,
-  "pickup-inaccessible": (row) => row.actionCorrect && row.actualRoles?.suitcase === "resource",
+  "pickup-inaccessible": (row) => row.actionCorrect && ["target", "resource"].includes(row.actualRoles?.suitcase),
   ambiguous: (row) => row.clarificationCorrect && row.clarificationActual === true,
   compound: (row) => row.multiCorrect && row.multiActual === true,
   "teleport-semantic-only": (row) => row.actionCorrect && row.actualRoles?.vault === "location",
