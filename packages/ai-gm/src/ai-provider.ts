@@ -292,8 +292,7 @@ function resolveClientConfig(config: AiProviderConfig): ResolvedAiProviderConfig
     authoritativeModel:
       configured(config.authoritativeModel) || environmentConfig.authoritativeModel || model,
     creativeModel: configured(config.creativeModel) || environmentConfig.creativeModel || model,
-    narrationModel:
-      configured(config.narrationModel) || environmentConfig.narrationModel || model,
+    narrationModel: configured(config.narrationModel) || environmentConfig.narrationModel || model,
     thinkingMode: config.thinkingMode || environmentConfig.thinkingMode,
     timeoutMs: config.timeoutMs || environmentConfig.timeoutMs,
     maxTokens: config.maxTokens || environmentConfig.maxTokens,
@@ -527,10 +526,7 @@ export class AiProviderClient {
     }).model;
   }
 
-  async generateText(
-    request: TextGenerationRequest,
-    retries = 1,
-  ): Promise<TextGenerationResult> {
+  async generateText(request: TextGenerationRequest, retries = 1): Promise<TextGenerationResult> {
     const model = configured(request.requestedModel) || this.resolved.narrationModel;
     const startedAt = Date.now();
     let lastError: unknown;
