@@ -34,6 +34,7 @@ jobs:
       EVAL_REPETITIONS: "2"
       NARRATION_MODELS: ${{ vars.NOCTURNE_NARRATION_MODELS || 'qwen/qwen3.7-flash,poolside/laguna-xs-2.1,poolside/laguna-s-2.1,bytedance-seed/seed-2.0-mini' }}
       NARRATION_REPETITIONS: "2"
+      PROSE_JUDGE_MODEL: ${{ vars.NOCTURNE_PROSE_JUDGE_MODEL || 'openai/gpt-5.6-luna' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -43,6 +44,8 @@ jobs:
         run: node scripts/evals/openrouter-gameplay.mjs
       - name: Compare narration models on latency and committed-fact consistency
         run: node scripts/evals/openrouter-narration.mjs
+      - name: Judge prose fidelity and quality
+        run: node scripts/evals/openrouter-prose-quality.mjs
       - if: always()
         uses: actions/upload-artifact@v4
         with:
