@@ -34,7 +34,7 @@ const CANONICAL_ACTION_BY_PROMPT = new Map<string, string>(
   [
     ["detect", "I scan the room for hidden threats."],
     ["detect", "Check the alley for anyone watching us."],
-    ["move", "I walk into the street."],
+    ["move", "I walk to the Rear Alley."],
     ["move", "Head toward the alley."],
     ["search", "I search the alley for a dog."],
     ["search", "Look through the room for useful evidence."],
@@ -97,6 +97,10 @@ function classifyAction(command: string) {
   if (/\b(persuade|convince)\b/.test(text)) return "persuade";
   if (/\b(threaten|warn .*expose)\b/.test(text)) return "threaten";
   if (/\b(steal|pickpocket|slip .*pocket)\b/.test(text)) return "steal";
+  if (/\b(pick up|take possession|grab)\b/.test(text)) return "pick_up";
+  if (/\b(give|hand .* to)\b/.test(text)) return "give";
+  if (/\b(transfer .* to)\b/.test(text)) return "transfer";
+  if (/\b(drop|put down)\b/.test(text)) return "drop";
   if (/\b(sneak|quietly through|silently)\b/.test(text)) return "sneak";
   if (/\b(hack|bypass .*network|security terminal)\b/.test(text)) return "hack";
   if (/\b(bandage|heal|treat .*injury|first-aid)\b/.test(text)) return "heal";
@@ -127,7 +131,8 @@ function worldKind(actionType: string) {
   if (actionType === "consume") return "consume";
   if (["bribe", "persuade", "threaten"].includes(actionType)) return "relationship";
   if (["attack", "arrest"].includes(actionType)) return "combat";
-  if (["steal", "buy", "sell"].includes(actionType)) return "transfer";
+  if (["steal", "buy", "sell", "pick_up", "give", "transfer", "drop"].includes(actionType))
+    return "transfer";
   if (actionType === "talk") return "dialogue";
   return "interact";
 }
@@ -385,7 +390,9 @@ function decisionResponse(body: Record<string, any>) {
             ? "location"
             : actionKind === "consume"
               ? "resource"
-              : "target";
+              : actionKind === "transfer" && /item|object|tool|resource|asset/.test(type)
+                ? "resource"
+                : "target";
       }
       answers[id] = {
         type: "choice",
