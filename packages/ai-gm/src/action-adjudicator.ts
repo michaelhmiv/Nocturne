@@ -4,7 +4,11 @@ import {
   type ParsedActionEnvelope,
   type SubmitActionRequest,
 } from "@nocturne/contracts";
-import { AiProviderClient, type TextGenerationResult } from "./ai-provider.js";
+import {
+  AiProviderClient,
+  type StructuredGenerationResult,
+  type TextGenerationResult,
+} from "./ai-provider.js";
 
 export const ACTION_PARSE_POLICY_VERSION = "action-parse-v3";
 export const EVENT_NARRATION_POLICY_VERSION = "event-narration-v3";
