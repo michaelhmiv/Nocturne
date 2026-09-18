@@ -84,13 +84,32 @@ export async function narratePlayerSafeFacts(
     constraints: (input.constraints || []).slice(0, 32),
     style: input.style || "immersive",
   };
-  const result = await client.generateText({
+  const system = `You are Nocturne's player-facing prose layer. Policy ${PLAYER_SAFE_FACT_NARRATION_POLICY_VERSION}. Use supplied player-visible committed facts as the source of truth. Do not invent a material state change, unsupported cause, identity, injury, death, arrest, ownership change, travel progress, or hidden fact. Harmless connective phrasing and small physical texture are allowed when they do not change what happened. Obey narration constraints. Do not expose database IDs, implementation terms, JSON, or internal enum names. Return only player-facing prose with no labels or commentary. Prefer 1-2 concise sentences.`;
+  const first = await client.generateText({
     task: "narrate_event",
-    system: `You are Nocturne's player-facing prose layer. Policy ${PLAYER_SAFE_FACT_NARRATION_POLICY_VERSION}. Treat supplied player-visible committed facts as a closed world. Do not invent a concrete action mechanism, movement mode, location, object property, body reaction, NPC reaction, sensory detail, payment method, possession state, cause, identity, injury, death, arrest, hidden fact, or state change that is not explicitly supplied. You may add connective phrasing and tone only when they imply no new concrete fact. Obey narration constraints. Do not expose database IDs, implementation terms, JSON, or internal enum names. Return only player-facing prose with no labels or commentary. Prefer 1-2 concise sentences.`,
+    system,
     prompt: JSON.stringify(safeInput),
     maxTokens: 320,
     temperature: 0.35,
   });
-  assertPlayerSafeFactNarration(result.text, input);
-  return result;
+  try {
+    assertPlayerSafeFactNarration(first.text, input);
+    return first;
+  } catch (error) {
+    if (!(error instanceof PlayerSafeFactNarrationError)) throw error;
+  }
+
+  const retry = await client.generateText({
+    task: "narrate_event",
+    system: `${system} CORRECTION: the previous draft violated a hard factual constraint. Rewrite it conservatively from the supplied facts only. Do not explain the correction.`,
+    prompt: JSON.stringify({
+      facts: safeInput,
+      rejectedDraft: first.text,
+    }),
+    requestedModel: first.requestedModel,
+    maxTokens: 320,
+    temperature: 0.2,
+  });
+  assertPlayerSafeFactNarration(retry.text, input);
+  return retry;
 }
