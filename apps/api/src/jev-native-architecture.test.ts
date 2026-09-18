@@ -25,7 +25,7 @@ describe("Jev-native player action architecture", () => {
   it("confines the legacy action executor to Jev-resolved consumption mechanics", () => {
     const code = source("./world-action-handler-registry.ts");
     expect(code).toContain('kind === "consume" && dependencies.executeExistingAction');
-    expect(code).not.toContain("return dependencies.executeExistingAction({\n          kind,");
+    expect(code.match(/dependencies\.executeExistingAction\(/g)).toHaveLength(1);
     expect(code).toContain("No Jev-native executor is configured");
   });
 
