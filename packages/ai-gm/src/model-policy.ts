@@ -18,6 +18,7 @@ export type AiTask =
 export type AiAuthority = "authoritative" | "creative";
 export const DEFAULT_AI_MODEL = "deepseek-v4-flash";
 export const DEFAULT_GENERATIVE_MODEL = "qwen/qwen3.7-flash";
+export const DEFAULT_NARRATION_MODEL = "poolside/laguna-xs-2.1";
 /** Compatibility alias retained for older direct-DeepSeek callers and stored telemetry. */
 export const DEEPSEEK_FLASH_MODEL = process.env.DEEPSEEK_MODEL?.trim() || DEFAULT_AI_MODEL;
 
