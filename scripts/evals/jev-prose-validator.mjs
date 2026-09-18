@@ -46,7 +46,8 @@ async function validate(row) {
             "Does the narration introduce any concrete fact, event, action mechanism, movement method, body reaction, NPC reaction, sensory detail, object property, payment method, possession state, cause, identity, injury, consequence, location detail, or private-state claim that is not explicitly supported by the committed facts? Ordinary connective phrasing that implies no new concrete fact is allowed. Answer true if there is at least one unsupported concrete fact.",
           criteria: {
             true: "At least one concrete detail is unsupported by the committed facts.",
-            false: "Every concrete detail is supported; only connective phrasing or non-factual tone was added.",
+            false:
+              "Every concrete detail is supported; only connective phrasing or non-factual tone was added.",
           },
         },
       },
@@ -87,7 +88,10 @@ for (const row of judgments) {
 await writeFile(outputPath, JSON.stringify(rows, null, 2));
 
 function metrics(threshold) {
-  let tp = 0, fp = 0, tn = 0, fn = 0;
+  let tp = 0,
+    fp = 0,
+    tn = 0,
+    fn = 0;
   for (const row of rows) {
     const predicted = row.jevUnsupportedProbability >= threshold;
     if (predicted && row.judgeUnsafe) tp += 1;
@@ -132,9 +136,7 @@ const summary = {
   p50Ms: percentile(latencies, 0.5),
   p95Ms: percentile(latencies, 0.95),
   reportedCost:
-    costRows.length > 0
-      ? costRows.reduce((sum, row) => sum + Number(row.cost || 0), 0)
-      : null,
+    costRows.length > 0 ? costRows.reduce((sum, row) => sum + Number(row.cost || 0), 0) : null,
   perNarrator,
 };
 
