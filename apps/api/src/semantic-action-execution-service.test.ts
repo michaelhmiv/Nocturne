@@ -310,6 +310,62 @@ describe("semantic action execution service", () => {
     );
   });
 
+  it.each([
+    ["pick_up", "actor"],
+    ["steal", "actor"],
+    ["buy", "actor"],
+    ["give", "target"],
+    ["transfer", "target"],
+    ["drop", "none"],
+  ] as const)(
+    "routes %s possession to the correct deterministic possessor",
+    async (actionType, destination) => {
+      const actorId = randomUUID();
+      const targetId = randomUUID();
+      const objectId = randomUUID();
+      const { service, execute, record } = serviceMocks();
+      const transferFrame = frame(actorId, "transfer", destination === "target" ? [targetId] : []);
+      transferFrame.actionType = actionType;
+      transferFrame.objectIds = [objectId];
+      transferFrame.properties.illegal = actionType === "steal";
+      transferFrame.properties.opposed = actionType === "steal";
+      const transferResolution = resolution(
+        actionType === "steal" ? "opposed_contest" : "transaction",
+      );
+      transferResolution.requiredFactIds = ["fact:transfer-precondition"];
+
+      await service.execute({
+        scope,
+        actorId,
+        planId: randomUUID(),
+        stepId: randomUUID(),
+        idempotencyKey: `semantic:transfer:${actionType}`,
+        frame: transferFrame,
+        resolution: transferResolution,
+        context: context(actorId, destination === "target" ? targetId : undefined),
+      });
+
+      expect(record).not.toHaveBeenCalled();
+      const operation = operationValues(execute.mock.calls[0]![0]).find(
+        (value) => value.type === "transfer_possession",
+      );
+      expect(operation).toEqual(
+        expect.objectContaining({
+          type: "transfer_possession",
+          entityRef: { kind: "existing", entityId: objectId },
+          preconditionFactIds: ["fact:transfer-precondition"],
+        }),
+      );
+      if (destination === "actor") {
+        expect(operation?.possessorRef).toEqual({ kind: "existing", entityId: actorId });
+      } else if (destination === "target") {
+        expect(operation?.possessorRef).toEqual({ kind: "existing", entityId: targetId });
+      } else {
+        expect(operation?.possessorRef).toBeNull();
+      }
+    },
+  );
+
   it("uses the same deterministic roll for the same idempotency key", async () => {
     const actorId = randomUUID();
     const { service, record } = serviceMocks();
