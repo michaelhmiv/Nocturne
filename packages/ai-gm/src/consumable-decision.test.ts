@@ -98,10 +98,7 @@ function client(
 
 describe("Jev consumable semantics", () => {
   it("handles ordinary drinks without generative semantic analysis", async () => {
-    const result = await decideConsumableFastPath(
-      client("nonalcoholic_drink") as never,
-      input(),
-    );
+    const result = await decideConsumableFastPath(client("nonalcoholic_drink") as never, input());
     expect(result.fastPathEligible).toBe(true);
     expect(result.analysis?.consumeUnits).toBe(2);
     expect(result.analysis?.resourceDeltas).toEqual([
@@ -183,9 +180,7 @@ describe("Jev consumable semantics", () => {
         delta: -24,
       }),
     ]);
-    expect(result.analysis?.conditions).toEqual([
-      expect.objectContaining({ key: "poisoned" }),
-    ]);
+    expect(result.analysis?.conditions).toEqual([expect.objectContaining({ key: "poisoned" })]);
     expect(result.analysis?.risks[0]?.chanceBasisPoints).toBeLessThanOrEqual(8000);
   });
 
