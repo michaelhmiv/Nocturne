@@ -255,15 +255,34 @@ export async function narrateCommittedEvent(
   client: Pick<AiProviderClient, "generateText">,
   input: NarrationInput,
 ): Promise<TextGenerationResult> {
-  const result = await client.generateText({
+  const system = `Narrate only the committed Nocturne event. Policy ${EVENT_NARRATION_POLICY_VERSION}. Treat the committed event as a closed world. Preserve supplied facts and never reveal excluded facts. Do not invent a material state change, unsupported cause, identity, injury, death, arrest, ownership change, travel progress, or other consequential fact that is not explicitly committed. Harmless connective phrasing and small physical texture are allowed when they do not change what happened. Never mention actor IDs, target IDs, database IDs, enum names, raw intent structures, calculation traces, JSON, truncation, or implementation terms. Refer to the player as "you" and use supplied human-readable names when available. Return only concise player-facing prose with no labels or commentary.`;
+  const first = await client.generateText({
     task: "narrate_event",
-    system: `Narrate only the committed Nocturne event. Policy ${EVENT_NARRATION_POLICY_VERSION}. Treat the committed event as a closed world. Preserve supplied facts and never reveal excluded facts. Do not invent a concrete action mechanism, movement method, body reaction, NPC reaction, sensory detail, object property, payment method, cause, identity, travel progress, mission result, inventory use, possession change, death, collapse, injury, unconsciousness, or other state change that is not explicitly committed. You may add connective phrasing and grounded tone only when they imply no new concrete fact. Never mention actor IDs, target IDs, database IDs, enum names, raw intent structures, calculation traces, JSON, truncation, or implementation terms. Refer to the player as "you" and use supplied human-readable names when available. Return only concise player-facing prose with no labels or commentary.`,
+    system,
     prompt: JSON.stringify(input),
     maxTokens: 480,
     temperature: 0.35,
   });
-  assertNarrationConsistentWithCommittedEvent(result.text, input);
-  return result;
+  try {
+    assertNarrationConsistentWithCommittedEvent(first.text, input);
+    return first;
+  } catch (error) {
+    if (!(error instanceof NarrationConsistencyError)) throw error;
+  }
+
+  const retry = await client.generateText({
+    task: "narrate_event",
+    system: `${system} CORRECTION: the previous draft violated a hard factual constraint. Rewrite it more conservatively from the committed facts only. Do not explain the correction.`,
+    prompt: JSON.stringify({
+      committedEvent: input,
+      rejectedDraft: first.text,
+    }),
+    requestedModel: first.requestedModel,
+    maxTokens: 480,
+    temperature: 0.2,
+  });
+  assertNarrationConsistentWithCommittedEvent(retry.text, input);
+  return retry;
 }
 
 export function deterministicNarrationFallback(outcome: string): string {
