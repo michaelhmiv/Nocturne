@@ -5,7 +5,7 @@ if (!key) throw new Error("OPENROUTER_API_KEY is required.");
 
 const models = (
   process.env.NARRATION_MODELS ||
-  "qwen/qwen3.7-flash,poolside/laguna-s-2.1,bytedance-seed/seed-2.0-mini"
+  "qwen/qwen3.7-flash,poolside/laguna-xs-2.1,poolside/laguna-s-2.1,bytedance-seed/seed-2.0-mini"
 )
   .split(",")
   .map((value) => value.trim())
