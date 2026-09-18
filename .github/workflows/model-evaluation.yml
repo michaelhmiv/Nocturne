@@ -36,14 +36,18 @@ jobs:
       EVAL_REPETITIONS: "2"
       NARRATION_MODELS: ${{ vars.NOCTURNE_NARRATION_MODELS || 'poolside/laguna-xs-2.1' }}
       NARRATION_REPETITIONS: "2"
+      JEV_NATIVE_MODEL: ${{ vars.NOCTURNE_DECISION_MODEL || vars.AI_DECISION_MODEL || '~typesafe/jev-latest' }}
+      JEV_NATIVE_REPETITIONS: "3"
       PROSE_JUDGE_MODEL: ${{ vars.NOCTURNE_PROSE_JUDGE_MODEL || 'openai/gpt-5.6-luna' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Evaluate live decisions and Jev
+      - name: Evaluate legacy cross-model gameplay corpus
         run: node scripts/evals/openrouter-gameplay.mjs
+      - name: Evaluate Jev native semantic contract
+        run: node scripts/evals/jev-native-actions.mjs
       - name: Compare narration models on latency and committed-fact consistency
         run: node scripts/evals/openrouter-narration.mjs
       - name: Judge prose fidelity and quality
@@ -54,5 +58,6 @@ jobs:
           name: openrouter-gameplay-${{ github.sha }}
           path: |
             artifacts/model-evaluation/
+            artifacts/jev-native-evaluation/
             artifacts/narration-evaluation/
           retention-days: 30
