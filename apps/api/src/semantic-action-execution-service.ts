@@ -148,8 +148,9 @@ function operations(input: {
       preconditionFactIds: [],
     });
   }
-  const fallbackTransferObjectId =
-    ["pick_up", "drop"].includes(input.frame.actionType) ? targetId : undefined;
+  const fallbackTransferObjectId = ["pick_up", "drop"].includes(input.frame.actionType)
+    ? targetId
+    : undefined;
   const objectId = input.frame.objectIds[0] || fallbackTransferObjectId;
   if (input.succeeded && input.frame.kind === "transfer" && objectId) {
     if (input.frame.actionType === "put_in" && targetId && targetId !== objectId) {
