@@ -17,8 +17,21 @@ export type AiTask =
 
 export type AiAuthority = "authoritative" | "creative";
 export const DEFAULT_AI_MODEL = "deepseek-v4-flash";
-/** Compatibility alias retained for existing callers and stored telemetry. */
-export const DEEPSEEK_FLASH_MODEL = process.env.AI_MODEL?.trim() || DEFAULT_AI_MODEL;
+export const DEFAULT_GENERATIVE_MODEL = "qwen/qwen3.7-flash";
+export const DEFAULT_NARRATION_MODEL = "poolside/laguna-xs-2.1";
+/** Compatibility alias retained for older direct-DeepSeek callers and stored telemetry. */
+export const DEEPSEEK_FLASH_MODEL = process.env.DEEPSEEK_MODEL?.trim() || DEFAULT_AI_MODEL;
+
+export function configuredGenerativeModel(
+  environment: Record<string, string | undefined> = process.env,
+) {
+  return (
+    environment.AI_GENERATIVE_MODEL?.trim() ||
+    environment.AI_MODEL?.trim() ||
+    environment.DEEPSEEK_MODEL?.trim() ||
+    DEFAULT_GENERATIVE_MODEL
+  );
+}
 
 export interface ModelPolicy {
   task: AiTask;
@@ -63,7 +76,7 @@ export function createModelPolicy(input: {
   return {
     task: input.task,
     authority,
-    model: configured(input.requestedModel) || configuredModel || DEEPSEEK_FLASH_MODEL,
+    model: configured(input.requestedModel) || configuredModel || configuredGenerativeModel(),
     allowUserOverride: false,
     requireStructuredOutput: authority === "authoritative" || input.task === "brainstorm_content",
     temperature: authority === "authoritative" ? 0.1 : 0.8,

@@ -34,7 +34,7 @@ const CANONICAL_ACTION_BY_PROMPT = new Map<string, string>(
   [
     ["detect", "I scan the room for hidden threats."],
     ["detect", "Check the alley for anyone watching us."],
-    ["move", "I walk into the street."],
+    ["move", "I walk to the Rear Alley."],
     ["move", "Head toward the alley."],
     ["search", "I search the alley for a dog."],
     ["search", "Look through the room for useful evidence."],
@@ -97,6 +97,11 @@ function classifyAction(command: string) {
   if (/\b(persuade|convince)\b/.test(text)) return "persuade";
   if (/\b(threaten|warn .*expose)\b/.test(text)) return "threaten";
   if (/\b(steal|pickpocket|slip .*pocket)\b/.test(text)) return "steal";
+  if (/\b(pick up|take possession|grab)\b/.test(text)) return "pick_up";
+  if (/\b(give|hand .* to)\b/.test(text)) return "give";
+  if (/\b(put|place)\b.*\b(?:into|in|inside|onto|on)\b/.test(text)) return "put_in";
+  if (/\b(transfer .* to)\b/.test(text)) return "transfer";
+  if (/\b(drop|put down)\b/.test(text)) return "drop";
   if (/\b(sneak|quietly through|silently)\b/.test(text)) return "sneak";
   if (/\b(hack|bypass .*network|security terminal)\b/.test(text)) return "hack";
   if (/\b(bandage|heal|treat .*injury|first-aid)\b/.test(text)) return "heal";
@@ -110,6 +115,9 @@ function classifyAction(command: string) {
   if (/\b(sell|list .*for sale)\b/.test(text)) return "sell";
   if (/\b(hide|concealed position|behind the crates)\b/.test(text)) return "hide";
   if (/\b(work|shift|delivery job|available job)\b/.test(text)) return "work";
+  if (/\b(push[ -]?ups?|sit[ -]?ups?|squats?|plank|burpees?)\b/.test(text)) return "exercise";
+  if (/\b(sit down|stand up|stretch|blink|breathe|clap|wave|smile|nod|kneel|lie down)\b/.test(text))
+    return "routine_body_action";
   if (/\b(attack|punch|strike|hit|fight)\b/.test(text)) return "attack";
   if (/\b(talk|ask|conversation|bartender)\b/.test(text)) return "talk";
   if (/\b(detect|scan|check .*watching|hidden threats)\b/.test(text)) return "detect";
@@ -124,7 +132,10 @@ function worldKind(actionType: string) {
   if (actionType === "consume") return "consume";
   if (["bribe", "persuade", "threaten"].includes(actionType)) return "relationship";
   if (["attack", "arrest"].includes(actionType)) return "combat";
-  if (["steal", "buy", "sell"].includes(actionType)) return "transfer";
+  if (
+    ["steal", "buy", "sell", "pick_up", "give", "transfer", "put_in", "drop"].includes(actionType)
+  )
+    return "transfer";
   if (actionType === "talk") return "dialogue";
   return "interact";
 }
@@ -324,6 +335,11 @@ function responseFor(schemaName: string, prompt: string) {
         narration:
           "You carry out the committed action, and the world reflects only what actually occurred.",
       };
+    case "nocturne_player_safe_fact_narration":
+      return {
+        narration:
+          "You follow the committed evidence and see only what the search actually established.",
+      };
     case "nocturne_search_discovery_analysis":
       return searchResponse(prompt);
     case "nocturne_provider_contract":
@@ -334,6 +350,100 @@ function responseFor(schemaName: string, prompt: string) {
     default:
       throw new Error(`No deterministic fixture exists for schema ${schemaName}.`);
   }
+}
+
+function decisionResponse(body: Record<string, any>) {
+  const state = body.state && typeof body.state === "object" ? body.state : {};
+  const command = String(state.command || "");
+  const actionKind = worldKind(classifyAction(command));
+  const questions = body.questions && typeof body.questions === "object" ? body.questions : {};
+  const answers: Record<string, unknown> = {};
+
+  for (const [id, question] of Object.entries(questions) as [string, any][]) {
+    if (question?.type === "choice") {
+      const keys = Object.keys(question.criteria || {});
+      let choice = keys.includes(actionKind) ? actionKind : keys[0] || "interact";
+      if (id === "action_type") {
+        const actionType = classifyAction(command);
+        choice = keys.includes(actionType) ? actionType : choice;
+      } else if (id === "target_family" && keys.includes("item")) {
+        choice = "item";
+      } else if (id === "source") {
+        choice =
+          keys.find((key) => key.startsWith("existing_")) ||
+          keys.find((key) => key.startsWith("materialize_")) ||
+          (keys.includes("none") ? "none" : choice);
+      } else if (id.startsWith("role_")) {
+        const index = Number(id.slice("role_".length));
+        const candidate = Array.isArray(state.candidates) ? state.candidates[index] : null;
+        const labels = [
+          candidate?.name,
+          ...(Array.isArray(candidate?.aliases) ? candidate.aliases : []),
+          ...(Array.isArray(candidate?.relationships) ? candidate.relationships : []),
+        ]
+          .filter((value) => typeof value === "string")
+          .map((value) => String(value).toLowerCase());
+        const referenced = labels.some(
+          (label) => label.length >= 2 && command.toLowerCase().includes(label),
+        );
+        const type = String(candidate?.type || "").toLowerCase();
+        choice = !referenced
+          ? "none"
+          : actionKind === "move" || /location|residence|room|building|area/.test(type)
+            ? "location"
+            : actionKind === "consume"
+              ? "resource"
+              : actionKind === "transfer" && /item|object|tool|resource|asset/.test(type)
+                ? "resource"
+                : "target";
+      }
+      answers[id] = {
+        type: "choice",
+        choice,
+        confidence: 0.98,
+        probabilities: Object.fromEntries(
+          keys.map((key) => [key, key === choice ? 0.98 : 0.02 / Math.max(1, keys.length - 1)]),
+        ),
+      };
+      continue;
+    }
+    if (question?.type === "score") {
+      const score = id === "actor_capability" ? 6 : id === "target_difficulty" ? 4 : 1;
+      answers[id] = { type: "score", score, confidence: 0.95 };
+      continue;
+    }
+    if (question?.type === "noul") {
+      let probability = 0.02;
+      if (id === "requires_multi_step") {
+        probability = /\bthen\b|\band then\b|;/.test(command.toLowerCase()) ? 0.95 : 0.02;
+      } else if (id === "requires_clarification") {
+        probability = 0.02;
+      } else if (id === "permitted_attempt" || id === "consumable") {
+        probability = 0.98;
+      } else if (id.startsWith("ref_")) {
+        const candidate = question.criteria?.true;
+        const labels = [
+          candidate?.name,
+          ...(Array.isArray(candidate?.aliases) ? candidate.aliases : []),
+          ...(Array.isArray(candidate?.relationships) ? candidate.relationships : []),
+        ]
+          .filter((value) => typeof value === "string")
+          .map((value) => String(value).toLowerCase());
+        const lower = command.toLowerCase();
+        probability = labels.some((label) => label.length >= 2 && lower.includes(label))
+          ? 0.98
+          : 0.02;
+      }
+      answers[id] = { type: "noul", noul: probability };
+    }
+  }
+
+  return {
+    id: `fake-decision-${randomUUID()}`,
+    model: body.model || "nocturne-fake-decision",
+    answers,
+    usage: { input_tokens: 64, output_tokens: 8, cost: 0 },
+  };
 }
 
 async function record(entry: Record<string, unknown>) {
@@ -349,7 +459,7 @@ const server = createServer(async (request, response) => {
     response.end(JSON.stringify({ status: "ok", service: "fake-ai-provider" }));
     return;
   }
-  if (request.method !== "POST" || !request.url?.endsWith("/chat/completions")) {
+  if (request.method !== "POST") {
     response.writeHead(404, { "content-type": "application/json" });
     response.end(JSON.stringify({ error: { message: "not found" } }));
     return;
@@ -358,11 +468,83 @@ const server = createServer(async (request, response) => {
   for await (const chunk of request) chunks.push(Buffer.from(chunk));
   const bodyText = Buffer.concat(chunks).toString("utf8");
   const body = parseJson<Record<string, any>>(bodyText, {});
+
+  if (request.url?.endsWith("/api/alpha/decisions")) {
+    const command = String(body.state?.command || "");
+    if (command.includes("[fake:timeout]")) {
+      await new Promise((resolve) => setTimeout(resolve, 120_000));
+      return;
+    }
+    if (command.includes("[fake:429]")) {
+      await record({
+        schemaName: "jev_decisions",
+        model: body.model,
+        requestBody: body,
+        error: "deterministic rate limit",
+      });
+      response.writeHead(429, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: { message: "deterministic rate limit" } }));
+      return;
+    }
+    if (command.includes("[fake:500]")) {
+      await record({
+        schemaName: "jev_decisions",
+        model: body.model,
+        requestBody: body,
+        error: "deterministic provider failure",
+      });
+      response.writeHead(500, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: { message: "deterministic provider failure" } }));
+      return;
+    }
+
+    const content = decisionResponse(body);
+    await record({
+      requestId: content.id,
+      schemaName: "jev_decisions",
+      model: body.model,
+      requestBody: body,
+      response: content,
+    });
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify(content));
+    return;
+  }
+
+  if (!request.url?.endsWith("/chat/completions")) {
+    response.writeHead(404, { "content-type": "application/json" });
+    response.end(JSON.stringify({ error: { message: "not found" } }));
+    return;
+  }
+
   const system = String(body.messages?.[0]?.content || "");
   const prompt = String(body.messages?.[1]?.content || "");
   const schemaName = /JSON schema name:\s*([^\n]+)/.exec(system)?.[1]?.trim() || "unknown";
   const requestId = `fake-${randomUUID()}`;
   await record({ requestId, schemaName, model: body.model, prompt, requestBody: body });
+
+  if (
+    schemaName === "unknown" &&
+    /player-facing prose layer|Narrate only the committed Nocturne event/i.test(system)
+  ) {
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(
+      JSON.stringify({
+        id: requestId,
+        model: body.model || "nocturne-fake-narrator",
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              content:
+                "You carry out the committed action, and the world reflects only what actually occurred.",
+            },
+          },
+        ],
+      }),
+    );
+    return;
+  }
 
   if (prompt.includes("[fake:timeout]")) {
     await new Promise((resolve) => setTimeout(resolve, 120_000));

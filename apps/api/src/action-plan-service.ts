@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import {
   ACTION_PLAN_POLICY_VERSION,
-  DEEPSEEK_FLASH_MODEL,
-  AiProviderClient,
+  createAiProviderClientFromEnv,
+  resolveAiProviderConfigFromEnv,
   deterministicActionPlanFallback,
   parseActionPlanWithAi,
 } from "@nocturne/ai-gm";
@@ -37,7 +37,10 @@ export function createActionPlanService(
   actions: ActionService,
   environment: NodeJS.ProcessEnv = process.env,
 ) {
-  const client = new AiProviderClient({ deepseekApiKey: environment.DEEPSEEK_API_KEY });
+  const providerConfiguration = resolveAiProviderConfigFromEnv(environment);
+  const client = createAiProviderClientFromEnv(environment);
+  const requestedModel = providerConfiguration.model;
+  const aiConfigured = Boolean(providerConfiguration.apiKey);
 
   async function createPlan(
     userId: string,
@@ -53,17 +56,14 @@ export function createActionPlanService(
     const planRun = await actionStore.startAiRun({
       task: "parse_intent",
       authority: "authoritative",
-      requestedModel: DEEPSEEK_FLASH_MODEL,
+      requestedModel,
       policyVersion: ACTION_PLAN_POLICY_VERSION,
       inputHash: hash({ input, publicContext: context.publicContext }),
       metadata: { actorId: input.actorId, idempotencyKey, mode: "ordered_plan" },
     });
 
     try {
-      if (
-        !environment.DEEPSEEK_API_KEY &&
-        environment.NOCTURNE_ALLOW_DETERMINISTIC_AI_FALLBACK === "true"
-      ) {
+      if (!aiConfigured && environment.NOCTURNE_ALLOW_DETERMINISTIC_AI_FALLBACK === "true") {
         const plan = deterministicActionPlanFallback(
           input,
           context.method.definitionId,

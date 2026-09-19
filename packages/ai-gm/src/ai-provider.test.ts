@@ -156,6 +156,69 @@ describe("AiProviderClient structured requests", () => {
     expect(body.response_format).toEqual({ type: "json_object" });
   });
 
+  it("generates narration as plain text without response_format", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: "narration-valid",
+          model: "poolside/laguna-xs-2.1",
+          choices: [{ finish_reason: "stop", message: { content: "The door stays locked." } }],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new AiProviderClient({
+      provider: "openrouter",
+      apiKey: "openrouter-key",
+      baseUrl: "https://openrouter.ai/api/v1",
+      model: "qwen/qwen3.7-flash",
+      narrationModel: "poolside/laguna-xs-2.1",
+      thinkingMode: "omit",
+    });
+    const result = await client.generateText({
+      task: "narrate_event",
+      system: "Use only committed facts.",
+      prompt: "The door remains closed and locked.",
+      maxTokens: 120,
+    });
+
+    expect(result.text).toBe("The door stays locked.");
+    expect(result.requestedModel).toBe("poolside/laguna-xs-2.1");
+    expect(result.provider).toBe("openrouter");
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(body.model).toBe("poolside/laguna-xs-2.1");
+    expect(body.reasoning).toEqual({ enabled: false });
+    expect(body).not.toHaveProperty("response_format");
+  });
+
+  it("resolves a dedicated narration model independently from structured generation", () => {
+    const configuration = resolveAiProviderConfigFromEnv({
+      AI_PROVIDER: "openrouter",
+      AI_GENERATIVE_MODEL: "qwen/qwen3.7-flash",
+      AI_NARRATION_MODEL: "poolside/laguna-xs-2.1",
+      OPENROUTER_API_KEY: "test-key",
+    });
+
+    expect(configuration.model).toBe("qwen/qwen3.7-flash");
+    expect(configuration.narrationModel).toBe("poolside/laguna-xs-2.1");
+  });
+
+  it("prefers the dedicated generative model variable on OpenRouter", () => {
+    const configuration = resolveAiProviderConfigFromEnv({
+      AI_PROVIDER: "openrouter",
+      AI_GENERATIVE_MODEL: "qwen/qwen3.7-flash",
+      AI_MODEL: "legacy-model",
+      OPENROUTER_API_KEY: "test-key",
+    });
+
+    expect(configuration.model).toBe("qwen/qwen3.7-flash");
+    expect(configuration.authoritativeModel).toBe("qwen/qwen3.7-flash");
+    expect(configuration.creativeModel).toBe("qwen/qwen3.7-flash");
+    expect(configuration.narrationModel).toBe("poolside/laguna-xs-2.1");
+  });
+
   it("resolves Railway-style environment variables", () => {
     const configuration = resolveAiProviderConfigFromEnv({
       AI_PROVIDER: "openrouter",

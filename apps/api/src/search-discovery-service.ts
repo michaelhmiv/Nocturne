@@ -2,12 +2,15 @@ import { createHash } from "node:crypto";
 import {
   SearchDiscoveryResultSchema,
   type MaterializationAnalysisRequest,
+  type SearchDiscoveryAnalysis,
   type SearchDiscoveryResult,
   type UniversalWorldOperation,
 } from "@nocturne/contracts";
 import {
   analyzeMaterialization,
-  analyzeSearchDiscovery,
+  decideSearchDiscovery,
+  narratePlayerSafeFacts,
+  type AiDecisionClient,
   type AiProviderClient,
 } from "@nocturne/ai-gm";
 import type {
@@ -39,7 +42,7 @@ function seedFor(secret: string | Buffer, idempotencyKey: string) {
 
 function outcomeText(
   grade: ReturnType<typeof resolveContest>["outcomeGrade"],
-  analysis: Awaited<ReturnType<typeof analyzeSearchDiscovery>>["data"],
+  analysis: SearchDiscoveryAnalysis,
 ) {
   switch (grade) {
     case "complete_success":
@@ -58,7 +61,8 @@ function outcomeText(
 }
 
 export function createSearchDiscoveryService(dependencies: {
-  client: Pick<AiProviderClient, "generateStructured">;
+  client: Pick<AiProviderClient, "generateStructured" | "generateText">;
+  decisionClient: Pick<AiDecisionClient, "decide">;
   context: RelevanceContextStore;
   materialization: MaterializationStore;
   executor: UniversalOperationExecutor;
@@ -108,7 +112,7 @@ export function createSearchDiscoveryService(dependencies: {
       .map(({ factId, claim, value }) => `${factId}: ${claim}=${JSON.stringify(value)}`)
       .slice(0, 32);
 
-    const analyzed = await analyzeSearchDiscovery(dependencies.client, {
+    const analysisRequest = {
       rawText: input.rawText,
       actorId: input.actorId,
       areaId: input.areaId,
@@ -129,8 +133,27 @@ export function createSearchDiscoveryService(dependencies: {
           .slice(0, 24),
       })),
       materializationSourceIds: sourceCandidates.map(({ sourceId }) => sourceId),
-    });
-    const analysis = analyzed.data;
+    };
+
+    let analysis: SearchDiscoveryAnalysis;
+    try {
+      const decided = await decideSearchDiscovery(dependencies.decisionClient, analysisRequest);
+      if (!decided.fastPathEligible || !decided.analysis) {
+        throw new SearchDiscoveryServiceError(
+          "analysis_rejected",
+          `Jev could not resolve search semantics: ${decided.fallbackReason || "low confidence"}.`,
+        );
+      }
+      analysis = decided.analysis;
+    } catch (error) {
+      if (error instanceof SearchDiscoveryServiceError) throw error;
+      throw new SearchDiscoveryServiceError(
+        "analysis_rejected",
+        error instanceof Error
+          ? `Jev search interpretation failed: ${error.message}`
+          : "Jev search interpretation failed.",
+      );
+    }
     const resolution = resolveContest({
       actionType: "search_discovery",
       actorScore: analysis.actorScore,
@@ -296,6 +319,26 @@ export function createSearchDiscoveryService(dependencies: {
       });
     }
 
+    const narrationConstraints = [
+      "Do not claim ownership, control, following, trust, capture, or acquisition unless separately committed.",
+      ...(discoveredEntityId
+        ? ["Describe only the discovered entity and committed observation."]
+        : ["Do not narrate a concrete entity as present."]),
+    ];
+    let narration = outcomeFact;
+    try {
+      const generated = await narratePlayerSafeFacts(dependencies.client, {
+        eventType: "search_discovery",
+        outcomeGrade: resolution.outcomeGrade,
+        playerVisibleFacts: [outcomeFact],
+        constraints: narrationConstraints,
+        style: "immersive",
+      });
+      narration = generated.text;
+    } catch {
+      narration = outcomeFact;
+    }
+
     return SearchDiscoveryResultSchema.parse({
       eventId: receipt.eventId,
       outcomeGrade: resolution.outcomeGrade,
@@ -303,12 +346,8 @@ export function createSearchDiscoveryService(dependencies: {
       materialized,
       informationIds,
       playerVisibleFacts: [outcomeFact],
-      narrationConstraints: [
-        "Do not claim ownership, control, following, trust, capture, or acquisition unless separately committed.",
-        ...(discoveredEntityId
-          ? ["Describe only the discovered entity and committed observation."]
-          : ["Do not narrate a concrete entity as present."]),
-      ],
+      narration,
+      narrationConstraints,
     });
   }
 

@@ -1,5 +1,9 @@
 import cors from "@fastify/cors";
-import { AiProviderClient, DEEPSEEK_FLASH_MODEL, createModelPolicy } from "@nocturne/ai-gm";
+import {
+  createAiProviderClientFromEnv,
+  createModelPolicy,
+  resolveAiProviderConfigFromEnv,
+} from "@nocturne/ai-gm";
 import { closeAuthFromEnv, getAuthFromEnv, getSessionFromNodeHeaders } from "@nocturne/auth";
 import { validateGeneratedContent } from "@nocturne/content-engine";
 import {
@@ -40,6 +44,7 @@ export async function buildApp() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required.");
   const database = createDatabase(databaseUrl);
+  const providerConfiguration = resolveAiProviderConfigFromEnv(process.env);
   const world = createPersistentWorldService(createPersistentWorldStore(database));
   const inventions = createInventionService(createInventionStore(database));
   const locations = createLocationStore(database);
@@ -56,9 +61,7 @@ export async function buildApp() {
   const conversationTurns = createConversationStore(database);
   const context = createAuthoritativeContextStore(database);
   const conversations = createConversationService({
-    client: new AiProviderClient({
-      deepseekApiKey: process.env.DEEPSEEK_API_KEY,
-    }),
+    client: createAiProviderClientFromEnv(process.env),
     turns: conversationTurns,
     rollSecret: process.env.NOCTURNE_ROLL_SECRET || process.env.BETTER_AUTH_SECRET,
     applyStateOperations: (input) => executeConversationStateOperations(database, input),
@@ -196,8 +199,8 @@ export async function buildApp() {
     });
   });
 
-  const primaryProvider = "deepseek" as const;
-  const primaryConfigured = Boolean(process.env.DEEPSEEK_API_KEY);
+  const primaryProvider = providerConfiguration.provider;
+  const primaryConfigured = Boolean(providerConfiguration.apiKey);
 
   app.get("/health", async () => ({
     status: "ok",
@@ -205,7 +208,7 @@ export async function buildApp() {
     ai: {
       primaryProvider,
       primaryConfigured,
-      model: DEEPSEEK_FLASH_MODEL,
+      model: providerConfiguration.model,
     },
   }));
   app.get("/ready", async (_request, reply) => {
@@ -223,7 +226,7 @@ export async function buildApp() {
       databaseReady,
       aiReady: primaryConfigured,
       primaryProvider,
-      model: DEEPSEEK_FLASH_MODEL,
+      model: providerConfiguration.model,
     });
   });
   app.get("/v1/me", async (request, reply) => {
@@ -235,11 +238,11 @@ export async function buildApp() {
   app.get("/v1/system/model-policy", async () => ({
     authoritative: createModelPolicy({
       task: "parse_intent",
-      authoritativeModel: process.env.AI_AUTHORITATIVE_MODEL || process.env.DEEPSEEK_MODEL,
+      authoritativeModel: providerConfiguration.authoritativeModel,
     }),
     creative: createModelPolicy({
       task: "narrate_event",
-      creativeModel: process.env.AI_CREATIVE_MODEL || process.env.DEEPSEEK_MODEL,
+      creativeModel: providerConfiguration.creativeModel,
     }),
   }));
   app.post("/v1/content/validate", async (request, reply) => {

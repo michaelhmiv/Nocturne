@@ -1,6 +1,6 @@
 [
   { "actionType": "detect", "prompt": "I scan the room for hidden threats." },
-  { "actionType": "move", "prompt": "I walk into the street." },
+  { "actionType": "move", "prompt": "I walk to the Rear Alley." },
   { "actionType": "search", "prompt": "I search the alley for a dog." },
   { "actionType": "talk", "prompt": "I ask the man what happened." },
   { "actionType": "attack", "prompt": "I punch the guard." },

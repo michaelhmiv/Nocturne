@@ -1,70 +1,119 @@
-# AI provider and model policy
+# AI semantic and presentation policy
 
-## Runtime configuration
+## Production architecture
 
-Nocturne uses an OpenAI-compatible chat-completions adapter. The active provider and model are server-controlled through Railway variables; player input can never select or override either one.
+Nocturne has three strict layers:
 
-Primary variables:
+1. **Jev semantic decisions** translate natural-language intent and relevant world context into bounded machine-readable choices.
+2. **Deterministic engine code and PostgreSQL** validate prerequisites, resolve mechanics, roll contests, advance clocks, and commit authoritative state.
+3. **Laguna XS presentation** receives only committed player-visible/public facts and converts them into natural prose.
 
-| Variable                 | Purpose                                                                          |
-| ------------------------ | -------------------------------------------------------------------------------- |
-| `AI_PROVIDER`            | `deepseek`, `openai`, `openrouter`, or `openai_compatible`                       |
-| `AI_MODEL`               | Default model ID for every task                                                  |
-| `AI_AUTHORITATIVE_MODEL` | Optional override for planning, semantic analysis, and other authoritative tasks |
-| `AI_CREATIVE_MODEL`      | Optional override for narration and other creative tasks                         |
-| `AI_BASE_URL`            | Provider base URL; required for `openai_compatible`                              |
-| `AI_API_KEY`             | Generic provider key; overrides a provider-specific key                          |
-| `AI_THINKING_MODE`       | `enabled`, `disabled`, or `omit`                                                 |
-| `AI_JSON_MODE`           | Whether to send OpenAI-compatible JSON response mode                             |
-| `AI_MAX_TOKENS`          | Maximum generated tokens per structured call                                     |
-| `AI_TIMEOUT_MS`          | Provider request timeout                                                         |
-| `AI_EXTRA_BODY_JSON`     | Optional provider-specific request fields as a JSON object                       |
-
-Provider-specific fallback keys are `DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, and `OPENROUTER_API_KEY`.
-
-The production default is:
+The intended player path is:
 
 ```text
-AI_PROVIDER=deepseek
-AI_MODEL=deepseek-v4-flash
-AI_AUTHORITATIVE_MODEL=deepseek-v4-flash
-AI_CREATIVE_MODEL=deepseek-v4-flash
-AI_BASE_URL=https://api.deepseek.com
-AI_THINKING_MODE=disabled
+player language
+  -> deterministic context/candidate compiler
+  -> Jev Decisions API
+  -> engine-readable semantic packet
+  -> deterministic rules / state commit
+  -> committed player-safe facts
+  -> Laguna XS plain-text narration
+  -> player
 ```
 
-Changing the provider or model requires a Railway variable update and service redeployment, not a code change. The effective non-secret configuration is exposed at `GET /v1/system/ai-provider` for operational verification.
+The engine must be able to execute the action if Laguna is unavailable. Laguna can never change what happened.
 
-## Task policy
+## Jev
 
-| Task                                 | Authority     | Player override |
-| ------------------------------------ | ------------- | --------------- |
-| Parse action intent                  | Authoritative | No              |
-| Resolve persistent entity references | Authoritative | No              |
-| Plan persistent world actions        | Authoritative | No              |
-| Analyze arbitrary consumables        | Authoritative | No              |
-| Analyze searches and materialization | Authoritative | No              |
-| Simulate elapsed entity time         | Authoritative | No              |
-| Normalize generated content          | Authoritative | No              |
-| Propose adjudication factors         | Authoritative | No              |
-| Plan NPC actions                     | Authoritative | No              |
-| Summarize persistent memory          | Authoritative | No              |
-| Brainstorm player content            | Creative      | No              |
-| Narrate committed events             | Creative      | No              |
-| Private character assistant          | Creative      | No              |
+Production default:
 
-Authority classification controls default temperature and model-class selection. It never grants the model authority to write world state.
+```text
+AI_DECISION_MODEL=~typesafe/jev-latest
+AI_DECISION_ENDPOINT=https://openrouter.ai/api/alpha/decisions
+```
 
-## Structured output
+Jev receives bounded Choice, Score, and Noul questions. It may select only supplied/allowlisted values.
 
-Structured calls include:
+Jev owns semantic interpretation such as:
 
-- the configured provider and model;
-- an explicit JSON schema and generated example object in the system prompt;
-- OpenAI-compatible JSON mode unless `AI_JSON_MODE=false`;
-- runtime validation with the corresponding Zod schema; and
-- one targeted schema-repair retry when the first JSON object is structurally invalid.
+- detailed action type;
+- persistent entity references and semantic roles;
+- ambiguity / clarification;
+- compound-action detection and, in the compound protocol, ordered semantic steps;
+- consumable/search/reaction/evidence/newsworthiness categories;
+- bounded relative semantic scores.
 
-For direct DeepSeek V4 structured calls, thinking mode defaults to disabled. Other providers omit the nonstandard `thinking` field unless explicitly configured.
+Jev does **not** own location truth, access, inventory, possession, ownership, money, clocks, rolls, damage, legal state, idempotency, or database writes. Confidence is routing metadata, never gameplay success probability.
 
-No model response may mutate world state until it passes runtime validation and the deterministic authority layer commits the resulting operations. Provider rejections, timeouts, malformed output, and schema failures are infrastructure errors and must never be presented as in-world action failures.
+A normal generative model is not a fallback for player-command interpretation. If Jev cannot produce a usable semantic packet, the system asks another bounded Jev question, requests player clarification, or rejects the interpretation.
+
+## Deterministic engine
+
+Engine/database authority includes:
+
+- location, containment, access, routes, visibility and presence;
+- money, quantities, inventory, possession, ownership and transfers;
+- timing, schedules, travel/work progress and response windows;
+- contest rolls, damage, injury, incapacitation, recovery and legal state;
+- atomic events, receipts, idempotency, concurrency and replay.
+
+Semantic decisions become authoritative only after deterministic validation and commit.
+
+## Laguna XS
+
+Production default:
+
+```text
+AI_NARRATION_MODEL=poolside/laguna-xs-2.1
+```
+
+Laguna is presentation-only. Narration uses plain chat-completion text with reasoning disabled. It does not use JSON schema or `response_format`.
+
+Laguna receives committed player-visible/public facts plus style constraints. Small non-material connective texture is allowed. Material state changes, causes, identities, injuries, ownership changes, arrivals, arrests, or other consequential facts must come from committed facts.
+
+If deterministic hard narration checks reject a Laguna draft, Nocturne retries **Laguna XS once** with a correction prompt. If that also fails, the caller uses deterministic fallback prose. No second narration model is used.
+
+## Transitional structured generation
+
+`AI_GENERATIVE_MODEL=qwen/qwen3.7-flash` remains temporarily available for legacy non-player structured tasks while they are migrated. It is **not** the player-action planner and is **not** the narrator.
+
+The system-wide migration audit must eventually classify each AI call as:
+
+- semantic decision -> Jev;
+- authoritative calculation/mutation -> code/database;
+- presentation of committed facts -> Laguna;
+- otherwise remove or explicitly justify the remaining structured-generation task.
+
+## Preferred environment
+
+```text
+AI_PROVIDER=openrouter
+AI_GENERATIVE_MODEL=qwen/qwen3.7-flash
+AI_MODEL=qwen/qwen3.7-flash
+AI_AUTHORITATIVE_MODEL=qwen/qwen3.7-flash
+AI_CREATIVE_MODEL=qwen/qwen3.7-flash
+AI_NARRATION_MODEL=poolside/laguna-xs-2.1
+AI_BASE_URL=https://openrouter.ai/api/v1
+
+AI_DECISION_MODEL=~typesafe/jev-latest
+AI_DECISION_ENDPOINT=https://openrouter.ai/api/alpha/decisions
+AI_DECISION_TIMEOUT_MS=5000
+
+AI_THINKING_MODE=omit
+OPENROUTER_API_KEY=...
+```
+
+## Required verification
+
+Every AI-facing change must run:
+
+- deterministic fake-Jev/fake-Laguna unit and integration coverage;
+- full TypeScript/build/database/action/browser certification;
+- live Jev Decisions contract;
+- held-out Jev semantic accuracy and latency/cost evaluation;
+- live Laguna plain-text narration contract;
+- Laguna fidelity/latency/cost corpus;
+- prompt-injection and hidden-fact leakage cases;
+- timeout/429/5xx and deterministic-fallback tests.
+
+Provider problems are infrastructure errors, not in-world failures. Missing credentials or blocked live checks are never reported as passes.
