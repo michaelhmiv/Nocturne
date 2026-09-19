@@ -186,6 +186,10 @@ jobs:
         run: |
           set -o pipefail
           pnpm --filter @nocturne/database exec vitest run test/universal-operation-executor.integration.test.ts 2>&1 | tee artifacts/universal-containment.log
+      - name: Run reference audit replay tests
+        run: |
+          set -o pipefail
+          pnpm --filter @nocturne/database exec vitest run test/reference-resolution-store.integration.test.ts 2>&1 | tee artifacts/reference-audit-replay.log
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
