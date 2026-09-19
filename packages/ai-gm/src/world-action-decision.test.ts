@@ -76,6 +76,61 @@ describe("Jev world-action fast path", () => {
     expect(result.interpretation.mentions[0]?.selectedEntityId).toBe(doorId);
   });
 
+  it("keeps known-entity observation distinct from discovery search", async () => {
+    const observationClient = {
+      decide: async () => ({
+        answers: {
+          action_type: { type: "choice" as const, choice: "observe", confidence: 0.99 },
+          requires_clarification: { type: "noul" as const, noul: 0.01 },
+          requires_multi_step: { type: "noul" as const, noul: 0.01 },
+          role_0: {
+            type: "choice" as const,
+            choice: "target",
+            confidence: 0.99,
+            probabilities: { target: 0.99, none: 0.01 },
+          },
+        },
+        requestedModel: "~typesafe/jev-latest",
+        actualModel: "typesafe/jev-1.13-20260917",
+        provider: "openrouter" as const,
+        latencyMs: 120,
+      }),
+    };
+    const observed = await decideWorldActionFastPath(observationClient as never, {
+      command: "Observe the red door carefully.",
+      actorId,
+      enabledHandlers: ["interact", "search"],
+      recentPlayerSafeText: [],
+      candidates: [candidate({ entityId: doorId, displayName: "Red Door" })],
+    });
+    expect(observed.actionType).toBe("observe");
+    expect(observed.kind).toBe("interact");
+    expect(observed.selectedEntityIds).toEqual([doorId]);
+
+    const searchClient = {
+      decide: async () => ({
+        answers: {
+          action_type: { type: "choice" as const, choice: "search", confidence: 0.99 },
+          requires_clarification: { type: "noul" as const, noul: 0.01 },
+          requires_multi_step: { type: "noul" as const, noul: 0.01 },
+        },
+        requestedModel: "~typesafe/jev-latest",
+        actualModel: "typesafe/jev-1.13-20260917",
+        provider: "openrouter" as const,
+        latencyMs: 120,
+      }),
+    };
+    const searched = await decideWorldActionFastPath(searchClient as never, {
+      command: "Search the room for a hidden crowbar.",
+      actorId,
+      enabledHandlers: ["interact", "search"],
+      recentPlayerSafeText: [],
+      candidates: [],
+    });
+    expect(searched.actionType).toBe("search");
+    expect(searched.kind).toBe("search");
+  });
+
   it("falls back for compound actions instead of forcing a one-step plan", async () => {
     const client = {
       decide: async () => ({
