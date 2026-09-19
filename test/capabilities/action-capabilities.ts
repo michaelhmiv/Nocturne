@@ -411,7 +411,7 @@ export const ACTION_CAPABILITIES = {
     workerRequired: false,
   }),
   observe: contest({
-    worldKind: "search",
+    worldKind: "interact",
     skill: "investigation",
     canonicalPrompts: [
       "I observe the street from the window.",
