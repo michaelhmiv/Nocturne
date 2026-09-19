@@ -309,24 +309,50 @@ async function ensureNoContainmentCycle(
   }
   const rows = await sql`
     WITH RECURSIVE descendants(instance_id) AS (
-      SELECT instance_id
-      FROM game.entity_instances
-      WHERE world_id = ${input.scope.worldId}
-        AND shard_id = ${input.scope.shardId}
-        AND location_id = ${entityId}
+      SELECT child.instance_id
+      FROM game.entity_instances child
+      WHERE child.world_id = ${input.scope.worldId}
+        AND child.shard_id = ${input.scope.shardId}
+        AND child.location_id = ${entityId}
+
       UNION
+
+      SELECT relation.source_instance_id
+      FROM game.entity_relations relation
+      JOIN game.entity_instances child
+        ON child.instance_id = relation.source_instance_id
+       AND child.world_id = relation.world_id
+      WHERE relation.world_id = ${input.scope.worldId}
+        AND child.shard_id = ${input.scope.shardId}
+        AND relation.relation_type = 'contained_in'
+        AND relation.target_instance_id = ${entityId}
+
+      UNION
+
       SELECT child.instance_id
       FROM game.entity_instances child
       JOIN descendants parent ON child.location_id = parent.instance_id
       WHERE child.world_id = ${input.scope.worldId}
         AND child.shard_id = ${input.scope.shardId}
+
+      UNION
+
+      SELECT relation.source_instance_id
+      FROM game.entity_relations relation
+      JOIN descendants parent ON relation.target_instance_id = parent.instance_id
+      JOIN game.entity_instances child
+        ON child.instance_id = relation.source_instance_id
+       AND child.world_id = relation.world_id
+      WHERE relation.world_id = ${input.scope.worldId}
+        AND child.shard_id = ${input.scope.shardId}
+        AND relation.relation_type = 'contained_in'
     )
     SELECT 1 FROM descendants WHERE instance_id = ${locationId} LIMIT 1
   `;
   if (rows[0]) {
     throw new UniversalOperationError(
       "containment_cycle",
-      "Movement would create a containment cycle.",
+      "Containment would create a recursive cycle.",
     );
   }
 }
