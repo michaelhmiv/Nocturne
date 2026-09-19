@@ -470,6 +470,34 @@ const server = createServer(async (request, response) => {
   const body = parseJson<Record<string, any>>(bodyText, {});
 
   if (request.url?.endsWith("/api/alpha/decisions")) {
+    const command = String(body.state?.command || "");
+    if (command.includes("[fake:timeout]")) {
+      await new Promise((resolve) => setTimeout(resolve, 120_000));
+      return;
+    }
+    if (command.includes("[fake:429]")) {
+      await record({
+        schemaName: "jev_decisions",
+        model: body.model,
+        requestBody: body,
+        error: "deterministic rate limit",
+      });
+      response.writeHead(429, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: { message: "deterministic rate limit" } }));
+      return;
+    }
+    if (command.includes("[fake:500]")) {
+      await record({
+        schemaName: "jev_decisions",
+        model: body.model,
+        requestBody: body,
+        error: "deterministic provider failure",
+      });
+      response.writeHead(500, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: { message: "deterministic provider failure" } }));
+      return;
+    }
+
     const content = decisionResponse(body);
     await record({
       requestId: content.id,
