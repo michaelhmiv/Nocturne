@@ -186,6 +186,10 @@ jobs:
         run: |
           set -o pipefail
           pnpm --filter @nocturne/database exec vitest run test/universal-operation-executor.integration.test.ts 2>&1 | tee artifacts/universal-containment.log
+      - name: Run scheduled plan completion lifecycle tests
+        run: |
+          set -o pipefail
+          pnpm --filter @nocturne/database exec vitest run test/scheduled-plan-completion.integration.test.ts 2>&1 | tee artifacts/scheduled-plan-completion.log
       - name: Run reference audit replay tests
         run: |
           set -o pipefail
