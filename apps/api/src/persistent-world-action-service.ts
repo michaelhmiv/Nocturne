@@ -19,7 +19,10 @@ import type {
   RelevanceContextStore,
   WorldScope,
 } from "@nocturne/database";
-import { hasExplicitPossessionRequirement, isCurrentAreaSearchCommand } from "./semantic-action-frame.js";
+import {
+  hasExplicitPossessionRequirement,
+  isCurrentAreaSearchCommand,
+} from "./semantic-action-frame.js";
 import type { ExecutableWorldActionStep } from "../../../packages/database/src/world-action-step-store.js";
 
 export type WorldActionStepCompleted = {
@@ -122,7 +125,11 @@ type WorldActionStepStoreLike = {
 export class PersistentWorldActionServiceError extends Error {
   constructor(
     readonly code:
-      "in_progress" | "unsupported_handler" | "planning_failed" | "step_failed" | "request_failed",
+      | "in_progress"
+      | "unsupported_handler"
+      | "planning_failed"
+      | "step_failed"
+      | "request_failed",
     message: string,
   ) {
     super(message);
@@ -131,8 +138,7 @@ export class PersistentWorldActionServiceError extends Error {
 }
 
 const impossibleMovementPattern = /\b(?:walk|phase|pass)\b.*\bthrough\b.*\b(?:solid )?wall\b/i;
-const movementCommandPattern =
-  /\b(?:go|walk|move|travel|head|run|drive|ride|return|come)\b/i;
+const movementCommandPattern = /\b(?:go|walk|move|travel|head|run|drive|ride|return|come)\b/i;
 const locationClarificationPattern =
   /\b(?:hall(?:way)?|corridor|room|apartment|unit|building|home|place|area|lobby|office|floor|street|station|outside|inside)\b/i;
 const locationDefinitionPattern =
@@ -180,7 +186,8 @@ function clarificationDestinationIds(
   }
 
   const actor = context.entities.find((entity) => entity.entityId === actorId);
-  return actor?.locationId && context.entities.some((entity) => entity.entityId === actor.locationId)
+  return actor?.locationId &&
+    context.entities.some((entity) => entity.entityId === actor.locationId)
     ? [actor.locationId]
     : [];
 }
@@ -609,8 +616,8 @@ export function createPersistentWorldActionService(dependencies: {
         );
       const continuationMovement = Boolean(
         pendingClarification &&
-          isMovementCommand(pendingClarification.command) &&
-          isLocationClarificationReply(input.command),
+        isMovementCommand(pendingClarification.command) &&
+        isLocationClarificationReply(input.command),
       );
       const scopedSearch = isCurrentAreaSearchCommand(command);
       const possessionRequirement = hasExplicitPossessionRequirement(command);
@@ -742,11 +749,7 @@ export function createPersistentWorldActionService(dependencies: {
         proposal = buildFastSingleStepPlan({
           command,
           actorId: input.actorId,
-          kind: continuationMovement
-            ? "move"
-            : scopedSearch
-              ? "search"
-              : fastDecision.kind,
+          kind: continuationMovement ? "move" : scopedSearch ? "search" : fastDecision.kind,
           planKind,
           actionType,
           selectedEntityIds: resolvedEntityIds,
