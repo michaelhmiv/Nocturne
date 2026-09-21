@@ -93,7 +93,7 @@ describe("scheduled semantic action resolution", () => {
     expect(branch.operations).toEqual([
       expect.objectContaining({
         type: "set_state_value",
-        path: ["activity", "last_completed_timed_action"],
+        path: ["last_completed_timed_action"],
       }),
     ]);
     expect(completeStep).toHaveBeenCalledWith(
