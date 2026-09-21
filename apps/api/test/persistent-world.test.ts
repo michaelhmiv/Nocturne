@@ -15,6 +15,7 @@ function fakeStore() {
     createdAt: new Date(0).toISOString(),
   };
   return {
+    assertPublicWorldUser: async () => {},
     seedStarterWorld: async () => ({}) as never,
     getStarterWorld: async () => ({}) as never,
     createCharacter: async () => character,
