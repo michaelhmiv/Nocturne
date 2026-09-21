@@ -260,6 +260,7 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
               durationSeconds,
               payload: {
                 userId: scope.userId,
+                requestId,
                 actorId,
                 locationId: destinationId,
                 destinationId,
