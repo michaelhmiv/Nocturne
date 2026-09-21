@@ -78,10 +78,7 @@ export async function registerPersistentWorldRuntime(
     rollSecret: string | Buffer;
     resolveScope(request: FastifyRequest): Promise<WorldScope>;
     /** Compatibility input retained while narrative history moves into the database projection. */
-    listRecentPlayerSafeText?(input: {
-      scope: WorldScope;
-      limit: number;
-    }): Promise<string[]>;
+    listRecentPlayerSafeText?(input: { scope: WorldScope; limit: number }): Promise<string[]>;
     loadReusableDefinitions(input: {
       scope: Pick<WorldScope, "worldId">;
       requestedConcept: string;
@@ -141,10 +138,7 @@ export async function registerPersistentWorldRuntime(
   const timedActions = createTimedSemanticActionService(executor);
   const telemetry = createGameplayTelemetryWriter(app.log);
   const client = instrumentAiClient(dependencies.client, telemetry);
-  const decisionClient = instrumentAiDecisionClient(
-    dependencies.decisionClient,
-    telemetry,
-  );
+  const decisionClient = instrumentAiDecisionClient(dependencies.decisionClient, telemetry);
   const context = instrumentContextStore(
     createRelevanceContextStore(dependencies.database),
     telemetry,
@@ -153,19 +147,10 @@ export async function registerPersistentWorldRuntime(
     createReferenceResolutionStore(dependencies.database),
     telemetry,
   );
-  const plans = instrumentPlanStore(
-    createPersistentPlanStore(dependencies.database),
-    telemetry,
-  );
+  const plans = instrumentPlanStore(createPersistentPlanStore(dependencies.database), telemetry);
   const requests = createWorldActionRequestStore(dependencies.database);
-  const steps = instrumentStepStore(
-    createWorldActionStepStore(dependencies.database),
-    telemetry,
-  );
-  const materialization = createMaterializationStore(
-    dependencies.database,
-    executor,
-  );
+  const steps = instrumentStepStore(createWorldActionStepStore(dependencies.database), telemetry);
+  const materialization = createMaterializationStore(dependencies.database, executor);
   const narrativeMemory = createNarrativeMemoryStore(dependencies.database);
   const narrateCommittedEvents = createCommittedEventNarrator({
     client,
@@ -202,8 +187,7 @@ export async function registerPersistentWorldRuntime(
         actorId: row.actor_id,
         playerVisibleFacts: Array.isArray(row.player_visible_facts)
           ? row.player_visible_facts.filter(
-              (fact): fact is string =>
-                typeof fact === "string" && Boolean(fact.trim()),
+              (fact): fact is string => typeof fact === "string" && Boolean(fact.trim()),
             )
           : [],
       }));
@@ -287,14 +271,10 @@ export async function registerPersistentWorldRuntime(
         request.actor_id !== input.actorId ||
         request.plan_id !== input.planId
       ) {
-        throw new Error(
-          "Scheduled continuation request scope does not match its claim.",
-        );
+        throw new Error("Scheduled continuation request scope does not match its claim.");
       }
       if (request.status === "completed" && request.player_safe_result) {
-        return WorldActionPlayerSafeResultSchema.parse(
-          request.player_safe_result,
-        );
+        return WorldActionPlayerSafeResultSchema.parse(request.player_safe_result);
       }
       if (!["waiting", "executing"].includes(request.status)) {
         throw new Error(
@@ -347,9 +327,7 @@ export async function registerPersistentWorldRuntime(
         request.user_id !== input.userId ||
         request.actor_id !== input.actorId ||
         request.plan_id !== input.planId ||
-        ["completed", "failed", "cancelled", "superseded"].includes(
-          request.status,
-        )
+        ["completed", "failed", "cancelled", "superseded"].includes(request.status)
       ) {
         return;
       }
@@ -368,18 +346,12 @@ export async function registerPersistentWorldRuntime(
           failureCode: input.errorCode,
         })
         .catch(() => {});
-      const plan = await plans
-        .read({ scope, planId: input.planId })
-        .catch(() => null);
+      const plan = await plans.read({ scope, planId: input.planId }).catch(() => null);
       if (
         plan &&
-        [
-          "planned",
-          "running",
-          "waiting_for_time",
-          "waiting_for_world_event",
-          "blocked",
-        ].includes(plan.status)
+        ["planned", "running", "waiting_for_time", "waiting_for_world_event", "blocked"].includes(
+          plan.status,
+        )
       ) {
         await plans
           .transitionPlan({
@@ -424,11 +396,7 @@ export async function registerPersistentWorldRuntime(
     effects,
   });
   const operatorDashboard = createOperatorDashboardStore(dependencies.database);
-  const inspector = createWorldInspectorStore(
-    dependencies.database,
-    executor,
-    plans,
-  );
+  const inspector = createWorldInspectorStore(dependencies.database, executor, plans);
 
   await registerPersistentWorldRoutes(app, {
     actions,
