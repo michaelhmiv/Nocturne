@@ -125,9 +125,9 @@ describePostgres("legacy character controls respect world and shard boundaries",
   });
 
   it("does not allow another user to select or rent the default-world character", async () => {
-    await expect(
-      store.selectCharacter(userId, otherUserActor),
-    ).rejects.toMatchObject({ code: "forbidden" });
+    await expect(store.selectCharacter(userId, otherUserActor)).rejects.toMatchObject({
+      code: "forbidden",
+    });
     await expect(
       store.rentStarterResidence(userId, otherUserActor, "wrong-user:" + runId),
     ).rejects.toMatchObject({ code: "forbidden" });

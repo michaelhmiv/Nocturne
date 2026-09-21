@@ -460,7 +460,10 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
           AND character_instance_id = ${characterId}
       `;
       if (controlled.length === 0) {
-        throw new PersistentWorldError("forbidden", "Character is not controlled in the default world.");
+        throw new PersistentWorldError(
+          "forbidden",
+          "Character is not controlled in the default world.",
+        );
       }
 
       const provisioningKey = idempotencyKey.startsWith("starter-residence:")
