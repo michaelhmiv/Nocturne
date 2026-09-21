@@ -18,6 +18,7 @@
     "test:mcp": "vitest run test/mcp-server.test.ts test/mcp-account-binding.test.ts test/mcp-oauth-durability.test.ts test/mcp-operational-health.test.ts test/mcp-action-corpus.test.ts test/mcp-player-facing-contract.test.ts test/mcp-known-regressions.test.ts",
     "test:mcp-player-facing": "vitest run test/mcp-player-facing-contract.test.ts test/mcp-action-corpus.test.ts",
     "test:mcp-known-regressions": "vitest run test/mcp-known-regressions.test.ts",
+    "test:story-corpus": "node scripts/ci/check-story-corpus.mjs && vitest run test/story-certification.test.ts",
     "test:certification": "vitest run test/capabilities test/telemetry test/action-matrix",
     "test:action-matrix": "vitest run test/action-matrix/action-matrix.test.ts",
     "test:capabilities": "vitest run test/capabilities",

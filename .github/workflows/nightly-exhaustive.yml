@@ -121,6 +121,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm verify
+      - run: pnpm test:story-corpus
 
   nightly-gate:
     name: Nightly / Required Gate

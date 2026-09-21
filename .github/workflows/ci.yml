@@ -432,6 +432,32 @@ jobs:
           path: artifacts/
           retention-days: 30
 
+  story-contract:
+    name: Certification / Multi-User Story Contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Validate campaign and adversarial evidence-auditor tests
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          pnpm test:story-corpus 2>&1 | tee artifacts/story-corpus-contract.log
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: story-contract-${{ github.run_id }}
+          path: artifacts/
+
   required-gate:
     name: Certification / Required Gate
     runs-on: ubuntu-latest
@@ -445,6 +471,7 @@ jobs:
       - action-matrix
       - integration
       - browser
+      - story-contract
     steps:
       - name: Require every certification job
         env:
@@ -456,6 +483,7 @@ jobs:
           ACTION_MATRIX_RESULT: ${{ needs.action-matrix.result }}
           INTEGRATION_RESULT: ${{ needs.integration.result }}
           BROWSER_RESULT: ${{ needs.browser.result }}
+          STORY_RESULT: ${{ needs.story-contract.result }}
         run: |
           for result in \
             "$FORMAT_RESULT" \
@@ -465,7 +493,8 @@ jobs:
             "$DATABASE_RESULT" \
             "$ACTION_MATRIX_RESULT" \
             "$INTEGRATION_RESULT" \
-            "$BROWSER_RESULT"; do
+            "$BROWSER_RESULT" \
+            "$STORY_RESULT"; do
             if [ "$result" != "success" ]; then
               echo "Certification dependency failed, was cancelled, or was skipped: $result"
               exit 1
