@@ -66,16 +66,23 @@ describePostgres("isolated, physically playable certification district", () => {
 
   it("seeds one repeatable 5-place district, wholly outside public geography", async () => {
     const first = await db.client.unsafe(
-      "SELECT game.provision_certification_district($1) AS district", [run],
+      "SELECT game.provision_certification_district($1) AS district",
+      [run],
     );
     district = first[0].district as Record<string, string>;
     expect(district).toMatchObject({ runId: run, worldId: world, shardId: shard });
-    expect(new Set([
-      district.cityId, district.districtId, district.neighborhoodId,
-      district.buildingId, district.alleyId,
-    ]).size).toBe(5);
+    expect(
+      new Set([
+        district.cityId,
+        district.districtId,
+        district.neighborhoodId,
+        district.buildingId,
+        district.alleyId,
+      ]).size,
+    ).toBe(5);
     const second = await db.client.unsafe(
-      "SELECT game.provision_certification_district($1) AS district", [run],
+      "SELECT game.provision_certification_district($1) AS district",
+      [run],
     );
     expect(second[0].district).toEqual(district);
     const locations = await db.client.unsafe(
@@ -103,11 +110,13 @@ describePostgres("isolated, physically playable certification district", () => {
       );
       expect(rows).toHaveLength(1);
       expect(rows[0].already_provisioned).toBe(false);
-      actorRows.push(rows[0] as typeof actorRows[number]);
+      actorRows.push(rows[0] as (typeof actorRows)[number]);
       const resolved = await worlds.resolveForAuthenticatedUser(player.userId);
       expect(resolved).toMatchObject({
-        worldId: world, shardId: shard,
-        role: "player", selectedCharacterId: rows[0].actor_id,
+        worldId: world,
+        shardId: shard,
+        role: "player",
+        selectedCharacterId: rows[0].actor_id,
       });
     }
     expect(new Set(actorRows.map((a) => a.actor_id)).size).toBe(3);
@@ -123,10 +132,12 @@ describePostgres("isolated, physically playable certification district", () => {
       [world],
     );
     expect(units).toHaveLength(3);
-    expect(units.every((u) =>
-      u.world_id === world && u.shard_id === shard &&
-      u.location_id === district.buildingId
-    )).toBe(true);
+    expect(
+      units.every(
+        (u) =>
+          u.world_id === world && u.shard_id === shard && u.location_id === district.buildingId,
+      ),
+    ).toBe(true);
     expect(new Set(units.map((u) => u.label)).size).toBe(3);
     const routes = await db.client.unsafe(
       "SELECT source_instance_id FROM game.entity_relations WHERE world_id=$1 AND target_instance_id=$2 AND relation_type='accessible_via'",
@@ -159,10 +170,13 @@ describePostgres("isolated, physically playable certification district", () => {
   });
 
   it("never provisions a foreign-bound user or leaks other-run geography", async () => {
-    await expect(db.client.unsafe(
-      "SELECT * FROM game.provision_certification_player($1,$2,$3)",
-      [run, otherUser, "Foreign Account"],
-    )).rejects.toMatchObject({ code: "42501" });
+    await expect(
+      db.client.unsafe("SELECT * FROM game.provision_certification_player($1,$2,$3)", [
+        run,
+        otherUser,
+        "Foreign Account",
+      ]),
+    ).rejects.toMatchObject({ code: "42501" });
     const second = await db.client.unsafe(
       "SELECT game.provision_certification_district($1) AS district",
       [otherRun],
@@ -183,16 +197,19 @@ describePostgres("isolated, physically playable certification district", () => {
   });
 
   it("rejects revoked runs without provisioned public-world fallback", async () => {
-    await db.client.unsafe(
-      "UPDATE game.certification_runs SET status='revoked' WHERE run_id=$1", [run],
-    );
-    await expect(db.client.unsafe(
-      "SELECT * FROM game.provision_certification_player($1,$2,$3)",
-      [run, players[0].userId, "Mara Velez"],
-    )).rejects.toMatchObject({ code: "42501" });
-    await expect(db.client.unsafe(
-      "SELECT game.provision_certification_district($1)", [run],
-    )).rejects.toMatchObject({ code: "42501" });
+    await db.client.unsafe("UPDATE game.certification_runs SET status='revoked' WHERE run_id=$1", [
+      run,
+    ]);
+    await expect(
+      db.client.unsafe("SELECT * FROM game.provision_certification_player($1,$2,$3)", [
+        run,
+        players[0].userId,
+        "Mara Velez",
+      ]),
+    ).rejects.toMatchObject({ code: "42501" });
+    await expect(
+      db.client.unsafe("SELECT game.provision_certification_district($1)", [run]),
+    ).rejects.toMatchObject({ code: "42501" });
     await expect(worlds.resolveForAuthenticatedUser(players[0].userId)).rejects.toMatchObject({
       code: "membership_inactive",
     });

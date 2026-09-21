@@ -443,10 +443,9 @@ try {
     "story-ci-isolated-cross-world:" + runId,
   );
   assert.equal(crossed.status, 403, "Isolated players may not act in public world.");
-  await query(
-    "UPDATE game.certification_runs SET status='revoked' WHERE run_id=$1",
-    [certificationRun],
-  );
+  await query("UPDATE game.certification_runs SET status='revoked' WHERE run_id=$1", [
+    certificationRun,
+  ]);
   const revoked = await api(certifiedPlayers[0], "/v1/persistent-world/dashboard");
   assert.equal(revoked.status, 403, "Revoked player must never fall back to public world.");
   const noPublic = await query(
