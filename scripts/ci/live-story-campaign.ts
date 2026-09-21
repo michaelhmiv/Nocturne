@@ -362,6 +362,21 @@ try {
   }
   assert.equal(new Set(players.map((p) => p.actorId)).size, 3);
   assert.equal(new Set(players.map((p) => p.residenceId)).size, 3);
+  let scheduledWorkerReady = false;
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const [heartbeat] = await query(
+      "SELECT worker_id FROM system.worker_heartbeats WHERE role='ai_job_worker' AND last_seen_at > now() - interval '30 seconds' LIMIT 1",
+    );
+    if (heartbeat?.worker_id) {
+      scheduledWorkerReady = true;
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  assert.ok(
+    scheduledWorkerReady,
+    "No live scheduled worker heartbeat; timed actions cannot be certified.",
+  );
   completedSetup = true;
   console.log(
     JSON.stringify({
