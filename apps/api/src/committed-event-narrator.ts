@@ -46,7 +46,9 @@ export function createCommittedEventNarrator(input: {
           row.shardId !== request.scope.shardId ||
           row.actorId !== request.actorId
         ) {
-          throw new Error("Committed narration evidence did not match the authenticated actor and world.");
+          throw new Error(
+            "Committed narration evidence did not match the authenticated actor and world.",
+          );
         }
         supportedFacts.push(
           ...row.playerVisibleFacts.filter((fact) => typeof fact === "string" && fact.trim()),

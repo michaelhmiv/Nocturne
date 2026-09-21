@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { createCommittedEventNarrator, type CommittedEventNarrationEvidence } from "./committed-event-narrator.js";
+import {
+  createCommittedEventNarrator,
+  type CommittedEventNarrationEvidence,
+} from "./committed-event-narrator.js";
 
 const scope = {
   worldId: "11111111-1111-4111-8111-111111111111",
@@ -49,7 +52,9 @@ describe("committed-event Laguna narration", () => {
 
   it("never invokes Laguna before an event has committed", async () => {
     const { narrate, generateText, readEvidence } = setup();
-    expect(await narrate({ scope, actorId, eventIds: [], fallback: "Still waiting" })).toBe("Still waiting");
+    expect(await narrate({ scope, actorId, eventIds: [], fallback: "Still waiting" })).toBe(
+      "Still waiting",
+    );
     expect(generateText).not.toHaveBeenCalled();
     expect(readEvidence).not.toHaveBeenCalled();
   });
@@ -61,8 +66,9 @@ describe("committed-event Laguna narration", () => {
     ["empty visible facts", [{ ...evidence, playerVisibleFacts: [] }]],
   ] as const)("does not narrate %s", async (_name, rows) => {
     const { narrate, generateText, onFailure } = setup([...rows]);
-    expect(await narrate({ scope, actorId, eventIds: [eventId], fallback: "Committed fallback" }))
-      .toBe("Committed fallback");
+    expect(
+      await narrate({ scope, actorId, eventIds: [eventId], fallback: "Committed fallback" }),
+    ).toBe("Committed fallback");
     expect(generateText).not.toHaveBeenCalled();
     expect(onFailure).toHaveBeenCalledOnce();
   });
