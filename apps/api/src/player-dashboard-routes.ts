@@ -13,14 +13,14 @@ export async function registerPlayerDashboardRoutes(
     try {
       scope = await dependencies.resolveScope(request);
     } catch (error) {
-      const code =
-        error instanceof Error && "code" in error
-          ? String(error.code)
-          : "";
+      const code = error instanceof Error && "code" in error ? String(error.code) : "";
       if (
-        ["membership_inactive", "membership_not_found", "cross_world_reference", "forbidden"].includes(
-          code,
-        )
+        [
+          "membership_inactive",
+          "membership_not_found",
+          "cross_world_reference",
+          "forbidden",
+        ].includes(code)
       ) {
         return reply.code(403).send({
           error: "forbidden",
