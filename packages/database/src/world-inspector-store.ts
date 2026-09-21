@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   OperatorRepairRequestSchema,
   OperatorRepairResultSchema,
@@ -35,11 +35,10 @@ export function createWorldInspectorStore(
   executor: UniversalOperationExecutor,
   plans: PersistentPlanStore,
 ) {
-  async function inspect(input: {
+  async function inspectEntity(input: {
     scope: WorldScope;
     entityId: string;
   }): Promise<WorldInspectorEntity> {
-    requireOperator(input.scope);
     const rows = await database.client<
       {
         instance_id: string;
@@ -196,6 +195,103 @@ export function createWorldInspectorStore(
       simulationRuns,
       latestContextReasons: contextReasons,
     });
+  }
+
+  async function inspect(input: {
+    scope: WorldScope;
+    entityId: string;
+  }): Promise<WorldInspectorEntity> {
+    requireOperator(input.scope);
+    return inspectEntity(input);
+  }
+
+  /**
+   * Certification is a separate, expiring, READ-ONLY capability. It is not a
+   * WorldScope role, and cannot be passed to `repair` or player-auth routes.
+   * The world and shard come exclusively from the persisted grant, never the
+   * requesting principal or a caller-provided URL/header.
+   */
+  async function inspectCertified(input: {
+    token: string;
+    entityId: string;
+  }): Promise<WorldInspectorEntity> {
+    if (!/^noct_cert_[A-Za-z0-9_-]{64}$/.test(input.token)) {
+      throw new WorldInspectorStoreError(
+        "forbidden",
+        "Invalid certification inspection credential.",
+      );
+    }
+    const tokenHash = createHash("sha256").update(input.token).digest("hex");
+    const [grant] = await database.client<
+      {
+        grant_id: string;
+        run_id: string;
+        world_id: string;
+        shard_id: string;
+        active: boolean;
+      }[]
+    >`
+      SELECT cert_grant.grant_id, cert_run.run_id, cert_run.world_id, cert_run.shard_id,
+             (
+               cert_grant.revoked_at IS NULL
+               AND cert_grant.expires_at > now()
+               AND cert_run.status = 'active'
+               AND cert_run.expires_at > now()
+               AND world.status = 'active'
+               AND shard.status = 'active'
+               AND world.metadata->>'isolatedCertification' = 'true'
+               AND cert_run.world_id <> '00000000-0000-4000-8000-000000000001'::uuid
+             ) AS active
+      FROM game.certification_inspection_grants cert_grant
+      JOIN game.certification_runs cert_run ON cert_run.run_id = cert_grant.run_id
+      JOIN game.worlds world ON world.world_id = cert_run.world_id
+      JOIN game.world_shards shard
+        ON shard.world_id = cert_run.world_id AND shard.shard_id = cert_run.shard_id
+      WHERE cert_grant.token_sha256 = ${tokenHash}
+      LIMIT 1
+    `;
+    if (!grant) {
+      throw new WorldInspectorStoreError(
+        "forbidden",
+        "Invalid certification inspection credential.",
+      );
+    }
+    const audit = async (reason: "read" | "entity_not_found" | "expired_or_revoked") => {
+      await database.client`
+        INSERT INTO game.certification_inspection_audit (
+          grant_id, run_id, world_id, shard_id, entity_id, granted, reason
+        ) VALUES (
+          ${grant.grant_id}, ${grant.run_id}, ${grant.world_id},
+          ${grant.shard_id}, ${input.entityId}, ${reason === "read"}, ${reason}
+        )
+      `;
+    };
+    if (!grant.active) {
+      await audit("expired_or_revoked");
+      throw new WorldInspectorStoreError(
+        "forbidden",
+        "Certification inspection grant expired or revoked.",
+      );
+    }
+    try {
+      const entity = await inspectEntity({
+        scope: {
+          worldId: grant.world_id,
+          shardId: grant.shard_id,
+          userId: `certification:${grant.run_id}`,
+          role: "player",
+          selectedCharacterId: null,
+        },
+        entityId: input.entityId,
+      });
+      await audit("read");
+      return entity;
+    } catch (error) {
+      if (error instanceof WorldInspectorStoreError && error.code === "entity_not_found") {
+        await audit("entity_not_found");
+      }
+      throw error;
+    }
   }
 
   async function createOperatorAction(input: {
@@ -418,7 +514,7 @@ export function createWorldInspectorStore(
     }
   }
 
-  return { inspect, repair };
+  return { inspect, inspectCertified, repair };
 }
 
 export type WorldInspectorStore = ReturnType<typeof createWorldInspectorStore>;

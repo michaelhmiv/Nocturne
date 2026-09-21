@@ -17,6 +17,7 @@ type PersistentSceneStoreLike = {
 
 type WorldInspectorStoreLike = {
   inspect(input: { scope: WorldScope; entityId: string }): Promise<unknown>;
+  inspectCertified(input: { token: string; entityId: string }): Promise<unknown>;
   repair(input: { scope: WorldScope; request: unknown }): Promise<unknown>;
 };
 
@@ -232,6 +233,22 @@ export async function registerPersistentWorldRoutes(
       const scope = await scopeFor(request, true);
       const entityId = String((request.params as { entityId?: string }).entityId || "");
       return dependencies.inspector.inspect({ scope, entityId });
+    }),
+  );
+
+  // A dedicated credential grants only one short-lived, isolated run read access.
+  // It is never an operator role and is not surfaced through the player MCP.
+  app.get("/v1/certification/world/entities/:entityId", async (request, reply) =>
+    replyWithPersistentError(reply, async () => {
+      const token = request.headers["x-nocturne-certification-token"];
+      if (typeof token !== "string" || !token) {
+        throw new PersistentWorldRouteError("forbidden", "Certification credential required.");
+      }
+      const entityId = String((request.params as { entityId?: string }).entityId || "");
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entityId)) {
+        return reply.code(400).send({ error: "invalid_entity_id" });
+      }
+      return dependencies.inspector.inspectCertified({ token, entityId });
     }),
   );
 
