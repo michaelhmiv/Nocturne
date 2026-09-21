@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { deriveSemanticActionFrame, isRoutineSelfDirectedAction } from "./semantic-action-frame.js";
+import {
+  deriveSemanticActionFrame,
+  hasExplicitPossessionRequirement,
+  isCurrentAreaSearchCommand,
+  isRoutineSelfDirectedAction,
+} from "./semantic-action-frame.js";
 import { adjudicateActionResolution } from "./resolution-mode-adjudicator.js";
 
 function context(actorId: string, targetId?: string, actorLocation: string | null = null) {
@@ -190,6 +195,13 @@ describe("semantic action frame", () => {
     expect(knife.assumptions).toContain("requires_possession:knife");
     expect(currentUnit.assumptions).not.toContain("requires_possession:current unit");
     expect(currentUnit.claims.some((claim) => claim.claimType === "possession")).toBe(false);
+    expect(hasExplicitPossessionRequirement("Cut it with my knife.")).toBe(true);
+    expect(hasExplicitPossessionRequirement("Look around my current unit and check the room carefully.")).toBe(
+      false,
+    );
+    expect(isCurrentAreaSearchCommand("Look around my current unit and check the room carefully.")).toBe(
+      true,
+    );
   });
 
   it("classifies actor anatomy as intrinsic rather than inventory", () => {
