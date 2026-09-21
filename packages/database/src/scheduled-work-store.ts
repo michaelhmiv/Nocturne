@@ -33,7 +33,10 @@ export class ScheduledWorkStoreError extends Error {
 export function formatScheduledLeaseExpiration(value: Date | string): string {
   const timestamp = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(timestamp.getTime())) {
-    throw new ScheduledWorkStoreError("invalid_state", "Scheduled worker lease has an invalid timestamp.");
+    throw new ScheduledWorkStoreError(
+      "invalid_state",
+      "Scheduled worker lease has an invalid timestamp.",
+    );
   }
   return timestamp.toISOString();
 }
