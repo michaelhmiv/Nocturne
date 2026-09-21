@@ -81,6 +81,15 @@ describe("committed-event Laguna narration", () => {
     },
   );
 
+  it("rejects an unsupported arrest in both Laguna drafts", async () => {
+    const { narrate, generateText, onFailure } = setup();
+    generateText.mockResolvedValue({ text: "You are arrested." });
+    const text = await narrate({ scope, actorId, eventIds: [eventId], fallback: "Fallback" });
+    expect(text).toBe(evidence.playerVisibleFacts.join(" "));
+    expect(generateText).toHaveBeenCalledTimes(2);
+    expect(onFailure).toHaveBeenCalledOnce();
+  });
+
   it("returns committed facts and reports a failed provider rather than inventing prose", async () => {
     const { narrate, generateText, onFailure } = setup();
     generateText.mockRejectedValueOnce(new Error("Laguna unavailable"));
