@@ -399,19 +399,73 @@ export function createPersistentPlanStore(database: ReturnType<typeof createData
     outcomeGrade: string;
     resultEventId: string;
     resultReceiptId?: string;
+    /** Mandatory when completing a time-waiting step from its claimed schedule. */
+    scheduleId?: string;
   }) {
     return database.client.begin(async (sql) => {
-      const steps = await sql<{ step_order: number; status: string }[]>`
-        SELECT step_order, status
-        FROM game.action_plan_steps
-        WHERE plan_id = ${input.planId} AND step_id = ${input.stepId}
-        FOR UPDATE
+      const steps = await sql<
+        {
+          step_order: number;
+          status: string;
+          plan_status: string;
+          result_event_id: string | null;
+          result_receipt_id: string | null;
+        }[]
+      >`
+        SELECT step.step_order, step.status, plan.status AS plan_status,
+               step.result_event_id, step.result_receipt_id
+        FROM game.action_plans plan
+        JOIN game.action_plan_steps step ON step.plan_id = plan.plan_id
+        WHERE plan.world_id = ${input.scope.worldId}
+          AND plan.shard_id = ${input.scope.shardId}
+          AND step.world_id = plan.world_id
+          AND plan.plan_id = ${input.planId}
+          AND step.step_id = ${input.stepId}
+        FOR UPDATE OF plan, step
       `;
-      if (!steps[0]) throw new PersistentPlanStoreError("step_not_found", "Plan step not found.");
-      if (steps[0].status !== "running") {
+      const step = steps[0];
+      if (!step) throw new PersistentPlanStoreError("step_not_found", "Plan step not found.");
+      if (step.status === "completed") {
+        if (
+          step.result_event_id === input.resultEventId &&
+          (!input.resultReceiptId || step.result_receipt_id === input.resultReceiptId)
+        ) return; // A worker retry must not duplicate plan events or a state transition.
         throw new PersistentPlanStoreError(
           "invalid_transition",
-          "Only running steps can complete.",
+          "Completed plan step has a different authoritative result.",
+        );
+      }
+      if (step.status === "waiting") {
+        if (
+          !input.scheduleId ||
+          !["waiting_for_time", "waiting_for_world_event"].includes(step.plan_status)
+        ) {
+          throw new PersistentPlanStoreError(
+            "invalid_transition",
+            "A waiting step requires its active, matching scheduled-work claim.",
+          );
+        }
+        const claims = await sql<{ schedule_id: string }[]>`
+          SELECT schedule_id FROM game.scheduled_actions
+          WHERE schedule_id = ${input.scheduleId}
+            AND world_id = ${input.scope.worldId}
+            AND shard_id = ${input.scope.shardId}
+            AND plan_id = ${input.planId}
+            AND step_id = ${input.stepId}
+            AND status = 'resolving'
+            AND lease_expires_at >= now()
+            AND resolves_at <= now()
+        `;
+        if (!claims[0]) {
+          throw new PersistentPlanStoreError(
+            "invalid_transition",
+            "Waiting step has no valid due scheduled-work claim.",
+          );
+        }
+      } else if (step.status !== "running" || step.plan_status !== "running") {
+        throw new PersistentPlanStoreError(
+          "invalid_transition",
+          "Only running steps or claimed waiting steps can complete.",
         );
       }
       await sql`
