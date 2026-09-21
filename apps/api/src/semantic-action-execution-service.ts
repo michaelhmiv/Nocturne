@@ -18,7 +18,10 @@ function deterministicRoll(secret: string | Buffer, idempotencyKey: string) {
 }
 
 function actorCondition(context: RelevanceCompiledContext, actorId: string) {
-  return (context.entities ?? []).find(({ entityId }) => entityId === actorId)?.condition ?? 100;
+  return (
+    (context.entities ?? []).find(({ entityId }) => entityId === actorId)
+      ?.condition ?? 100
+  );
 }
 
 function successFor(
@@ -53,9 +56,12 @@ function hazardEffect(
 ): HazardEffect | null {
   if (
     frame.demands.danger < 3 ||
-    ["automatic_failure", "clarification_required", "conversation", "transaction"].includes(
-      resolution.mode,
-    )
+    [
+      "automatic_failure",
+      "clarification_required",
+      "conversation",
+      "transaction",
+    ].includes(resolution.mode)
   ) {
     return null;
   }
@@ -69,7 +75,9 @@ function hazardEffect(
     : Math.max(1, Math.ceil(severity / 2));
   return {
     conditionDelta: -conditionLoss,
-    condition: frame.properties.selfDirected ? "self_inflicted_injury" : "action_injury",
+    condition: frame.properties.selfDirected
+      ? "self_inflicted_injury"
+      : "action_injury",
     intensity: Math.min(100, severity * 10),
     durationSeconds: Math.max(300, severity * 300),
   };
@@ -148,12 +156,18 @@ function operations(input: {
       preconditionFactIds: [],
     });
   }
-  const fallbackTransferObjectId = ["pick_up", "drop"].includes(input.frame.actionType)
+  const fallbackTransferObjectId = ["pick_up", "drop"].includes(
+    input.frame.actionType,
+  )
     ? targetId
     : undefined;
   const objectId = input.frame.objectIds[0] || fallbackTransferObjectId;
   if (input.succeeded && input.frame.kind === "transfer" && objectId) {
-    if (input.frame.actionType === "put_in" && targetId && targetId !== objectId) {
+    if (
+      input.frame.actionType === "put_in" &&
+      targetId &&
+      targetId !== objectId
+    ) {
       result.push({
         type: "set_relation",
         sourceRef: { kind: "existing", entityId: objectId },
@@ -166,14 +180,22 @@ function operations(input: {
         preconditionFactIds: input.resolution.requiredFactIds,
       });
     } else {
-      const actorReceives = ["pick_up", "steal", "buy"].includes(input.frame.actionType);
+      const actorReceives = ["pick_up", "steal", "buy"].includes(
+        input.frame.actionType,
+      );
       const actorDrops = input.frame.actionType === "drop";
-      const possessorId = actorReceives ? input.frame.actorId : actorDrops ? null : targetId;
+      const possessorId = actorReceives
+        ? input.frame.actorId
+        : actorDrops
+          ? null
+          : targetId;
       if (possessorId || actorDrops) {
         result.push({
           type: "transfer_possession",
           entityRef: { kind: "existing", entityId: objectId },
-          possessorRef: possessorId ? { kind: "existing", entityId: possessorId } : null,
+          possessorRef: possessorId
+            ? { kind: "existing", entityId: possessorId }
+            : null,
           preconditionFactIds: input.resolution.requiredFactIds,
         });
       }
@@ -187,7 +209,8 @@ function nonMutatingEventType(input: {
   resolution: ActionResolutionDecision;
   succeeded: boolean;
 }): UniversalEventType {
-  if (input.resolution.mode === "clarification_required") return "clarification_requested";
+  if (input.resolution.mode === "clarification_required")
+    return "clarification_requested";
   if (input.frame.kind === "dialogue") return "dialogue_occurred";
   if (input.frame.kind === "question") return "question_asked";
   if (!input.succeeded) return "action_failed";
@@ -221,7 +244,9 @@ export function createSemanticActionExecutionService(input: {
         "conversation",
       ].includes(request.resolution.mode)
     ) {
-      throw new Error(`Semantic executor cannot execute ${request.resolution.mode}.`);
+      throw new Error(
+        `Semantic executor cannot execute ${request.resolution.mode}.`,
+      );
     }
     const roll = deterministicRoll(input.rollSecret, request.idempotencyKey);
     const initiallySucceeded =
@@ -233,7 +258,9 @@ export function createSemanticActionExecutionService(input: {
     // is not a purchase. Never allow the general possession operation to masquerade
     // as settlement; a dedicated scoped commerce executor must implement both effects.
     const purchaseWithoutSettlement =
-      initiallySucceeded && request.frame.kind === "transfer" && request.frame.actionType === "buy";
+      initiallySucceeded &&
+      request.frame.kind === "transfer" &&
+      request.frame.actionType === "buy";
     const hazard = hazardEffect(
       request.frame,
       request.resolution,
@@ -253,13 +280,15 @@ export function createSemanticActionExecutionService(input: {
       proposedOperations.length === 0 &&
       request.frame.kind !== "dialogue" &&
       request.frame.kind !== "question";
-    const succeeded = initiallySucceeded && !purchaseWithoutSettlement && !unsupportedSuccess;
-    const playerNarration = request.failureNarration ||
+    const succeeded =
+      initiallySucceeded && !purchaseWithoutSettlement && !unsupportedSuccess;
+    const playerNarration =
+      request.failureNarration ||
       (purchaseWithoutSettlement
-      ? "The purchase cannot be completed: no verified price, payment, and inventory transfer were committed."
-      : unsupportedSuccess
-        ? "The action could not be completed: no authoritative effect was established."
-        : narration(request.frame, request.resolution, succeeded, hazard));
+        ? "The purchase cannot be completed: no verified price, payment, and inventory transfer were committed."
+        : unsupportedSuccess
+          ? "The action could not be completed: no authoritative effect was established."
+          : narration(request.frame, request.resolution, succeeded, hazard));
     const committedOperations = proposedOperations;
 
     const receipt =
