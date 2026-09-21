@@ -6,7 +6,10 @@ import {
   resolveAiProviderConfigFromEnv,
 } from "@nocturne/ai-gm";
 import { getSessionFromNodeHeaders } from "@nocturne/auth";
-import type { MaterializationAnalysisRequest, WorldActionKind } from "@nocturne/contracts";
+import type {
+  MaterializationAnalysisRequest,
+  WorldActionKind,
+} from "@nocturne/contracts";
 import {
   DEFAULT_SHARD_ID,
   DEFAULT_WORLD_ID,
@@ -34,9 +37,12 @@ const playerText = (result: Record<string, unknown> | null) => {
   return null;
 };
 
-export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance) {
+export async function registerPersistentWorldRuntimeFromEnv(
+  app: FastifyInstance,
+) {
   const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) throw new Error("DATABASE_URL is required for persistent-world routes.");
+  if (!databaseUrl)
+    throw new Error("DATABASE_URL is required for persistent-world routes.");
   const rollSecret =
     process.env.NOCTURNE_ROLL_SECRET ||
     process.env.NOCTURNE_RESOLUTION_SECRET ||
@@ -64,24 +70,34 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
 
   async function requireUser(request: FastifyRequest) {
     const authorization = request.headers.authorization;
-    const bearer = Array.isArray(authorization) ? authorization[0] : authorization;
+    const bearer = Array.isArray(authorization)
+      ? authorization[0]
+      : authorization;
     const agent = await agents.authenticate(bearer);
     if (agent) return { id: agent.userId };
     if (
       process.env.NOCTURNE_GUEST_MODE === "true" &&
       request.headers["x-nocturne-guest-mode"] === "1"
     ) {
-      return { id: process.env.NOCTURNE_GUEST_USER_ID || "nocturne-test-guest" };
+      return {
+        id: process.env.NOCTURNE_GUEST_USER_ID || "nocturne-test-guest",
+      };
     }
     const session = await getSessionFromNodeHeaders(request.headers);
-    if (!session) throw new PersistentWorldError("forbidden", "Authentication is required.");
+    if (!session)
+      throw new PersistentWorldError(
+        "forbidden",
+        "Authentication is required.",
+      );
     return session.user;
   }
 
   async function resolveScope(request: FastifyRequest): Promise<WorldScope> {
     const user = await requireUser(request);
     let scope = await worlds.resolveForAuthenticatedUser(user.id);
-    const characters = await database.client<{ character_instance_id: string }[]>`
+    const characters = await database.client<
+      { character_instance_id: string }[]
+    >`
       SELECT character.character_instance_id
       FROM game.player_characters character
       JOIN game.entity_instances instance
@@ -94,8 +110,14 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
       LIMIT 1
     `;
     const selectedCharacterId = characters[0]?.character_instance_id || null;
-    if (selectedCharacterId && selectedCharacterId !== scope.selectedCharacterId) {
-      await worlds.setSelectedCharacter({ scope, characterId: selectedCharacterId });
+    if (
+      selectedCharacterId &&
+      selectedCharacterId !== scope.selectedCharacterId
+    ) {
+      await worlds.setSelectedCharacter({
+        scope,
+        characterId: selectedCharacterId,
+      });
       scope = await worlds.resolveForAuthenticatedUser(user.id);
     }
     return scope;
@@ -112,7 +134,10 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
   if (runtimeEnabled) {
     app.addHook("preHandler", async (request, reply) => {
       const path = request.url.split("?", 1)[0];
-      if (request.method === "POST" && (path === "/v1/ai-jobs/actions" || path === "/v1/actions")) {
+      if (
+        request.method === "POST" &&
+        (path === "/v1/ai-jobs/actions" || path === "/v1/actions")
+      ) {
         return reply.code(410).send({
           error: "legacy_action_route_disabled",
           message:
@@ -143,7 +168,10 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
     listRecentPlayerSafeText: async ({ scope, limit }) => {
       const boundedLimit = Math.max(1, Math.min(limit, 20));
       const rows = await database.client<
-        { command: string; player_safe_result: Record<string, unknown> | null }[]
+        {
+          command: string;
+          player_safe_result: Record<string, unknown> | null;
+        }[]
       >`
         SELECT command, player_safe_result
         FROM game.world_action_requests
@@ -183,16 +211,22 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
           definition.updated_at DESC
         LIMIT 24
       `;
-      return rows.map((row): MaterializationAnalysisRequest["reusableDefinitions"][number] => ({
-        definitionId: row.definition_id,
-        definitionType: row.definition_type,
-        name: row.name,
-        conceptSummary: row.concept_summary,
-        currentPayload: row.current_payload || {},
-      }));
+      return rows.map(
+        (
+          row,
+        ): MaterializationAnalysisRequest["reusableDefinitions"][number] => ({
+          definitionId: row.definition_id,
+          definitionType: row.definition_type,
+          name: row.name,
+          conceptSummary: row.concept_summary,
+          currentPayload: row.current_payload || {},
+        }),
+      );
     },
     loadArea: async ({ scope, areaId }) => {
-      const rows = await database.client<{ name: string; description: string }[]>`
+      const rows = await database.client<
+        { name: string; description: string }[]
+      >`
         SELECT definition.name,
                COALESCE(definition.concept_summary, definition.name) AS description
         FROM game.entity_instances instance
@@ -216,7 +250,11 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
       idempotencyKey,
     }) => {
       const rows = await database.client<
-        { location_id: string | null; version: string; destination_exists: boolean }[]
+        {
+          location_id: string | null;
+          version: string;
+          destination_exists: boolean;
+        }[]
       >`
         SELECT actor.location_id, actor.version::text,
                EXISTS (
@@ -233,12 +271,21 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
           AND actor.instance_id = ${actorId}
       `;
       const actor = rows[0];
-      if (!actor) throw new Error("Travel actor is not available in the active world.");
-      if (!actor.destination_exists) throw new Error("Travel destination is not available.");
+      if (!actor)
+        throw new Error("Travel actor is not available in the active world.");
+      if (!actor.destination_exists)
+        throw new Error("Travel destination is not available.");
       if (!actor.location_id)
         throw new Error("Travel actor has no authoritative current location.");
-      const route = await locations.findShortestPath(actor.location_id, destinationId, 1);
-      if (!route) throw new Error("No accessible route exists to the requested destination.");
+      const route = await locations.findShortestPath(
+        actor.location_id,
+        destinationId,
+        1,
+      );
+      if (!route)
+        throw new Error(
+          "No accessible route exists to the requested destination.",
+        );
       const durationSeconds = Math.max(1, Math.round(route.totalTimeSeconds));
       const symbol = "travel_schedule";
       const receipt = await executor.execute({
@@ -287,17 +334,27 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
     },
     validateVehiclePurchase: async ({ scope, actorId, rawText }) => {
       const normalize = (value: string) =>
-        value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+        value
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, " ")
+          .trim();
       const command = normalize(rawText);
       const listings = (await locations.listVehicles())
-        .filter((vehicle) => vehicle.ownerId === null && vehicle.forSale && vehicle.priceCents > 0)
+        .filter(
+          (vehicle) =>
+            vehicle.ownerId === null &&
+            vehicle.forSale &&
+            vehicle.priceCents > 0,
+        )
         .filter((vehicle) => {
           const name = normalize(vehicle.name);
           return name.length >= 2 && command.includes(name);
         });
       if (listings.length !== 1) return null;
       const listing = listings[0]!;
-      const actorRows = await database.client<{ state: Record<string, unknown> | null }[]>`
+      const actorRows = await database.client<
+        { state: Record<string, unknown> | null }[]
+      >`
         SELECT state
         FROM game.entity_instances
         WHERE world_id = ${scope.worldId}
@@ -329,7 +386,8 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
       // write isolated certification events into the default ledger scope.
       assertLegacyConsumptionScope(scope);
       const hintedActionType =
-        typeof payload.actionType === "string" && /^[a-z][a-z0-9_]{0,63}$/.test(payload.actionType)
+        typeof payload.actionType === "string" &&
+        /^[a-z][a-z0-9_]{0,63}$/.test(payload.actionType)
           ? payload.actionType
           : kind === "consume"
             ? "consume"
@@ -342,7 +400,9 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
       );
       const unitsConsumed = result.consumption?.unitsConsumed ?? 0;
       const outcomeGrade =
-        kind === "consume" && unitsConsumed === 0 ? "no_effect" : result.outcomeGrade;
+        kind === "consume" && unitsConsumed === 0
+          ? "no_effect"
+          : result.outcomeGrade;
       if (kind === "consume") {
         app.log.info(
           {
