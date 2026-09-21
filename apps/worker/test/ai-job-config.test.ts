@@ -18,6 +18,31 @@ describe("AI job worker configuration", () => {
     );
   });
 
+  it("uses the local Nocturne API URL when the story runner has no separate worker URL", () => {
+    expect(
+      readAiJobWorkerConfig({
+        NOCTURNE_API_URL: "http://127.0.0.1:3101/",
+        AI_JOB_WORKER_SECRET: "local-worker-secret",
+      }),
+    ).toEqual({
+      apiUrl: "http://127.0.0.1:3101",
+      workerSecret: "local-worker-secret",
+    });
+  });
+
+  it("prefers an explicit worker URL to the generic API URL", () => {
+    expect(
+      readAiJobWorkerConfig({
+        AI_JOB_API_URL: "api.internal:3001",
+        NOCTURNE_API_URL: "http://127.0.0.1:3101",
+        AI_JOB_WORKER_SECRET: "shared-secret",
+      }),
+    ).toEqual({
+      apiUrl: "http://api.internal:3001",
+      workerSecret: "shared-secret",
+    });
+  });
+
   it("reads the explicit API URL and shared secret", () => {
     expect(
       readAiJobWorkerConfig({
