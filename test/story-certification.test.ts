@@ -20,37 +20,39 @@ function recordedEvidence(storyCase = story) {
     actorId: "character-" + player.id,
   }));
   const byAlias = new Map(players.map((player) => [player.alias, player]));
-  const turns = storyCase.acts.flatMap((act) => act.beats).map((beat, index) => {
-    const player = byAlias.get(beat.actor)!;
-    const requestId = "recorded-request-" + index;
-    return {
-      beatId: beat.id,
-      actor: beat.actor,
-      userId: player.userId,
-      actorId: player.actorId,
-      worldId,
-      shardId,
-      requestId,
-      idempotencyKey: "idempotency-" + index,
-      trace: { requestId, actorId: player.actorId, worldId },
-      state: "completed",
-      eventIds: ["event-" + index],
-      durableEvents: [{ eventId: "event-" + index }],
-      narration: "Test narration from synthetic evidence, not a live Nocturne response.",
-      narrationAudit: { verified: true, source: "independent" },
-      elapsedMs: beat.clock === "real" ? 120_000 : 10,
-      probes: Object.fromEntries(
-        beat.checks.map((check) => [
-          check,
-          {
-            passed: true,
-            source: check === "time" ? "clock" : "db",
-            evidenceId: "fixture-" + index + "-" + check,
-          },
-        ]),
-      ),
-    };
-  });
+  const turns = storyCase.acts
+    .flatMap((act) => act.beats)
+    .map((beat, index) => {
+      const player = byAlias.get(beat.actor)!;
+      const requestId = "recorded-request-" + index;
+      return {
+        beatId: beat.id,
+        actor: beat.actor,
+        userId: player.userId,
+        actorId: player.actorId,
+        worldId,
+        shardId,
+        requestId,
+        idempotencyKey: "idempotency-" + index,
+        trace: { requestId, actorId: player.actorId, worldId },
+        state: "completed",
+        eventIds: ["event-" + index],
+        durableEvents: [{ eventId: "event-" + index }],
+        narration: "Test narration from synthetic evidence, not a live Nocturne response.",
+        narrationAudit: { verified: true, source: "independent" },
+        elapsedMs: beat.clock === "real" ? 120_000 : 10,
+        probes: Object.fromEntries(
+          beat.checks.map((check) => [
+            check,
+            {
+              passed: true,
+              source: check === "time" ? "clock" : "db",
+              evidenceId: "fixture-" + index + "-" + check,
+            },
+          ]),
+        ),
+      };
+    });
   return { runId: "synthetic-unit-test", worldId, shardId, players, turns };
 }
 

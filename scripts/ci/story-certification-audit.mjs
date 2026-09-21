@@ -1,13 +1,47 @@
-import { STORY_CERTIFICATION_CASES, STORY_CERTIFICATION_BEATS } from "./story-certification-corpus.mjs";
+import {
+  STORY_CERTIFICATION_CASES,
+  STORY_CERTIFICATION_BEATS,
+} from "./story-certification-corpus.mjs";
 
 const CHECKS = new Set([
-  "request", "log", "narration", "location", "knowledge", "no_invention",
-  "resources", "ownership", "schedule", "time", "no_claim_mutation",
-  "no_missing_consumption", "search", "continuity", "preference", "access",
-  "presence", "dialogue", "visibility", "privacy", "no_overdraft", "physical",
-  "terminal_failure", "compound", "evidence", "damage", "inventory",
-  "employment", "concurrency", "replay", "no_duplicate_payment", "offline",
-  "identity", "news", "recovery", "provenance", "repair", "event",
+  "request",
+  "log",
+  "narration",
+  "location",
+  "knowledge",
+  "no_invention",
+  "resources",
+  "ownership",
+  "schedule",
+  "time",
+  "no_claim_mutation",
+  "no_missing_consumption",
+  "search",
+  "continuity",
+  "preference",
+  "access",
+  "presence",
+  "dialogue",
+  "visibility",
+  "privacy",
+  "no_overdraft",
+  "physical",
+  "terminal_failure",
+  "compound",
+  "evidence",
+  "damage",
+  "inventory",
+  "employment",
+  "concurrency",
+  "replay",
+  "no_duplicate_payment",
+  "offline",
+  "identity",
+  "news",
+  "recovery",
+  "provenance",
+  "repair",
+  "event",
 ]);
 
 function error(errors, position, message) {
@@ -50,7 +84,8 @@ export function validateStoryCorpus(stories = STORY_CERTIFICATION_CASES) {
       actors.add(player.id);
       names.add(player.name);
     }
-    if (actors.size < 3) error(errors, story.id, "story requires at least three independent players");
+    if (actors.size < 3)
+      error(errors, story.id, "story requires at least three independent players");
     const priorBeats = new Map();
     const actIds = new Set();
     for (const act of story.acts || []) {
@@ -130,7 +165,11 @@ export function auditStoryTranscript(story, transcript) {
       error(errors, prefix, "every player needs alias, account ID and real actor ID");
       continue;
     }
-    if (playerIds.has(player.alias) || accountIds.has(player.userId) || actorIds.has(player.actorId)) {
+    if (
+      playerIds.has(player.alias) ||
+      accountIds.has(player.userId) ||
+      actorIds.has(player.actorId)
+    ) {
       error(errors, prefix, "player accounts and characters must be distinct");
     }
     playerIds.set(player.alias, player);
@@ -188,7 +227,11 @@ export function auditStoryTranscript(story, transcript) {
     } else {
       keys.set(beat.id, { key: record.idempotencyKey, requestId: record.requestId });
     }
-    if (!["completed", "failed", "waiting", "waiting_for_clarification", "rejected"].includes(record.state)) {
+    if (
+      !["completed", "failed", "waiting", "waiting_for_clarification", "rejected"].includes(
+        record.state,
+      )
+    ) {
       error(errors, at, "unknown request state");
     }
     if (record.state === "waiting" && !record.scheduleId) {
@@ -208,26 +251,40 @@ export function auditStoryTranscript(story, transcript) {
       error(errors, at, "missing player-facing narration/clarification");
     }
     // A model's unverified self-judgment is not a substitute for claim/fact audit.
-    if (!record.narrationAudit || record.narrationAudit.verified !== true ||
-      record.narrationAudit.source !== "independent") {
+    if (
+      !record.narrationAudit ||
+      record.narrationAudit.verified !== true ||
+      record.narrationAudit.source !== "independent"
+    ) {
       error(errors, at, "missing independently verified narration-to-fact audit");
     }
     const checks = record.probes || {};
     for (const check of beat.checks) {
       const probe = checks[check];
-      if (!probe || probe.passed !== true || !["db", "api", "mcp", "browser", "clock"].includes(probe.source) ||
-        typeof probe.evidenceId !== "string" || !probe.evidenceId.trim()) {
+      if (
+        !probe ||
+        probe.passed !== true ||
+        !["db", "api", "mcp", "browser", "clock"].includes(probe.source) ||
+        typeof probe.evidenceId !== "string" ||
+        !probe.evidenceId.trim()
+      ) {
         error(errors, at, "missing/failed authoritative probe " + check);
       }
     }
-    if ((beat.checks.includes("no_claim_mutation") ||
-      beat.checks.includes("no_missing_consumption") ||
-      beat.checks.includes("no_overdraft")) && record.mutatedPropertyWithoutCommit === true) {
+    if (
+      (beat.checks.includes("no_claim_mutation") ||
+        beat.checks.includes("no_missing_consumption") ||
+        beat.checks.includes("no_overdraft")) &&
+      record.mutatedPropertyWithoutCommit === true
+    ) {
       error(errors, at, "non-mutating speech/failure changed authoritative property");
     }
-    if (beat.clock === "real" &&
-      (!Number.isFinite(record.elapsedMs) || record.elapsedMs < 1_000 ||
-        record.probes.time?.source !== "clock")) {
+    if (
+      beat.clock === "real" &&
+      (!Number.isFinite(record.elapsedMs) ||
+        record.elapsedMs < 1_000 ||
+        record.probes.time?.source !== "clock")
+    ) {
       error(errors, at, "real-time claim lacks elapsed clock and clock evidence");
     }
   }
@@ -238,7 +295,10 @@ export function storyCampaignSummary(stories = STORY_CERTIFICATION_CASES) {
   return {
     stories: stories.length,
     acts: stories.reduce((n, story) => n + story.acts.length, 0),
-    beats: stories.reduce((n, story) => n + story.acts.reduce((m, act) => m + act.beats.length, 0), 0),
+    beats: stories.reduce(
+      (n, story) => n + story.acts.reduce((m, act) => m + act.beats.length, 0),
+      0,
+    ),
     actors: new Set(stories.flatMap((story) => story.players.map((p) => p.id))).size,
     checks: [...new Set(STORY_CERTIFICATION_BEATS.flatMap((beat) => beat.checks))].sort(),
     stage: "specification",

@@ -1,8 +1,5 @@
 import { STORY_CERTIFICATION_CASES } from "./story-certification-corpus.mjs";
-import {
-  storyCampaignSummary,
-  validateStoryCorpus,
-} from "./story-certification-audit.mjs";
+import { storyCampaignSummary, validateStoryCorpus } from "./story-certification-audit.mjs";
 
 const errors = validateStoryCorpus(STORY_CERTIFICATION_CASES);
 const summary = storyCampaignSummary(STORY_CERTIFICATION_CASES);
