@@ -16,6 +16,11 @@ describe("Jev-native player action architecture", () => {
     expect(code).toContain("decideWorldActionFastPath");
   });
 
+  it("preserves typed Jev infrastructure failures instead of treating them as player planning failures", () => {
+    const code = source("./persistent-world-action-service.ts");
+    expect(code).toContain("if (error instanceof AiProviderError) throw error;");
+  });
+
   it("does not fall back to generative search semantic analysis", () => {
     const code = source("./search-discovery-service.ts");
     expect(code).not.toContain("analyzeSearchDiscovery");
