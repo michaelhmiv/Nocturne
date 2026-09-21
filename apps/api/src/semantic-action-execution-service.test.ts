@@ -395,6 +395,35 @@ describe("semantic action execution service", () => {
     );
   });
 
+  it("terminalizes authoritative vehicle affordability failures without mutation", async () => {
+    const actorId = randomUUID();
+    const { service, execute, record } = serviceMocks();
+    const purchase = frame(actorId, "transfer");
+    purchase.actionType = "buy";
+
+    const result = await service.execute({
+      scope,
+      actorId,
+      planId: randomUUID(),
+      stepId: randomUUID(),
+      idempotencyKey: "semantic:vehicle-insufficient-funds",
+      frame: purchase,
+      resolution: resolution("transaction"),
+      context: context(actorId),
+      failureNarration: "You cannot afford the vehicle; it costs 90000 cents and you have 50000 cents in cash.",
+    });
+
+    expect(result.outcomeGrade).toBe("failure");
+    expect(result.narration).toMatch(/cannot afford/i);
+    expect(execute).not.toHaveBeenCalled();
+    expect(record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "action_failed",
+        payload: expect.objectContaining({ succeeded: false }),
+      }),
+    );
+  });
+
   it.each(["accept_shift", "finish_shift", "check_balance"])(
     "does not call an effectless %s action a success",
     async (actionType) => {
