@@ -461,7 +461,7 @@ try {
   };
   try {
     const apiLog = await readFile("artifacts/live-story/api-process.log", "utf8");
-    for (const line of apiLog.split("\\n")) {
+    for (const line of apiLog.split("\n")) {
       let entry;
       try {
         entry = JSON.parse(line);
