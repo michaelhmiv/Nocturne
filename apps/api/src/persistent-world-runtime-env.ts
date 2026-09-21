@@ -22,6 +22,7 @@ import {
 } from "@nocturne/database";
 import { createActionService } from "./action-service.js";
 import { registerPersistentWorldRuntime } from "./persistent-world-runtime.js";
+import { assertLegacyConsumptionScope } from "./legacy-consumption-scope.js";
 
 const deterministicKey = (value: string) =>
   createHash("sha256").update(value).digest("hex").slice(0, 24);
@@ -298,6 +299,9 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
       idempotencyKey: string;
       payload: Record<string, unknown>;
     }) => {
+      // The legacy action store has shared-world assumptions and must not
+      // write isolated certification events into the default ledger scope.
+      assertLegacyConsumptionScope(scope);
       const hintedActionType =
         typeof payload.actionType === "string" && /^[a-z][a-z0-9_]{0,63}$/.test(payload.actionType)
           ? payload.actionType
