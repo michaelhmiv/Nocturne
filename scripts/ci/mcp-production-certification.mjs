@@ -305,6 +305,9 @@ async function submitAction(accessToken, actorId, text, options = {}) {
       actorId,
       idempotencyKey: options.idempotencyKey || `mcp-cert-${runId}-${randomUUID()}`,
       traceId: options.traceId || `mcp-cert-${runId}-${randomUUID()}`,
+      ...(options.clarificationForRequestId
+        ? { clarificationForRequestId: options.clarificationForRequestId }
+        : {}),
     },
     { allowError: options.allowError ?? true },
   );
@@ -746,7 +749,9 @@ async function certifyKnownRegressions(accessToken, player) {
     );
     const firstRequestId = resultRequestId(first);
     assert.ok(firstRequestId);
-    const second = await submitAction(accessToken, actorId, regression.prompts[1]);
+    const second = await submitAction(accessToken, actorId, regression.prompts[1], {
+      clarificationForRequestId: firstRequestId,
+    });
     assert.notEqual(
       second?.isError,
       true,

@@ -234,17 +234,27 @@ function isIntrinsicAnatomyPhrase(value: string) {
   return intrinsicAnatomyNames.has(normalizeAnatomy(normalized));
 }
 
+function isLocationPossessionPhrase(value: string) {
+  const normalized = value.toLowerCase().replace(/\s+/g, " ").trim();
+  return /^(?:(?:current|this|the)\s+)?(?:room|apartment|unit|building|location|home|place|area|hallway)$/.test(
+    normalized,
+  );
+}
+
 function explicitPossessionNames(rawText: string) {
   const names = new Set<string>();
   const patterns = [
     /\b(?:holding|carrying|wielding|armed with|equipped with|using)\s+(?:a|an|the|my|some)?\s*([a-z][a-z0-9' -]{0,50}?)(?=$|[,.!?]|\s+(?:to|while|and|but|then)\b)/gi,
     /\bwith\s+(?:a|an|the|my|some)?\s*([a-z][a-z0-9' -]{0,50}?)(?=$|[,.!?]|\s+(?:while|and|but|then)\b)/gi,
     /\b(?:the|a|an|my)\s+([a-z][a-z0-9' -]{0,50}?)\s+(?:from|in)\s+my\s+inventory\b/gi,
+    /\b(?:my|own)\s+([a-z][a-z0-9' -]{0,50}?)(?=$|[,.!?]|\s+(?:into|onto|at|on|to|from|with|and|but|then|once|carefully|for|against|through|in|over|under)\b)/gi,
   ];
   for (const pattern of patterns) {
     for (const match of rawText.matchAll(pattern)) {
       const name = cleanPossessionName(match[1] || "");
-      if (name && !isIntrinsicAnatomyPhrase(name)) names.add(name);
+      if (name && !isIntrinsicAnatomyPhrase(name) && !isLocationPossessionPhrase(name)) {
+        names.add(name);
+      }
     }
   }
   return [...names];

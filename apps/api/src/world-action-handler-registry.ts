@@ -202,7 +202,15 @@ export function createWorldActionHandlerRegistry(dependencies: {
     frame: SemanticActionFrame;
     resolution: ActionResolutionDecision;
     context: RelevanceCompiledContext;
+    failureNarration?: string;
   }): Promise<WorldActionStepHandlerResult>;
+  validateVehiclePurchase?(input: {
+    scope: Parameters<WorldActionStepHandler>[0]["scope"];
+    actorId: string;
+    rawText: string;
+    frame: SemanticActionFrame;
+    context: RelevanceCompiledContext;
+  }): Promise<{ rejectionNarration: string } | null>;
   executeExistingAction?(input: {
     kind: Exclude<WorldActionKind, "search" | "move">;
     scope: Parameters<WorldActionStepHandler>[0]["scope"];
@@ -286,6 +294,16 @@ export function createWorldActionHandlerRegistry(dependencies: {
           context,
         });
         const resolution = adjudicateActionResolution(frame, context);
+        const vehiclePurchaseValidation =
+          frame.actionType === "buy" && dependencies.validateVehiclePurchase
+            ? await dependencies.validateVehiclePurchase({
+                scope,
+                actorId,
+                rawText,
+                frame,
+                context,
+              })
+            : null;
         await writeGameplayTelemetry(dependencies.telemetry, {
           level: "info",
           eventName: "resolution_mode_selected",
@@ -357,6 +375,7 @@ export function createWorldActionHandlerRegistry(dependencies: {
             frame,
             resolution,
             context,
+            failureNarration: vehiclePurchaseValidation?.rejectionNarration,
           });
         }
         if (kind === "consume" && dependencies.executeExistingAction) {

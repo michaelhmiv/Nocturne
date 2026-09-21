@@ -71,7 +71,9 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
       process.env.NOCTURNE_GUEST_MODE === "true" &&
       request.headers["x-nocturne-guest-mode"] === "1"
     ) {
-      return { id: process.env.NOCTURNE_GUEST_USER_ID || "nocturne-test-guest" };
+      return {
+        id: process.env.NOCTURNE_GUEST_USER_ID || "nocturne-test-guest",
+      };
     }
     const session = await getSessionFromNodeHeaders(request.headers);
     if (!session) throw new PersistentWorldError("forbidden", "Authentication is required.");
@@ -95,7 +97,10 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
     `;
     const selectedCharacterId = characters[0]?.character_instance_id || null;
     if (selectedCharacterId && selectedCharacterId !== scope.selectedCharacterId) {
-      await worlds.setSelectedCharacter({ scope, characterId: selectedCharacterId });
+      await worlds.setSelectedCharacter({
+        scope,
+        characterId: selectedCharacterId,
+      });
       scope = await worlds.resolveForAuthenticatedUser(user.id);
     }
     return scope;
@@ -143,7 +148,10 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
     listRecentPlayerSafeText: async ({ scope, limit }) => {
       const boundedLimit = Math.max(1, Math.min(limit, 20));
       const rows = await database.client<
-        { command: string; player_safe_result: Record<string, unknown> | null }[]
+        {
+          command: string;
+          player_safe_result: Record<string, unknown> | null;
+        }[]
       >`
         SELECT command, player_safe_result
         FROM game.world_action_requests
@@ -216,7 +224,11 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
       idempotencyKey,
     }) => {
       const rows = await database.client<
-        { location_id: string | null; version: string; destination_exists: boolean }[]
+        {
+          location_id: string | null;
+          version: string;
+          destination_exists: boolean;
+        }[]
       >`
         SELECT actor.location_id, actor.version::text,
                EXISTS (
@@ -283,6 +295,34 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
       return {
         scheduleId,
         narration: `Travel started. ETA ${durationSeconds} seconds.`,
+      };
+    },
+    validateVehiclePurchase: async ({ scope, actorId, rawText }) => {
+      const normalize = (value: string) =>
+        value
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, " ")
+          .trim();
+      const command = normalize(rawText);
+      const listings = (await locations.listVehicles())
+        .filter((vehicle) => vehicle.ownerId === null && vehicle.forSale && vehicle.priceCents > 0)
+        .filter((vehicle) => {
+          const name = normalize(vehicle.name);
+          return name.length >= 2 && command.includes(name);
+        });
+      if (listings.length !== 1) return null;
+      const listing = listings[0]!;
+      const actorRows = await database.client<{ state: Record<string, unknown> | null }[]>`
+        SELECT state
+        FROM game.entity_instances
+        WHERE world_id = ${scope.worldId}
+          AND shard_id = ${scope.shardId}
+          AND instance_id = ${actorId}
+      `;
+      const cash = Number(actorRows[0]?.state?.cashOnPerson ?? 0);
+      if (cash >= listing.priceCents) return null;
+      return {
+        rejectionNarration: `You cannot afford the ${listing.name}; it costs ${listing.priceCents} cents and you have ${cash} cents in cash.`,
       };
     },
     executeExistingAction: async ({

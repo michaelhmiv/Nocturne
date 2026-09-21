@@ -62,6 +62,7 @@ export const WorldActionRequestSchema = z
   .object({
     command: TextSchema,
     actorId: UuidSchema.optional(),
+    clarificationForRequestId: UuidSchema.optional(),
   })
   .strict();
 

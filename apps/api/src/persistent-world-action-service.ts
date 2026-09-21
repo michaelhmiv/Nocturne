@@ -64,6 +64,17 @@ type WorldActionRequestStoreLike = {
     command: string;
     idempotencyKey: string;
   }): Promise<WorldActionRequestRecord>;
+  readForResume(input: {
+    scope: Pick<WorldScope, "worldId" | "userId">;
+    requestId: string;
+    actorId: string;
+  }): Promise<{
+    requestId: string;
+    actorId: string;
+    command: string;
+    status: string;
+    playerSafeResult: WorldActionPlayerSafeResult | null;
+  }>;
   transition(input: {
     scope: Pick<WorldScope, "worldId">;
     requestId: string;
@@ -116,6 +127,12 @@ export class PersistentWorldActionServiceError extends Error {
     super(message);
     this.name = "PersistentWorldActionServiceError";
   }
+}
+
+const impossibleMovementPattern = /\b(?:walk|phase|pass)\b.*\bthrough\b.*\b(?:solid )?wall\b/i;
+
+function isImpossibleMovementCommand(command: string) {
+  return impossibleMovementPattern.test(command);
 }
 
 function planNarration(plan: PersistentActionPlan) {
@@ -210,7 +227,10 @@ export function createPersistentWorldActionService(dependencies: {
         planId: input.planId,
       });
       if (!started) {
-        const plan = await dependencies.plans.read({ scope: input.scope, planId: input.planId });
+        const plan = await dependencies.plans.read({
+          scope: input.scope,
+          planId: input.planId,
+        });
         if (plan.status === "completed") {
           const fallbackNarration = narrations.join(" ") || planNarration(plan);
           // Only committed events reach the creative narrator. Pending plans,
@@ -344,7 +364,10 @@ export function createPersistentWorldActionService(dependencies: {
           },
         });
         narrations.push(handled.narration);
-        const plan = await dependencies.plans.read({ scope: input.scope, planId: input.planId });
+        const plan = await dependencies.plans.read({
+          scope: input.scope,
+          planId: input.planId,
+        });
         const result = WorldActionPlayerSafeResultSchema.parse({
           state: "waiting",
           requestId: input.requestId,
@@ -393,8 +416,41 @@ export function createPersistentWorldActionService(dependencies: {
     actorId: string;
     command: string;
     idempotencyKey: string;
+    clarificationForRequestId?: string;
   }): Promise<WorldActionPlayerSafeResult> {
-    const reservation = await dependencies.requests.reserve(input);
+    const pendingClarification = input.clarificationForRequestId
+      ? await dependencies.requests.readForResume({
+          scope: input.scope,
+          requestId: input.clarificationForRequestId,
+          actorId: input.actorId,
+        })
+      : null;
+    if (
+      pendingClarification &&
+      (pendingClarification.status !== "waiting_for_clarification" ||
+        pendingClarification.playerSafeResult?.state !== "waiting_for_clarification")
+    ) {
+      throw new PersistentWorldActionServiceError(
+        "request_failed",
+        "The referenced clarification is no longer waiting for a reply.",
+      );
+    }
+    const command = pendingClarification
+      ? `${pendingClarification.command}\nClarification: ${input.command}`.slice(0, 4_000)
+      : input.command;
+    const clarificationLineage = pendingClarification
+      ? {
+          clarificationForRequestId: pendingClarification.requestId,
+          originalCommand: pendingClarification.command,
+          clarificationReply: input.command,
+        }
+      : undefined;
+    const reservation = await dependencies.requests.reserve({
+      scope: input.scope,
+      actorId: input.actorId,
+      command,
+      idempotencyKey: input.idempotencyKey,
+    });
     if (!reservation.created) {
       if (reservation.playerSafeResult) return reservation.playerSafeResult;
       if (reservation.planId) {
@@ -422,6 +478,7 @@ export function createPersistentWorldActionService(dependencies: {
         requestId: reservation.requestId,
         expectedStatus: currentStatus,
         status: "compiling_context",
+        authoritativeResult: clarificationLineage,
       });
       currentStatus = "compiling_context";
       await dependencies.requests.stage({
@@ -434,12 +491,12 @@ export function createPersistentWorldActionService(dependencies: {
       let context = await dependencies.context.compile({
         scope: input.scope,
         viewpointId: input.actorId,
-        command: input.command,
+        command,
       });
       let narrative = await dependencies.compileNarrativeContext({
         scope: input.scope,
         viewpointId: input.actorId,
-        command: input.command,
+        command,
       });
       await dependencies.requests.stage({
         requestId: reservation.requestId,
@@ -473,7 +530,7 @@ export function createPersistentWorldActionService(dependencies: {
       let fastDecision: FastWorldActionDecision;
       try {
         fastDecision = await decideWorldActionFastPath(dependencies.decisionClient, {
-          command: input.command,
+          command,
           actorId: input.actorId,
           enabledHandlers,
           recentPlayerSafeText,
@@ -491,15 +548,23 @@ export function createPersistentWorldActionService(dependencies: {
         );
       }
       const interpretation = fastDecision.interpretation;
+      const impossibleMovement =
+        (fastDecision.actionType === "move" || fastDecision.kind === "move") &&
+        isImpossibleMovementCommand(command);
+      const clarification = dependencies.references.clarification(interpretation);
+      const forceImpossibleMovement =
+        impossibleMovement &&
+        fastDecision.fallbackReasons.every((reason) =>
+          ["ambiguous_reference", "clarification"].includes(reason),
+        );
       await dependencies.references.recordInterpretation({
         scope: input.scope,
         viewpointId: input.actorId,
-        command: input.command,
+        command,
         interpretation,
         candidates,
       });
-      const clarification = dependencies.references.clarification(interpretation);
-      if (clarification) {
+      if (clarification && !forceImpossibleMovement) {
         const result = WorldActionPlayerSafeResultSchema.parse({
           state: "waiting_for_clarification",
           requestId: reservation.requestId,
@@ -510,6 +575,13 @@ export function createPersistentWorldActionService(dependencies: {
           requestId: reservation.requestId,
           expectedStatus: currentStatus,
           status: "waiting_for_clarification",
+          authoritativeResult: {
+            ...(clarificationLineage || {}),
+            semanticMode: "jev",
+            decisionModel: fastDecision.actualModel,
+            decisionActionType: fastDecision.actionType,
+            decisionFallbackReasons: fastDecision.fallbackReasons,
+          },
           playerSafeResult: result,
         });
         return result;
@@ -528,13 +600,13 @@ export function createPersistentWorldActionService(dependencies: {
         context = await dependencies.context.compile({
           scope: input.scope,
           viewpointId: input.actorId,
-          command: input.command,
+          command,
           explicitEntityIds: resolvedEntityIds,
         });
         narrative = await dependencies.compileNarrativeContext({
           scope: input.scope,
           viewpointId: input.actorId,
-          command: input.command,
+          command,
         });
       }
 
@@ -551,10 +623,13 @@ export function createPersistentWorldActionService(dependencies: {
         actorId: input.actorId,
       });
       const activePlanSummary = activePlanId
-        ? await dependencies.plans.read({ scope: input.scope, planId: activePlanId })
+        ? await dependencies.plans.read({
+            scope: input.scope,
+            planId: activePlanId,
+          })
         : null;
 
-      if (!fastDecision.fastPathEligible) {
+      if (!fastDecision.fastPathEligible && !forceImpossibleMovement) {
         const reasons = fastDecision.fallbackReasons;
         const prompt = reasons.includes("multi_step")
           ? "Please break that into one action at a time for now."
@@ -572,6 +647,7 @@ export function createPersistentWorldActionService(dependencies: {
           expectedStatus: currentStatus,
           status: "waiting_for_clarification",
           authoritativeResult: {
+            ...(clarificationLineage || {}),
             semanticMode: "jev",
             decisionModel: fastDecision.actualModel,
             decisionLatencyMs: fastDecision.latencyMs,
@@ -587,9 +663,10 @@ export function createPersistentWorldActionService(dependencies: {
       let proposal;
       try {
         proposal = buildFastSingleStepPlan({
-          command: input.command,
+          command,
           actorId: input.actorId,
           kind: fastDecision.kind,
+          planKind: forceImpossibleMovement ? "interact" : undefined,
           actionType: fastDecision.actionType,
           selectedEntityIds: resolvedEntityIds,
           selectedEntityRoles: fastDecision.selectedEntityRoles,
@@ -607,6 +684,7 @@ export function createPersistentWorldActionService(dependencies: {
           expectedStatus: currentStatus,
           status: "waiting_for_clarification",
           authoritativeResult: {
+            ...(clarificationLineage || {}),
             semanticMode: "jev",
             decisionModel: fastDecision.actualModel,
             decisionLatencyMs: fastDecision.latencyMs,
@@ -636,6 +714,7 @@ export function createPersistentWorldActionService(dependencies: {
         status: "executing",
         planId: plan.planId,
         authoritativeResult: {
+          ...(clarificationLineage || {}),
           semanticMode: "jev",
           decisionModel: fastDecision.actualModel,
           decisionLatencyMs: fastDecision.latencyMs,
