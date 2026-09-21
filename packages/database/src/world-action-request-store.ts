@@ -235,6 +235,38 @@ export function createWorldActionRequestStore(database: ReturnType<typeof create
     return rows[0];
   }
 
+  async function readForResume(input: {
+    scope: Pick<WorldScope, "worldId" | "userId">;
+    requestId: string;
+    actorId: string;
+  }) {
+    const rows = await database.client<
+      {
+        requestId: string;
+        actorId: string;
+        command: string;
+        status: WorldActionRequestStatus;
+        playerSafeResult: WorldActionPlayerSafeResult | null;
+      }[]
+    >`
+      SELECT
+        request_id AS "requestId",
+        actor_id AS "actorId",
+        command,
+        status,
+        player_safe_result AS "playerSafeResult"
+      FROM game.world_action_requests
+      WHERE world_id = ${input.scope.worldId}
+        AND user_id = ${input.scope.userId}
+        AND actor_id = ${input.actorId}
+        AND request_id = ${input.requestId}
+    `;
+    if (!rows[0]) {
+      throw new WorldActionRequestStoreError("request_not_found", "Clarification request not found.");
+    }
+    return rows[0];
+  }
+
   async function listForActor(input: {
     userId: string;
     actorId: string;
@@ -324,7 +356,7 @@ export function createWorldActionRequestStore(database: ReturnType<typeof create
     }));
   }
 
-  return { reserve, transition, stage, get, listForActor };
+  return { reserve, transition, stage, get, readForResume, listForActor };
 }
 
 export type WorldActionRequestStore = ReturnType<typeof createWorldActionRequestStore>;
