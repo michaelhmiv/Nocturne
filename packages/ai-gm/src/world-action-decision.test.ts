@@ -76,6 +76,34 @@ describe("Jev world-action fast path", () => {
     expect(result.interpretation.mentions[0]?.selectedEntityId).toBe(doorId);
   });
 
+  it("does not turn a high clarification score without references into a forced wait", async () => {
+    const client = {
+      decide: async () => ({
+        answers: {
+          action_type: { type: "choice" as const, choice: "interact", confidence: 0.99 },
+          requires_clarification: { type: "noul" as const, noul: 0.99 },
+          requires_multi_step: { type: "noul" as const, noul: 0.01 },
+        },
+        requestedModel: "~typesafe/jev-latest",
+        actualModel: "typesafe/jev-1.13",
+        provider: "openrouter" as const,
+        latencyMs: 90,
+      }),
+    };
+
+    const result = await decideWorldActionFastPath(client as never, {
+      command: "check the room",
+      actorId,
+      enabledHandlers: ["interact"],
+      recentPlayerSafeText: [],
+      candidates: [],
+    });
+
+    expect(result.interpretation.mentions).toEqual([]);
+    expect(result.fastPathEligible).toBe(true);
+    expect(result.fallbackReasons).toEqual([]);
+  });
+
   it("keeps known-entity observation distinct from discovery search", async () => {
     const observationClient = {
       decide: async () => ({
@@ -323,6 +351,27 @@ describe("Jev world-action fast path", () => {
       actionType: "search",
       areaId: homeId,
       requestedConcept: "crowbar",
+    });
+  });
+
+  it("can compile an impossible movement as a semantic failure step", () => {
+    const context = {
+      entities: [{ entityId: actorId, version: 4, definitionType: "character" }],
+    } as unknown as RelevanceCompiledContext;
+    const plan = buildFastSingleStepPlan({
+      command: "Walk through the solid wall.",
+      actorId,
+      kind: "move",
+      planKind: "interact",
+      actionType: "move",
+      selectedEntityIds: [],
+      context,
+    });
+
+    expect(plan.steps[0]?.kind).toBe("interact");
+    expect(plan.steps[0]?.intentPayload).toEqual({
+      rawText: "Walk through the solid wall.",
+      actionType: "move",
     });
   });
 
