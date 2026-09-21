@@ -30,6 +30,7 @@ export function createPersistentWorldService(store: PersistentWorldStore): Persi
   return {
     async createCharacter(userId, input, idempotencyKey) {
       const parsed = CreateCharacterInputSchema.parse(input);
+      await store.assertPublicWorldUser(userId);
       await store.seedStarterWorld();
       return store.createCharacter(
         userId,
@@ -49,6 +50,7 @@ export function createPersistentWorldService(store: PersistentWorldStore): Persi
     },
     async rentStarterResidence(userId, input, idempotencyKey) {
       const parsed = RentResidenceInputSchema.parse(input);
+      await store.assertPublicWorldUser(userId);
       await store.seedStarterWorld();
       return store.rentStarterResidence(
         userId,

@@ -198,6 +198,10 @@ jobs:
         run: |
           set -o pipefail
           pnpm --filter @nocturne/database exec vitest run test/world-scoped-character-controls.integration.test.ts 2>&1 | tee artifacts/world-scoped-character-controls.log
+      - name: Verify server-bound certification identities and no public-world fallback
+        run: |
+          set -o pipefail
+          pnpm --filter @nocturne/database exec vitest run test/server-bound-certification-players.integration.test.ts 2>&1 | tee artifacts/server-bound-certification-players.log
       - if: failure()
         uses: actions/upload-artifact@v4
         with:

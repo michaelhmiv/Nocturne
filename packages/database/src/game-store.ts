@@ -213,11 +213,31 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
     };
   }
 
+  /**
+   * Certification accounts are bound by database identity, not account labels.
+   * The legacy onboarding path still uses public Foundry Row/Ashdown IDs and
+   * therefore MUST reject these accounts until isolated onboarding exists.
+   * Expiry/revocation never permits fallback into production.
+   */
+  async function assertPublicWorldUser(userId: string): Promise<void> {
+    const bound = await database.client`
+      SELECT 1 FROM game.certification_players WHERE user_id = ${userId}
+      LIMIT 1
+    `;
+    if (bound.length) {
+      throw new PersistentWorldError(
+        "forbidden",
+        "Certification users cannot access default-world character onboarding.",
+      );
+    }
+  }
+
   async function createCharacter(
     userId: string,
     input: CreateCharacterInput,
     idempotencyKey: string,
   ): Promise<CharacterSummary> {
+    await assertPublicWorldUser(userId);
     return database.client.begin(async (sql) => {
       const existing = await sql`
         SELECT payload
@@ -371,6 +391,7 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
     userId: string,
     worldId: string = DEFAULT_WORLD_ID,
   ): Promise<CharacterSummary[]> {
+    if (worldId === DEFAULT_WORLD_ID) await assertPublicWorldUser(userId);
     const rows = await database.client`
       SELECT pc.character_instance_id, pc.selected, pc.created_at,
              d.definition_id, d.name, d.concept_summary, d.origin_source,
@@ -428,6 +449,7 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
     characterId: string,
     worldId: string = DEFAULT_WORLD_ID,
   ): Promise<CharacterSummary> {
+    if (worldId === DEFAULT_WORLD_ID) await assertPublicWorldUser(userId);
     await database.client.begin(async (sql) => {
       const controlled = await sql`
         SELECT 1 FROM game.player_characters
@@ -456,6 +478,7 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
     characterId: string,
     idempotencyKey: string,
   ): Promise<RentResidenceResult> {
+    await assertPublicWorldUser(userId);
     return database.client.begin(async (sql) => {
       const controlled = await sql`
         SELECT 1 FROM game.player_characters
@@ -490,6 +513,7 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
   }
 
   return {
+    assertPublicWorldUser,
     seedStarterWorld,
     getStarterWorld,
     createCharacter,
