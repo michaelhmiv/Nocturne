@@ -246,10 +246,7 @@ async function runBeat(beat, index) {
   if (record && !durableEventsLinked) observedDefects.push("event_scope_or_link_mismatch");
   if (!ownDashboard) observedDefects.push("player_dashboard_missing_or_wrong");
   if (!narration) observedDefects.push("narration_missing");
-  if (
-    beat.clock === "real" &&
-    ["waiting", "waiting_for_time"].includes(record?.status)
-  ) {
+  if (beat.clock === "real" && ["waiting", "waiting_for_time"].includes(record?.status)) {
     observedDefects.push("real_timed_action_not_terminal_after_180_seconds");
   }
   if (
