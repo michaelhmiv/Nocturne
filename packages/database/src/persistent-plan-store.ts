@@ -429,7 +429,10 @@ export function createPersistentPlanStore(database: ReturnType<typeof createData
         if (
           step.result_event_id === input.resultEventId &&
           (!input.resultReceiptId || step.result_receipt_id === input.resultReceiptId)
-        ) return; // A worker retry must not duplicate plan events or a state transition.
+        ) {
+          // A worker retry must not duplicate plan events or a state transition.
+          return;
+        }
         throw new PersistentPlanStoreError(
           "invalid_transition",
           "Completed plan step has a different authoritative result.",
