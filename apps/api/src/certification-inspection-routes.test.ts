@@ -54,7 +54,8 @@ describe("read-only certification inspection HTTP boundary", () => {
       });
       expect(result.statusCode).toBe(200);
       expect(result.json()).toMatchObject({ scope: "certified" });
-      expect(inspectCertified).toHaveBeenCalledExactlyOnceWith({ token, entityId });
+      expect(inspectCertified).toHaveBeenCalledTimes(1);
+      expect(inspectCertified).toHaveBeenCalledWith({ token, entityId });
       expect(resolveScope).not.toHaveBeenCalled();
     } finally {
       await app.close();
