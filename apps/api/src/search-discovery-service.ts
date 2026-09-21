@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  SearchDiscoveryAnalysisSchema,
   SearchDiscoveryResultSchema,
   type MaterializationAnalysisRequest,
   type SearchDiscoveryAnalysis,
@@ -58,6 +59,61 @@ function outcomeText(
     case "catastrophic_reversal":
       return analysis.reversalDescription;
   }
+}
+
+function deterministicCurrentAreaSearchAnalysis(input: {
+  rawText: string;
+  requestedConcept: string;
+  existingCandidates: Array<{ entityId: string }>;
+  sourceCandidates: Array<{ sourceId: string }>;
+}) {
+  if (
+    /\b(?:(?:this|the current|my current)\s+(?:room|apartment|unit|building|location)|here)\b/i.test(
+      input.rawText,
+    )
+  ) {
+    const existingCandidate =
+      input.existingCandidates.length === 1 ? input.existingCandidates[0] : undefined;
+    const materializationSource =
+      !existingCandidate && input.sourceCandidates.length === 1
+        ? input.sourceCandidates[0]
+        : undefined;
+
+    return SearchDiscoveryAnalysisSchema.parse({
+      targetFamily: "other",
+      requestedConcept: input.requestedConcept,
+      ...(existingCandidate ? { selectedExistingEntityId: existingCandidate.entityId } : {}),
+      mayMaterialize: Boolean(materializationSource),
+      ...(materializationSource
+        ? { selectedMaterializationSourceId: materializationSource.sourceId }
+        : {}),
+      actorScore: 6,
+      targetScore: 0,
+      modifiers: [],
+      successDescription:
+        "You successfully locate evidence or a match for " + input.requestedConcept + ".",
+      consequenceDescription:
+        "You locate evidence or a match for " +
+        input.requestedConcept +
+        ", but the search carries a consequence.",
+      partialDescription:
+        "You uncover partial evidence related to " +
+        input.requestedConcept +
+        ", but not a complete discovery.",
+      progressDescription:
+        "You make progress toward locating " +
+        input.requestedConcept +
+        ", but do not complete the search.",
+      failureDescription: "You do not locate " + input.requestedConcept + ".",
+      reversalDescription:
+        "The search goes badly and does not locate " + input.requestedConcept + ".",
+      assumptions: [
+        "A deterministic current-area search fallback was used because Jev's confidence was below threshold.",
+        "Only one supplied existing candidate or authorized materialization source may be selected.",
+      ],
+    });
+  }
+  return null;
 }
 
 export function createSearchDiscoveryService(dependencies: {
@@ -138,13 +194,24 @@ export function createSearchDiscoveryService(dependencies: {
     let analysis: SearchDiscoveryAnalysis;
     try {
       const decided = await decideSearchDiscovery(dependencies.decisionClient, analysisRequest);
-      if (!decided.fastPathEligible || !decided.analysis) {
+      const deterministicFallback =
+        decided.fallbackReason === "low_decision_confidence"
+          ? deterministicCurrentAreaSearchAnalysis({
+              rawText: input.rawText,
+              requestedConcept: input.requestedConcept,
+              existingCandidates,
+              sourceCandidates,
+            })
+          : null;
+      if ((!decided.fastPathEligible || !decided.analysis) && !deterministicFallback) {
         throw new SearchDiscoveryServiceError(
           "analysis_rejected",
-          `Jev could not resolve search semantics: ${decided.fallbackReason || "low confidence"}.`,
+          "Jev could not resolve search semantics: " +
+            (decided.fallbackReason || "low confidence") +
+            ".",
         );
       }
-      analysis = decided.analysis;
+      analysis = deterministicFallback || decided.analysis!;
     } catch (error) {
       if (error instanceof SearchDiscoveryServiceError) throw error;
       throw new SearchDiscoveryServiceError(
