@@ -164,7 +164,9 @@ function normalizedActionType(
 function durationFromText(rawText: string) {
   const match = explicitDurationPattern.exec(rawText);
   if (!match) return undefined;
-  const amount = /^\d+$/.test(match[1]!) ? Number(match[1]!) : smallNumbers[match[1]!.toLowerCase()];
+  const amount = /^\d+$/.test(match[1]!)
+    ? Number(match[1]!)
+    : smallNumbers[match[1]!.toLowerCase()];
   if (!Number.isFinite(amount) || !amount || amount <= 0) return undefined;
   const unit = match[2]!.toLowerCase();
   const multiplier = unit.startsWith("second")
