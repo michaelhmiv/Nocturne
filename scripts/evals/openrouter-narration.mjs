@@ -181,7 +181,7 @@ function findForbiddenClaims(testCase, narration) {
   // Strip only that negated claim; any additional positive arrival still fails.
   const evaluatedText =
     testCase.id === "travel_started"
-      ? narration.replace(/\\b(?:not|never)\\s+(?:yet\\s+)?arrived\\b/gi, "still en route")
+      ? narration.replace(/\b(?:not|never)\s+(?:yet\s+)?arrived\b/gi, "still en route")
       : narration;
   return testCase.forbidden
     .filter((pattern) => pattern.test(evaluatedText))
