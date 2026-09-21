@@ -67,6 +67,7 @@ const resolution: ActionResolutionDecision = {
 describe("timed semantic action service", () => {
   it("creates a resumable schedule containing the authoritative frame", async () => {
     const actorId = randomUUID();
+    const requestId = randomUUID();
     const scheduleId = randomUUID();
     const execute = vi.fn(async (_input: UniversalOperationExecutionInput) => ({
       eventId: randomUUID(),
@@ -77,6 +78,7 @@ describe("timed semantic action service", () => {
 
     const result = await service.schedule({
       scope,
+      requestId,
       actorId,
       planId: randomUUID(),
       stepId: randomUUID(),
@@ -98,6 +100,7 @@ describe("timed semantic action service", () => {
         expectedVersions: { [actorId]: 3 },
         payload: expect.objectContaining({
           actorId,
+          requestId,
           frame: expect.objectContaining({
             objective: "Exercise for 30 minutes",
             claims: expect.arrayContaining([

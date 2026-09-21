@@ -189,14 +189,14 @@ export function createScheduledWorkService(dependencies: {
       );
     }
     const eventId = randomUUID();
-    await dependencies.database.client.begin(async (sql) => {
+    const resolvedEventId = await dependencies.database.client.begin(async (sql) => {
       const existing = await sql<{ event_id: string }[]>`
         SELECT event_id
         FROM game.event_ledger
         WHERE world_id = ${claim.worldId}
           AND idempotency_key = ${deterministicIdempotency(claim)}
       `;
-      if (existing[0]) return;
+      if (existing[0]) return existing[0].event_id;
       const requests = await sql<{ validation_status: string }[]>`
         SELECT validation_status
         FROM game.generated_content_requests
@@ -229,9 +229,10 @@ export function createScheduledWorkService(dependencies: {
         SET validation_status = 'ready', updated_at = now(), completed_at = COALESCE(completed_at, now())
         WHERE world_id = ${claim.worldId} AND request_id = ${requestId}
       `;
+      return eventId;
     });
-    await completePlanStep(claim, eventId);
-    return { eventId };
+    await completePlanStep(claim, resolvedEventId);
+    return { eventId: resolvedEventId };
   }
 
   async function resolveSemanticAction(claim: ScheduledWorkClaim, scope: WorldScope) {

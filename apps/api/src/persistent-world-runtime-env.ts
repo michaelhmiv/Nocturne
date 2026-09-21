@@ -134,7 +134,7 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
     configured: Boolean(providerConfiguration.apiKey),
   }));
 
-  await registerPersistentWorldRuntime(app, {
+  const scheduledContinuation = await registerPersistentWorldRuntime(app, {
     database,
     client,
     decisionClient,
@@ -260,6 +260,7 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
               durationSeconds,
               payload: {
                 userId: scope.userId,
+                requestId,
                 actorId,
                 locationId: destinationId,
                 destinationId,
@@ -343,4 +344,6 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
   });
 
   app.addHook("onClose", async () => database.close());
+
+  return scheduledContinuation;
 }

@@ -26,7 +26,7 @@ describePostgres("scheduled plan completion and retry invariants (PostgreSQL)", 
     worldId: DEFAULT_WORLD_ID,
     shardId: DEFAULT_SHARD_ID,
     userId: "scheduled-plan-completion-test",
-    role: "operator" as const,
+    role: "player" as const,
     selectedCharacterId: actorId,
   };
 
@@ -45,6 +45,11 @@ describePostgres("scheduled plan completion and retry invariants (PostgreSQL)", 
       INSERT INTO game.entity_instances
         (instance_id, definition_id, world_id, shard_id, state)
       VALUES (${actorId}, ${definitionId}, ${scope.worldId}, ${scope.shardId}, '{}'::jsonb)
+    `;
+    await db.client`
+      INSERT INTO game.player_characters
+        (user_id, world_id, character_instance_id, selected)
+      VALUES (${scope.userId}, ${scope.worldId}, ${actorId}, true)
     `;
   });
 
@@ -71,7 +76,10 @@ describePostgres("scheduled plan completion and retry invariants (PostgreSQL)", 
         dependencies: [],
       },
     });
-    const started = await plans.startReadyStep({ scope, planId: plan.planId });
+    const started = await plans.startReadyStep({
+      scope,
+      planId: plan.planId,
+    });
     expect(started).toBeTruthy();
     const stepId = started!.stepId;
     const scheduled = await executor.execute({

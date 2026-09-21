@@ -175,6 +175,7 @@ export function createWorldActionHandlerRegistry(dependencies: {
   }): Promise<{ scheduleId: string; narration: string }>;
   scheduleTimedAction?(input: {
     scope: Parameters<WorldActionStepHandler>[0]["scope"];
+    requestId: string;
     actorId: string;
     planId: string;
     stepId: string;
@@ -332,6 +333,7 @@ export function createWorldActionHandlerRegistry(dependencies: {
         ) {
           return dependencies.scheduleTimedAction({
             scope,
+            requestId,
             actorId,
             planId,
             stepId: step.stepId,
