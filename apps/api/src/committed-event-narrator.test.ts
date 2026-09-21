@@ -69,14 +69,17 @@ describe("committed-event Laguna narration", () => {
     ["cross-actor", [{ ...evidence, actorId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" }]],
     ["missing receipt", []],
     ["empty visible facts", [{ ...evidence, playerVisibleFacts: [] }]],
-  ] as [string, CommittedEventNarrationEvidence[]][])("does not narrate %s", async (_name, rows) => {
-    const { narrate, generateText, onFailure } = setup([...rows]);
-    expect(
-      await narrate({ scope, actorId, eventIds: [eventId], fallback: "Committed fallback" }),
-    ).toBe("Committed fallback");
-    expect(generateText).not.toHaveBeenCalled();
-    expect(onFailure).toHaveBeenCalledOnce();
-  });
+  ] as [string, CommittedEventNarrationEvidence[]][])(
+    "does not narrate %s",
+    async (_name, rows) => {
+      const { narrate, generateText, onFailure } = setup([...rows]);
+      expect(
+        await narrate({ scope, actorId, eventIds: [eventId], fallback: "Committed fallback" }),
+      ).toBe("Committed fallback");
+      expect(generateText).not.toHaveBeenCalled();
+      expect(onFailure).toHaveBeenCalledOnce();
+    },
+  );
 
   it("returns committed facts and reports a failed provider rather than inventing prose", async () => {
     const { narrate, generateText, onFailure } = setup();
