@@ -4,7 +4,7 @@
 CREATE OR REPLACE FUNCTION game.ensure_starter_residence_route()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $
+AS $$
 DECLARE
   v_building_id uuid;
 BEGIN
@@ -45,7 +45,7 @@ BEGIN
                 world_id = EXCLUDED.world_id;
   RETURN NEW;
 END;
-$;
+$$;
 
 -- Offline-only fixture functions. Never expose these as ordinary API or MCP tools.
 -- World/shard and membership are read from the authoritative run, never from a
