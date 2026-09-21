@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ScheduledWorkClaim, UniversalOperationExecutionInput } from "@nocturne/database";
 import { createScheduledWorkService } from "./scheduled-work-service.js";
 
@@ -63,6 +63,8 @@ function claim(actorId: string): ScheduledWorkClaim {
   };
 }
 
+afterEach(() => vi.useRealTimers());
+
 describe("scheduled semantic action resolution", () => {
   it("commits completion and resumes the persistent plan", async () => {
     const actorId = randomUUID();
@@ -100,6 +102,7 @@ describe("scheduled semantic action resolution", () => {
         stepId: work.stepId,
         resultEventId: eventId,
         resultReceiptId: receiptId,
+        scheduleId: work.scheduleId,
       }),
     );
     expect(satisfyExternalDependency).toHaveBeenCalledWith(
@@ -108,5 +111,30 @@ describe("scheduled semantic action resolution", () => {
         eventId,
       }),
     );
+  });  it("uses byte-identical scheduled mutation payloads after worker retry and clock changes", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-21T18:00:00Z"));
+    const actorId = randomUUID();
+    const work = claim(actorId);
+    const execute = vi.fn(async () => ({
+      eventId: randomUUID(),
+      receiptId: randomUUID(),
+      symbolMap: {},
+    }));
+    const service = createScheduledWorkService({
+      database: {} as never,
+      executor: { execute } as never,
+      plans: { completeStep: vi.fn(), satisfyExternalDependency: vi.fn() } as never,
+      relationships: {} as never,
+    });
+    await service.resolve(work);
+    vi.setSystemTime(new Date("2026-09-21T18:05:00Z"));
+    await service.resolve({ ...work, attemptNumber: 2 });
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(execute.mock.calls[0]![0]).toEqual(execute.mock.calls[1]![0]);
+    expect(JSON.stringify(execute.mock.calls[0]![0])).toContain(work.scheduleId);
+    expect(JSON.stringify(execute.mock.calls[0]![0])).not.toContain("completedAt");
   });
+
+
 });
