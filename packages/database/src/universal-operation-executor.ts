@@ -10,6 +10,7 @@ import {
 import type { TransactionSql } from "postgres";
 import type { createDatabase } from "./index.js";
 import { serializeJson as json } from "./json.js";
+import { toIsoTimestamp } from "./timestamp.js";
 import type { WorldScope } from "./world-store.js";
 
 export type UniversalOperationAuthority = "player" | "scheduled" | "world_simulation" | "operator";
@@ -415,7 +416,7 @@ export function createUniversalOperationExecutor(
       operationResults: resultRows.map(({ result }) => result),
       playerVisibleFacts: row.player_visible_facts || [],
       hiddenFacts: row.hidden_facts || [],
-      createdAt: row.created_at.toISOString(),
+      createdAt: toIsoTimestamp(row.created_at, "mutation receipt creation"),
       idempotentReplay: true,
     });
   }
