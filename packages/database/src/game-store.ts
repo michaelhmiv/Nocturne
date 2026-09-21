@@ -364,7 +364,10 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
     });
   }
 
-  async function listCharacters(userId: string): Promise<CharacterSummary[]> {
+  async function listCharacters(
+    userId: string,
+    worldId: string = DEFAULT_WORLD_ID,
+  ): Promise<CharacterSummary[]> {
     const rows = await database.client`
       SELECT pc.character_instance_id, pc.selected, pc.created_at,
              d.definition_id, d.name, d.concept_summary, d.origin_source,
@@ -374,9 +377,12 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
       JOIN game.entity_definitions d ON d.definition_id = i.definition_id
       LEFT JOIN game.residence_occupancies o
         ON o.character_instance_id = i.instance_id AND o.status = 'active'
+       AND o.world_id = pc.world_id
       LEFT JOIN game.entity_instances ri ON ri.instance_id = o.residence_instance_id
       LEFT JOIN game.entity_definitions rd ON rd.definition_id = ri.definition_id
       WHERE pc.user_id = ${userId}
+        AND pc.world_id = ${worldId}
+        AND i.world_id = ${worldId}
       ORDER BY pc.created_at ASC
     `;
     return rows.map((row) => {
@@ -408,26 +414,36 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
   async function getCharacter(
     userId: string,
     characterId: string,
+    worldId: string = DEFAULT_WORLD_ID,
   ): Promise<CharacterSummary | null> {
-    const characters = await listCharacters(userId);
+    const characters = await listCharacters(userId, worldId);
     return characters.find((character) => character.characterId === characterId) ?? null;
   }
 
-  async function selectCharacter(userId: string, characterId: string): Promise<CharacterSummary> {
+  async function selectCharacter(
+    userId: string,
+    characterId: string,
+    worldId: string = DEFAULT_WORLD_ID,
+  ): Promise<CharacterSummary> {
     await database.client.begin(async (sql) => {
       const controlled = await sql`
         SELECT 1 FROM game.player_characters
-        WHERE user_id = ${userId} AND character_instance_id = ${characterId}
+        WHERE user_id = ${userId} AND world_id = ${worldId}
+          AND character_instance_id = ${characterId}
       `;
       if (controlled.length === 0)
         throw new PersistentWorldError("forbidden", "Character is not controlled by this account.");
-      await sql`UPDATE game.player_characters SET selected = false WHERE user_id = ${userId}`;
+      await sql`
+        UPDATE game.player_characters SET selected = false
+        WHERE user_id = ${userId} AND world_id = ${worldId}
+      `;
       await sql`
         UPDATE game.player_characters SET selected = true
-        WHERE user_id = ${userId} AND character_instance_id = ${characterId}
+        WHERE user_id = ${userId} AND world_id = ${worldId}
+          AND character_instance_id = ${characterId}
       `;
     });
-    const selected = await getCharacter(userId, characterId);
+    const selected = await getCharacter(userId, characterId, worldId);
     if (!selected) throw new PersistentWorldError("not_found", "Character not found.");
     return selected;
   }
@@ -440,10 +456,11 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
     return database.client.begin(async (sql) => {
       const controlled = await sql`
         SELECT 1 FROM game.player_characters
-        WHERE user_id = ${userId} AND character_instance_id = ${characterId}
+        WHERE user_id = ${userId} AND world_id = ${DEFAULT_WORLD_ID}
+          AND character_instance_id = ${characterId}
       `;
       if (controlled.length === 0) {
-        throw new PersistentWorldError("forbidden", "Character is not controlled by this account.");
+        throw new PersistentWorldError("forbidden", "Character is not controlled in the default world.");
       }
 
       const provisioningKey = idempotencyKey.startsWith("starter-residence:")
