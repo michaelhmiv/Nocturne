@@ -57,6 +57,9 @@ export function createCommittedEventNarrator(input: {
       if (expected.size > 0 || supportedFacts.length === 0) {
         throw new Error("Committed narration has no complete player-visible factual evidence.");
       }
+      if (rows.some(({ eventType }) => eventType === "action_failed")) {
+        return supportedFacts.join(" ");
+      }
       const result = await narratePlayerSafeFacts(input.client, {
         eventType: rows.map((row) => row.eventType).join(","),
         playerVisibleFacts: supportedFacts,
