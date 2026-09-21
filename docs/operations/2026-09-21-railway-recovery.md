@@ -1,5 +1,7 @@
 # Nocturne Railway recovery — September 21, 2026
 
+This record documents infrastructure setup, not completed live gameplay certification.
+
 ## Environment and revision
 
 Project: `bb436905-bd68-486d-b091-376d30d47a8e`; production environment: `881b221e-01c9-4830-a717-e6ea9a50dc06`. Initial application release is `main` commit `3f5fff0b12438d2220f71cba538c3086bc300a47`; PR #136 must not be described as deployed until its exact merged SHA is verified.
