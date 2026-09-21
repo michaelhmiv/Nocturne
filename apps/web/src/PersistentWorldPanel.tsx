@@ -25,6 +25,9 @@ export function PersistentWorldPanel({
   const [scene, setScene] = useState<PersistentWorldScene | null>(null);
   const [command, setCommand] = useState("");
   const [result, setResult] = useState<WorldActionPlayerSafeResult | null>(null);
+  const [pendingClarificationRequestId, setPendingClarificationRequestId] = useState<string | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,9 +84,18 @@ export function PersistentWorldPanel({
         accessToken,
         command: trimmed,
         idempotencyKey: newIdempotencyKey(),
+        ...(pendingClarificationRequestId
+          ? { clarificationForRequestId: pendingClarificationRequestId }
+          : {}),
       });
       setResult(next);
-      if (next.state !== "waiting_for_clarification") setCommand("");
+      if (next.state === "waiting_for_clarification") {
+        setPendingClarificationRequestId(next.requestId);
+        setCommand("");
+      } else {
+        setPendingClarificationRequestId(null);
+        setCommand("");
+      }
       await refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The action failed.");
@@ -121,6 +133,16 @@ export function PersistentWorldPanel({
         <aside className="persistent-world-panel__clarification">
           <strong>Clarification needed</strong>
           <p>{result.prompt}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setPendingClarificationRequestId(null);
+              setCommand("");
+              setResult(null);
+            }}
+          >
+            Start a new action
+          </button>
         </aside>
       ) : result ? (
         <aside className="persistent-world-panel__result">
@@ -177,7 +199,11 @@ export function PersistentWorldPanel({
             id="persistent-world-command"
             value={command}
             onChange={(event) => setCommand(event.target.value)}
-            placeholder="Search the alley, talk to someone, move an object, go somewhere…"
+            placeholder={
+              pendingClarificationRequestId
+                ? "Answer the clarification, or start a new action."
+                : "Search the alley, talk to someone, move an object, go somewhere…"
+            }
             rows={2}
             disabled={submitting}
           />
