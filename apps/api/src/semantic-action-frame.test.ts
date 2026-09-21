@@ -221,7 +221,7 @@ describe("semantic action frame", () => {
     ["Stretch over the next three minutes", 180],
     ["Work for 15 minutes", 900],
     ["Wait for twelve seconds", 12],
-  ])("schedules explicit duration from natural language: %s", (rawText, seconds) => {
+  ] as [string, number][])("schedules explicit duration from natural language: %s", (rawText, seconds) => {
     const actorId = randomUUID();
     const frame = deriveSemanticActionFrame({
       kind: "interact",
