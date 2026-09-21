@@ -195,8 +195,14 @@ export function createPersistentWorldActionService(dependencies: {
     actorId: string;
     planId: string;
     context: RelevanceCompiledContext;
+    /**
+     * Events committed by an asynchronous resolver before it re-enters the
+     * common continuation loop. They must remain part of the final durable
+     * result and narration input.
+     */
+    initialEventIds?: string[];
   }): Promise<WorldActionPlayerSafeResult> {
-    const eventIds: string[] = [];
+    const eventIds: string[] = [...(input.initialEventIds || [])];
     const narrations: string[] = [];
     for (let iteration = 0; iteration < 64; iteration += 1) {
       const started = await dependencies.plans.startReadyStep({
