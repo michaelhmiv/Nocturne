@@ -205,6 +205,32 @@ export function createWorldInspectorStore(
     return inspectEntity(input);
   }
 
+  async function inspectPlayer(input: {
+    scope: WorldScope;
+    entityId: string;
+  }): Promise<WorldInspectorEntity> {
+    if (!input.scope.selectedCharacterId) {
+      throw new WorldInspectorStoreError(
+        "forbidden",
+        "A selected character is required for scoped inspection.",
+      );
+    }
+    const controlled = await database.client`
+      SELECT 1
+      FROM game.player_characters
+      WHERE world_id = ${input.scope.worldId}
+        AND user_id = ${input.scope.userId}
+        AND character_instance_id = ${input.scope.selectedCharacterId}
+    `;
+    if (!controlled[0]) {
+      throw new WorldInspectorStoreError(
+        "forbidden",
+        "The selected character is not controlled by this user.",
+      );
+    }
+    return inspectEntity(input);
+  }
+
   /**
    * Certification is a separate, expiring, READ-ONLY capability. It is not a
    * WorldScope role, and cannot be passed to `repair` or player-auth routes.
@@ -514,7 +540,7 @@ export function createWorldInspectorStore(
     }
   }
 
-  return { inspect, inspectCertified, repair };
+  return { inspect, inspectPlayer, inspectCertified, repair };
 }
 
 export type WorldInspectorStore = ReturnType<typeof createWorldInspectorStore>;

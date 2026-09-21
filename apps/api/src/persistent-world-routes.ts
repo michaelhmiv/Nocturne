@@ -17,6 +17,7 @@ type PersistentSceneStoreLike = {
 
 type WorldInspectorStoreLike = {
   inspect(input: { scope: WorldScope; entityId: string }): Promise<unknown>;
+  inspectPlayer(input: { scope: WorldScope; entityId: string }): Promise<unknown>;
   inspectCertified(input: { token: string; entityId: string }): Promise<unknown>;
   repair(input: { scope: WorldScope; request: unknown }): Promise<unknown>;
 };
@@ -227,6 +228,40 @@ export async function registerPersistentWorldRoutes(
       }),
     );
   });
+
+  app.get("/v1/persistent-world/entities/:entityId", async (request, reply) =>
+    replyWithPersistentError(reply, async () => {
+      const scope = await scopeFor(request);
+      const actorId = scope.selectedCharacterId;
+      if (!actorId) {
+        throw new PersistentWorldRouteError(
+          "actor_required",
+          "Select a character before inspecting a persistent-world entity.",
+        );
+      }
+      const entityId = String((request.params as { entityId?: string }).entityId || "");
+      const scene = (await dependencies.scene.build({ scope, actorId })) as {
+        location?: { locationId?: string | null };
+        nearbyEntities?: Array<{ entityId?: string }>;
+        accompanyingEntities?: Array<{ entityId?: string }>;
+        knownEntities?: Array<{ entityId?: string }>;
+      };
+      const visibleEntityIds = new Set([
+        actorId,
+        scene.location?.locationId,
+        ...(scene.nearbyEntities || []).map((entity) => entity.entityId),
+        ...(scene.accompanyingEntities || []).map((entity) => entity.entityId),
+        ...(scene.knownEntities || []).map((entity) => entity.entityId),
+      ]);
+      if (!visibleEntityIds.has(entityId)) {
+        throw new PersistentWorldRouteError(
+          "forbidden",
+          "That entity is not visible in the selected character's current world view.",
+        );
+      }
+      return dependencies.inspector.inspectPlayer({ scope, entityId });
+    }),
+  );
 
   app.get("/v1/operator/world/entities/:entityId", async (request, reply) =>
     replyWithPersistentError(reply, async () => {

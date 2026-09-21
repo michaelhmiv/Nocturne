@@ -24,12 +24,7 @@ const supportedProtocolVersions = ["2025-06-18", "2025-03-26", "2024-11-05"];
 const authorizationWindowMs = 10 * 60 * 1000;
 const authorizationBlockMs = 15 * 60 * 1000;
 const maximumAuthorizationFailures = 5;
-const diagnosticToolNames = new Set([
-  "nocturne_health",
-  "get_travel_path",
-  "get_operator_dashboard",
-  "inspect_world_entity",
-]);
+const diagnosticToolNames = new Set(["nocturne_health"]);
 
 function log(event: string, details: Record<string, unknown> = {}) {
   console.log(JSON.stringify({ level: "info", service: "nocturne-mcp", event, ...details }));

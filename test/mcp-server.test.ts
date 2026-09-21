@@ -212,7 +212,7 @@ describe("Nocturne MCP service", () => {
     }
   });
 
-  it("exposes only gameplay tools and gameplay instructions in player mode", async () => {
+  it("exposes gameplay and scoped read tools in player mode", async () => {
     const { baseUrl } = await start(vi.fn<typeof fetch>(), "player");
     const tokens = await authorize(baseUrl);
 
@@ -236,15 +236,15 @@ describe("Nocturne MCP service", () => {
     expect(names).toContain("get_scene");
     expect(names).toContain("wait_for_dashboard_change");
     expect(names).not.toContain("nocturne_health");
-    expect(names).not.toContain("get_travel_path");
-    expect(names).not.toContain("get_operator_dashboard");
-    expect(names).not.toContain("inspect_world_entity");
+    expect(names).toContain("get_travel_path");
+    expect(names).toContain("get_operator_dashboard");
+    expect(names).toContain("inspect_world_entity");
 
     const hiddenCall = await rpc(baseUrl, tokens.access_token, {
       jsonrpc: "2.0",
       id: 12,
       method: "tools/call",
-      params: { name: "get_operator_dashboard", arguments: { actorId: crypto.randomUUID() } },
+      params: { name: "nocturne_health", arguments: {} },
     }).then((response) => response.json() as Promise<any>);
     expect(hiddenCall.error).toMatchObject({ code: -32602 });
   });

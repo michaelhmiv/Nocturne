@@ -409,7 +409,7 @@ export function createNocturneTools(config: McpConfig, fetchImpl: FetchLike = fe
     readTool(
       "get_travel_path",
       "Inspect travel path",
-      "Diagnostic read of the deterministic route engine between two authoritative location IDs. Ordinary travel should be expressed as natural language through submit_action.",
+      "Read the deterministic route engine between two authoritative location IDs visible to the linked account. Ordinary travel should still be expressed as natural language through submit_action.",
       {
         type: "object",
         properties: {
@@ -433,7 +433,7 @@ export function createNocturneTools(config: McpConfig, fetchImpl: FetchLike = fe
     readTool(
       "get_operator_dashboard",
       "Read diagnostic action trace",
-      "Diagnostic read of actions, plans, steps, schedules, events, and mutations for an actor. Use for troubleshooting or certification, not ordinary gameplay narration.",
+      "Read the linked account's scoped actions, plans, steps, schedules, events, and mutations for its selected character.",
       {
         type: "object",
         properties: {
@@ -455,7 +455,7 @@ export function createNocturneTools(config: McpConfig, fetchImpl: FetchLike = fe
     readTool(
       "inspect_world_entity",
       "Inspect authoritative world entity",
-      "Diagnostic inspection of one authoritative entity, including relationships, state, history, and active plan references.",
+      "Inspect one entity visible in the selected character's current world view, including relationships, state, history, and active plan references.",
       {
         type: "object",
         properties: { entityId: { type: "string", format: "uuid" } },
@@ -464,7 +464,7 @@ export function createNocturneTools(config: McpConfig, fetchImpl: FetchLike = fe
       },
       async (raw) =>
         api.request(
-          `/v1/operator/world/entities/${encodeURIComponent(requiredString(object(raw), "entityId", 100))}`,
+          `/v1/persistent-world/entities/${encodeURIComponent(requiredString(object(raw), "entityId", 100))}`,
         ),
     ),
   ];

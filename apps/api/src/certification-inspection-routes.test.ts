@@ -17,13 +17,14 @@ const scope: WorldScope = {
 async function setup() {
   const app = Fastify({ logger: false });
   const inspect = vi.fn().mockResolvedValue({ entityId, scope: "operator" });
+  const inspectPlayer = vi.fn().mockResolvedValue({ entityId, scope: "player" });
   const inspectCertified = vi.fn().mockResolvedValue({ entityId, scope: "certified" });
   const repair = vi.fn().mockResolvedValue({ status: "completed" });
   const resolveScope = vi.fn().mockResolvedValue(scope);
   await registerPersistentWorldRoutes(app, {
     actions: {} as PersistentWorldActionService,
     scene: { build: vi.fn() },
-    inspector: { inspect, inspectCertified, repair },
+    inspector: { inspect, inspectPlayer, inspectCertified, repair },
     resolveScope,
     isRuntimeEnabled: async () => true,
   });

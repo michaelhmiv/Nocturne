@@ -403,31 +403,25 @@ async function certifyPreflight(accessToken) {
 
   const listed = await rpc(accessToken, "tools/list", {});
   const names = new Set((listed.tools || []).map((tool) => tool.name));
-  // Public MCP must remain player-only. Diagnostic/repair privileges are
-  // NEVER a workaround for certification; unsupported inspection cases fail
-  // individually and remain visible in the final 15-case report.
+  // Normal OAuth exposes gameplay plus read-only tools scoped to the linked
+  // account's selected character. Health and repair diagnostics remain hidden.
   for (const name of [
     "create_character",
     "select_character",
     "rent_starter_residence",
     "get_scene",
     "get_dashboard",
-    "submit_action",
-  ]) {
-    assert.ok(names.has(name), `production certification requires player tool ${name}`);
-  }
-  for (const name of [
     "get_travel_path",
     "get_operator_dashboard",
     "inspect_world_entity",
-    "repair_world_entity",
+    "submit_action",
   ]) {
-    assert.ok(!names.has(name), `public player MCP must not expose diagnostic tool ${name}`);
+    assert.ok(names.has(name), `production certification requires scoped player tool ${name}`);
   }
+  assert.ok(!names.has("nocturne_health"), "public player MCP must not expose health diagnostics");
 
-  // Public /health is not an operator diagnostic MCP tool. Keep the worker,
-  // database, and migration diagnostics restricted and attest them separately
-  // in the isolated operator-scoped certification runner.
+  // Public /health is not an MCP gameplay tool. Keep worker, database, and
+  // migration diagnostics restricted and attest them separately.
   const health = await json(await request(`${mcpBaseUrl}/health`), "Public MCP HTTP health");
   assert.equal(health?.status, "ok");
   assert.equal(health?.service, "nocturne-mcp");
