@@ -194,6 +194,10 @@ jobs:
         run: |
           set -o pipefail
           pnpm --filter @nocturne/database exec vitest run test/certification-inspection.integration.test.ts 2>&1 | tee artifacts/certification-inspection.log
+      - name: Certify world-scoped legacy character reads and rental denial
+        run: |
+          set -o pipefail
+          pnpm --filter @nocturne/database exec vitest run test/world-scoped-character-controls.integration.test.ts 2>&1 | tee artifacts/world-scoped-character-controls.log
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
