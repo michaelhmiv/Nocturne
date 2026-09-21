@@ -31,13 +31,13 @@ export function assertPlayerSafeFactNarration(
   // A committed "not arrived" is evidence of travel still in progress, never
   // permission to turn the same event into a completed arrival. Strip only the
   // negated occurrence; a second affirmative arrival remains a violation.
-  const nonArrival = /\\b(?:not|never)\\s+(?:yet\\s+)?arrived\\b/i;
+  const nonArrival = /\b(?:not|never)\s+(?:yet\s+)?arrived\b/i;
   const arrivalClaim =
-    /\\b(?:arrive[sd]?|reach(?:es|ed)? the destination|steps? into the destination)\\b/i;
+    /\b(?:arrive[sd]?|reach(?:es|ed)? the destination|steps? into the destination)\b/i;
   if (
     nonArrival.test(evidence) &&
     arrivalClaim.test(
-      text.replace(/\\b(?:not|never)\\s+(?:yet\\s+)?arrived\\b/gi, "still en route"),
+      text.replace(/\b(?:not|never)\s+(?:yet\s+)?arrived\b/gi, "still en route"),
     )
   ) {
     throw new PlayerSafeFactNarrationError(
