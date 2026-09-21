@@ -264,6 +264,64 @@ try {
     assert.equal(hidden.status, 403, "Another player's dashboard was exposed.");
   }
 
+  // Fourth independent credential: an offline-bound certification principal
+  // must be routed to its isolated world and must not create public housing
+  // through historical /v1/characters or /v1/residences/starter/rent.
+  const certificationWorld = randomUUID();
+  const certificationShard = randomUUID();
+  const certificationRun = randomUUID();
+  const certificationUser = "story-ci-certification:" + runId;
+  const certificate = await agents.createToken({
+    userId: certificationUser,
+    label: "story-certification-isolated",
+    scopes: ["play", "character:read", "character:write", "action:submit"],
+  });
+  const certificationPlayer = { token: certificate.token };
+  await query(
+    "INSERT INTO game.worlds(world_id,slug,name,metadata) VALUES ($1,$2,'CI certificate world',$3::jsonb)",
+    [
+      certificationWorld,
+      "ci-certificate-" + certificationRun,
+      JSON.stringify({ isolatedCertification: true }),
+    ],
+  );
+  await query(
+    "INSERT INTO game.world_shards(shard_id,world_id,slug,name) VALUES ($1,$2,'primary','Primary')",
+    [certificationShard, certificationWorld],
+  );
+  await query(
+    "INSERT INTO game.certification_runs(run_id,world_id,shard_id,expires_at) VALUES ($1,$2,$3,now()+interval '30 minutes')",
+    [certificationRun, certificationWorld, certificationShard],
+  );
+  await query(
+    "INSERT INTO game.certification_players(run_id,user_id,world_id,shard_id) VALUES ($1,$2,$3,$4)",
+    [certificationRun, certificationUser, certificationWorld, certificationShard],
+  );
+  await query(
+    "INSERT INTO game.world_memberships(world_id,user_id,role,status) VALUES ($1,$2,'player','active')",
+    [certificationWorld, certificationUser],
+  );
+  const blockedCreate = await api(
+    certificationPlayer,
+    "/v1/characters",
+    "POST",
+    { name: "Must Not Spawn in Production", conceptSummary: "Isolated certification" },
+    "ci-certification-blocked-create:" + runId,
+  );
+  assert.equal(blockedCreate.status, 403, "Certification account wrote shared-world character.");
+  const blockedList = await api(certificationPlayer, "/v1/characters");
+  assert.equal(blockedList.status, 403, "Certification account listed public-world characters.");
+  const publicMembership = await query(
+    "SELECT 1 FROM game.world_memberships WHERE user_id=$1 AND world_id=$2",
+    [certificationUser, DEFAULT_WORLD_ID],
+  );
+  assert.equal(publicMembership.length, 0, "Certification account joined public world.");
+  const publicCharacters = await query(
+    "SELECT 1 FROM game.player_characters WHERE user_id=$1 AND world_id=$2",
+    [certificationUser, DEFAULT_WORLD_ID],
+  );
+  assert.equal(publicCharacters.length, 0, "Certification account created public actor.");
+
   const report = {
     status: "passed",
     stage: "real-api-postgres-fake-provider",
