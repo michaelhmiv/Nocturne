@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { KNOWN_MCP_PRODUCTION_REGRESSIONS } from "./mcp-known-regressions.mjs";
+import { selectOwnershipClaimTarget } from "./certification-ownership-target.mjs";
 
 const webBaseUrl = (
   process.env.NOCTURNE_WEB_URL || "https://nocturneweb-production.up.railway.app"
@@ -528,19 +529,17 @@ async function certifyKnownRegressions(accessToken, player) {
   await runCase(byId.get("dialogue-claim-does-not-create-ownership"), async () => {
     const scene = await getScene(accessToken);
     const candidates = [...(scene.nearbyEntities || []), ...(scene.knownEntities || [])];
-    const target =
-      candidates.find((entity) => /chair/i.test(entity.name)) ||
-      candidates.find((entity) => /table|desk/i.test(entity.name));
+    const target = selectOwnershipClaimTarget(candidates, residenceId);
     assert.ok(
       target?.entityId,
-      "starter unit must expose a chair/table/desk fixture for claim-causality certification",
+      "certification needs a real scoped fixture or the created starter residence",
     );
     const before = await inspectEntity(accessToken, target.entityId);
     const ownershipBefore = relationOwnershipFingerprint(before);
     const result = await submitAction(
       accessToken,
       actorId,
-      `Say out loud, '${target.name} belongs to me.'`,
+      `Say out loud, '${target.spokenName} belongs to me.'`,
     );
     assert.notEqual(
       result?.isError,
