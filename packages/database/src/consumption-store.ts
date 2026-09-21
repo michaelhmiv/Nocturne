@@ -268,7 +268,8 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
 
       if (
         input.analysis.selection.sourceType !== "none" &&
-        input.analysis.classification.consumable
+        input.analysis.classification.consumable &&
+        input.analysis.consumeUnits > 0
       ) {
         if (!sourceId) {
           throw new ConsumptionStoreError("invalid_analysis", "Consumption source is missing.");
@@ -409,6 +410,11 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
         }
       }
 
+      const actuallyConsumed =
+        input.analysis.selection.sourceType !== "none" &&
+        input.analysis.classification.consumable &&
+        input.analysis.consumeUnits > 0;
+      const effectiveOutcomeGrade = actuallyConsumed ? input.mechanics.outcomeGrade : "failure";
       let actorState = object(actor.state);
       let conditionValue = numeric(actor.condition, 100);
       const resources = { ...object(actorState.resources) };
@@ -423,7 +429,6 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
           );
         }
       }
-      actorState = { ...actorState, resources };
       const activeConditions = { ...object(actorState.activeConditions) };
       for (const effect of input.mechanics.conditions) {
         activeConditions[effect.key] = {
@@ -434,14 +439,16 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
           sourceEventId: eventId,
         };
       }
-      actorState.activeConditions = activeConditions;
-      await sql`
-        UPDATE game.entity_instances
-        SET state = ${json(actorState)}, condition = ${conditionValue}, updated_at = now()
-        WHERE instance_id = ${input.actorId}
-          AND world_id = ${DEFAULT_WORLD_ID}
-          AND shard_id = ${DEFAULT_SHARD_ID}
-      `;
+      if (actuallyConsumed && (input.mechanics.resourceDeltas.length || input.mechanics.conditions.length)) {
+        actorState = { ...actorState, resources, activeConditions };
+        await sql`
+          UPDATE game.entity_instances
+          SET state = ${json(actorState)}, condition = ${conditionValue}, updated_at = now()
+          WHERE instance_id = ${input.actorId}
+            AND world_id = ${DEFAULT_WORLD_ID}
+            AND shard_id = ${DEFAULT_SHARD_ID}
+        `;
+      }
 
       const consumption: ConsumptionResult | undefined =
         input.analysis.selection.sourceType !== "none" && sourceId
@@ -473,11 +480,11 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
 
       const involved = [input.actorId, sourceId, concreteEntityId].filter(Boolean);
       const eventPayload = {
-        outcomeGrade: input.mechanics.outcomeGrade,
-        margin: input.mechanics.outcomeGrade === "failure" ? -1 : 1,
+        outcomeGrade: effectiveOutcomeGrade,
+        margin: effectiveOutcomeGrade === "failure" ? -1 : 1,
         operations: [],
         informationGained: [],
-        costs: consumption
+        costs: consumption && consumption.unitsConsumed > 0
           ? [{ resource: "quantity" as const, amount: consumption.unitsConsumed }]
           : [],
         consumption,
@@ -499,7 +506,7 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
           proposed_operations, narrative_constraints, authoritative_seed,
           actor_score, target_score
         ) VALUES (
-          ${resolutionId}, ${intentId}, ${eventId}, ${input.mechanics.outcomeGrade},
+          ${resolutionId}, ${intentId}, ${eventId}, ${effectiveOutcomeGrade},
           ${json(input.mechanics.calculationTrace)}, '[]'::jsonb,
           ${json([
             "Use the selected substance's human-readable name.",
@@ -544,8 +551,8 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
         intentId,
         resolutionId,
         rawText: input.rawText,
-        outcomeGrade: input.mechanics.outcomeGrade,
-        margin: input.mechanics.outcomeGrade === "failure" ? -1 : 1,
+        outcomeGrade: effectiveOutcomeGrade,
+        margin: effectiveOutcomeGrade === "failure" ? -1 : 1,
         narration: "The consumption event has been committed and awaits narration.",
         calculationTrace: input.mechanics.calculationTrace,
         informationGained: [],
