@@ -197,8 +197,8 @@ try {
     player.residenceId = rent.residenceId;
     assert.ok(player.residenceId, "Starter apartment missing.");
     const dashboard = await ok(player, "/v1/persistent-world/dashboard");
-    assert.equal(dashboard.dashboard.character.characterId, player.actorId);
-    assert.equal(dashboard.dashboard.character.residenceId, player.residenceId);
+    assert.equal((dashboard.dashboard || dashboard).character.characterId, player.actorId);
+    assert.equal((dashboard.dashboard || dashboard).character.residenceId, player.residenceId);
   }
 
   for (const property of ["token", "userId", "actorId", "residenceId"]) {
@@ -258,7 +258,7 @@ try {
 
   for (const player of players) {
     const dashboard = await ok(player, "/v1/persistent-world/dashboard");
-    assert.equal(dashboard.dashboard.character.characterId, player.actorId);
+    assert.equal((dashboard.dashboard || dashboard).character.characterId, player.actorId);
     const other = players.find((candidate) => candidate.actorId !== player.actorId);
     const hidden = await api(player, "/v1/persistent-world/dashboard?actorId=" + other.actorId);
     assert.equal(hidden.status, 403, "Another player's dashboard was exposed.");
