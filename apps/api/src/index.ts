@@ -20,7 +20,7 @@ const app = await buildApp().catch((error: unknown) => {
 });
 await registerBuildInfoRoute(app);
 await registerOperationalHealthRoute(app);
-await registerPersistentWorldRuntimeFromEnv(app);
+const scheduledContinuation = await registerPersistentWorldRuntimeFromEnv(app);
 await registerAiJobRoutesFromEnv(app);
 await registerSceneRoutesFromEnv(app);
 await registerInventionCatalogueRoutes(app);
