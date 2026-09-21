@@ -248,6 +248,12 @@ async function runBeat(beat, index) {
   if (!narration) observedDefects.push("narration_missing");
   if (
     beat.clock === "real" &&
+    ["waiting", "waiting_for_time"].includes(record?.status)
+  ) {
+    observedDefects.push("real_timed_action_not_terminal_after_180_seconds");
+  }
+  if (
+    beat.clock === "real" &&
     record?.status === "completed" &&
     elapsedMs < 120000 &&
     /\btwo minutes\b/i.test(beat.text)
@@ -573,6 +579,8 @@ try {
     !crossAccountDenied ||
     !revokedDenied ||
     turns.length !== beats.length ||
+    // A diagnostic with observed failures is RED, never a passing story run.
+    turns.some((t) => t.verdict === "observed_failure") ||
     turns.some(
       (t) =>
         t.verdict === "harness_failure" ||
