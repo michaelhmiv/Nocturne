@@ -191,6 +191,7 @@ export async function registerPersistentWorldRoutes(
             scope,
             actorId,
             command: body.command,
+            clarificationForRequestId: body.clarificationForRequestId,
             idempotencyKey,
           });
           const candidateKind =
