@@ -53,7 +53,8 @@ export type WorldActionHistoryRecord = {
 
 export class WorldActionRequestStoreError extends Error {
   constructor(
-    readonly code: "idempotency_conflict" | "request_not_found" | "invalid_transition",
+    readonly code:
+      "idempotency_conflict" | "request_not_found" | "invalid_transition",
     message: string,
   ) {
     super(message);
@@ -68,14 +69,44 @@ const terminal = new Set<WorldActionRequestStatus>([
   "superseded",
 ]);
 
-const legalTransitions: Record<WorldActionRequestStatus, Set<WorldActionRequestStatus>> = {
+const legalTransitions: Record<
+  WorldActionRequestStatus,
+  Set<WorldActionRequestStatus>
+> = {
   reserved: new Set(["compiling_context", "cancelled", "failed"]),
   compiling_context: new Set(["resolving_references", "failed", "cancelled"]),
-  resolving_references: new Set(["planning", "waiting_for_clarification", "failed", "cancelled"]),
-  planning: new Set(["executing", "waiting_for_clarification", "failed", "cancelled"]),
-  waiting_for_clarification: new Set(["planning", "cancelled", "superseded", "failed"]),
-  executing: new Set(["waiting", "completed", "failed", "cancelled", "superseded"]),
-  waiting: new Set(["executing", "completed", "failed", "cancelled", "superseded"]),
+  resolving_references: new Set([
+    "planning",
+    "waiting_for_clarification",
+    "failed",
+    "cancelled",
+  ]),
+  planning: new Set([
+    "executing",
+    "waiting_for_clarification",
+    "failed",
+    "cancelled",
+  ]),
+  waiting_for_clarification: new Set([
+    "planning",
+    "cancelled",
+    "superseded",
+    "failed",
+  ]),
+  executing: new Set([
+    "waiting",
+    "completed",
+    "failed",
+    "cancelled",
+    "superseded",
+  ]),
+  waiting: new Set([
+    "executing",
+    "completed",
+    "failed",
+    "cancelled",
+    "superseded",
+  ]),
   completed: new Set(),
   failed: new Set(),
   cancelled: new Set(),
@@ -89,14 +120,19 @@ function iso(value: Date | string | null | undefined) {
   return value ? new Date(value).toISOString() : null;
 }
 
-export function createWorldActionRequestStore(database: ReturnType<typeof createDatabase>) {
+export function createWorldActionRequestStore(
+  database: ReturnType<typeof createDatabase>,
+) {
   async function reserve(input: {
     scope: WorldScope;
     actorId: string;
     command: string;
     idempotencyKey: string;
   }): Promise<ReservedWorldActionRequest> {
-    const hash = requestHash({ actorId: input.actorId, command: input.command });
+    const hash = requestHash({
+      actorId: input.actorId,
+      command: input.command,
+    });
     const requestId = randomUUID();
     const rows = await database.client<
       {
@@ -122,7 +158,11 @@ export function createWorldActionRequestStore(database: ReturnType<typeof create
                 (xmax = 0) AS inserted
     `;
     const row = rows[0];
-    if (!row) throw new WorldActionRequestStoreError("request_not_found", "Reservation failed.");
+    if (!row)
+      throw new WorldActionRequestStoreError(
+        "request_not_found",
+        "Reservation failed.",
+      );
     if (row.request_hash !== hash) {
       throw new WorldActionRequestStoreError(
         "idempotency_conflict",
@@ -154,7 +194,10 @@ export function createWorldActionRequestStore(database: ReturnType<typeof create
       ? input.expectedStatus
       : [input.expectedStatus];
     for (const current of expected) {
-      if (!legalTransitions[current].has(input.status) && current !== input.status) {
+      if (
+        !legalTransitions[current].has(input.status) &&
+        current !== input.status
+      ) {
         throw new WorldActionRequestStoreError(
           "invalid_transition",
           `World action cannot transition from ${current} to ${input.status}.`,
@@ -217,7 +260,10 @@ export function createWorldActionRequestStore(database: ReturnType<typeof create
     `;
   }
 
-  async function get(input: { scope: Pick<WorldScope, "worldId">; requestId: string }) {
+  async function get(input: {
+    scope: Pick<WorldScope, "worldId">;
+    requestId: string;
+  }) {
     const rows = await database.client<
       {
         request_id: string;
@@ -231,7 +277,11 @@ export function createWorldActionRequestStore(database: ReturnType<typeof create
       FROM game.world_action_requests
       WHERE world_id = ${input.scope.worldId} AND request_id = ${input.requestId}
     `;
-    if (!rows[0]) throw new WorldActionRequestStoreError("request_not_found", "Request not found.");
+    if (!rows[0])
+      throw new WorldActionRequestStoreError(
+        "request_not_found",
+        "Request not found.",
+      );
     return rows[0];
   }
 
@@ -262,7 +312,10 @@ export function createWorldActionRequestStore(database: ReturnType<typeof create
         AND request_id = ${input.requestId}
     `;
     if (!rows[0]) {
-      throw new WorldActionRequestStoreError("request_not_found", "Clarification request not found.");
+      throw new WorldActionRequestStoreError(
+        "request_not_found",
+        "Clarification request not found.",
+      );
     }
     return rows[0];
   }
@@ -359,4 +412,6 @@ export function createWorldActionRequestStore(database: ReturnType<typeof create
   return { reserve, transition, stage, get, readForResume, listForActor };
 }
 
-export type WorldActionRequestStore = ReturnType<typeof createWorldActionRequestStore>;
+export type WorldActionRequestStore = ReturnType<
+  typeof createWorldActionRequestStore
+>;
