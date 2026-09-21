@@ -281,6 +281,7 @@ async function evaluateDecision(model, command, state) {
 
   const output = await request("/chat/completions", {
     model: model.id,
+    reasoning: { enabled: false },
     max_tokens: 350,
     response_format: {
       type: "json_schema",

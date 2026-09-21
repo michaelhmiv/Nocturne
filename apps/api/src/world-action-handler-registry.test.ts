@@ -56,15 +56,18 @@ function collector() {
 describe("world action handler telemetry", () => {
   it("logs resolution selection, completion, and committed event for every synchronous handler", async () => {
     const { events, writer } = collector();
+    const completed = async () => ({
+      state: "completed" as const,
+      outcomeGrade: "complete_success",
+      eventId: randomUUID(),
+      receiptId: randomUUID(),
+      narration: "done",
+    });
     const handlers = createWorldActionHandlerRegistry({
       telemetry: writer,
-      executeExistingAction: async () => ({
-        state: "completed",
-        outcomeGrade: "complete_success",
-        eventId: randomUUID(),
-        receiptId: randomUUID(),
-        narration: "done",
-      }),
+      executeExistingAction: completed,
+      executeSemanticAction: completed,
+      executeRoutineAction: completed,
     });
 
     for (const kind of [
@@ -91,6 +94,79 @@ describe("world action handler telemetry", () => {
         actionEvents.find((event) => event.eventName === "resolution_mode_selected")?.details,
       ).toMatchObject({ meaningfulUncertainty: expect.any(Boolean) });
     }
+  });
+
+  it("routes low-risk consumption to authoritative consumption mechanics, not routine bookkeeping", async () => {
+    const existingCalls: string[] = [];
+    const routineCalls: string[] = [];
+    const handlers = createWorldActionHandlerRegistry({
+      executeExistingAction: async ({ kind }) => {
+        existingCalls.push(kind);
+        return {
+          state: "completed",
+          outcomeGrade: "complete_success",
+          eventId: randomUUID(),
+          receiptId: randomUUID(),
+          narration: "consumed",
+        };
+      },
+      executeRoutineAction: async () => {
+        routineCalls.push("routine");
+        return {
+          state: "completed",
+          outcomeGrade: "complete_success",
+          eventId: randomUUID(),
+          receiptId: randomUUID(),
+          narration: "routine",
+        };
+      },
+      executeSemanticAction: async () => ({
+        state: "completed",
+        outcomeGrade: "complete_success",
+        eventId: randomUUID(),
+        receiptId: randomUUID(),
+        narration: "semantic",
+      }),
+    });
+
+    const consumeInput = input("consume");
+    consumeInput.step.intentPayload.rawText = "Drink the water.";
+    consumeInput.step.intentPayload.actionType = "consume";
+
+    const result = await handlers.consume!(consumeInput);
+    expect(result.state).toBe("completed");
+    expect(existingCalls).toEqual(["consume"]);
+    expect(routineCalls).toEqual([]);
+  });
+
+  it("never falls back to the legacy executor for non-consume actions", async () => {
+    const existingCalls: string[] = [];
+    const handlers = createWorldActionHandlerRegistry({
+      executeExistingAction: async ({ kind }) => {
+        existingCalls.push(kind);
+        return {
+          state: "completed",
+          outcomeGrade: "complete_success",
+          eventId: randomUUID(),
+          narration: "legacy",
+        };
+      },
+      executeSemanticAction: async () => ({
+        state: "completed",
+        outcomeGrade: "complete_success",
+        eventId: randomUUID(),
+        receiptId: randomUUID(),
+        narration: "semantic",
+      }),
+    });
+
+    const interactInput = input("interact");
+    interactInput.step.intentPayload.rawText = "Open the red door.";
+    interactInput.step.intentPayload.actionType = "interact";
+    const result = await handlers.interact!(interactInput);
+
+    expect(result.state).toBe("completed");
+    expect(existingCalls).toEqual([]);
   });
 
   it("logs scheduled movement as waiting rather than failure", async () => {

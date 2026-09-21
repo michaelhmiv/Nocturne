@@ -196,53 +196,49 @@ export function createReferenceResolutionStore(database: ReturnType<typeof creat
             relationshipLabels: candidate.relationshipLabels,
           };
         });
-        try {
-          await sql`
-            INSERT INTO game.entity_reference_resolutions (
-              resolution_id, world_id, shard_id, user_id, viewpoint_instance_id,
-              command_hash, command_excerpt, mention_order, mention_text,
-              mention_kind, status, selected_entity_id, candidates, confidence,
-              supporting_fact_ids, requires_clarification, clarification_prompt,
-              policy_version
-            ) VALUES (
-              ${resolutionId}, ${input.scope.worldId}, ${input.scope.shardId},
-              ${input.scope.userId}, ${input.viewpointId}, ${hash},
-              ${input.command.slice(0, 500)}, ${mention.order}, ${mention.mentionText},
-              ${mention.mentionKind}, ${mention.status},
-              ${mention.selectedEntityId || null}, ${json(candidateRecords)}::jsonb,
-              ${mention.confidenceBasisPoints / 10_000},
-              ${json(mention.supportingFactIds)}::jsonb,
-              ${mention.requiresClarification}, ${mention.clarificationPrompt || null},
-              ${REFERENCE_RESOLUTION_POLICY_VERSION}
-            )
-          `;
-        } catch (error) {
-          if (
-            typeof error === "object" &&
-            error !== null &&
-            "code" in error &&
-            error.code === "23505"
-          ) {
-            const existing = await sql<{ resolution_id: string }[]>`
-              SELECT resolution_id
-              FROM game.entity_reference_resolutions
-              WHERE world_id = ${input.scope.worldId}
-                AND command_hash = ${hash}
-                AND viewpoint_instance_id = ${input.viewpointId}
-                AND mention_order = ${mention.order}
-            `;
-            if (existing[0]) {
-              resolutionIds.push(existing[0].resolution_id);
-              continue;
-            }
-            throw new ReferenceResolutionStoreError(
-              "audit_conflict",
-              "Reference resolution audit conflicted.",
-            );
-          }
-          throw error;
+        const inserted = await sql<{ resolution_id: string }[]>`
+          INSERT INTO game.entity_reference_resolutions (
+            resolution_id, world_id, shard_id, user_id, viewpoint_instance_id,
+            command_hash, command_excerpt, mention_order, mention_text,
+            mention_kind, status, selected_entity_id, candidates, confidence,
+            supporting_fact_ids, requires_clarification, clarification_prompt,
+            policy_version
+          ) VALUES (
+            ${resolutionId}, ${input.scope.worldId}, ${input.scope.shardId},
+            ${input.scope.userId}, ${input.viewpointId}, ${hash},
+            ${input.command.slice(0, 500)}, ${mention.order}, ${mention.mentionText},
+            ${mention.mentionKind}, ${mention.status},
+            ${mention.selectedEntityId || null}, ${json(candidateRecords)}::jsonb,
+            ${mention.confidenceBasisPoints / 10_000},
+            ${json(mention.supportingFactIds)}::jsonb,
+            ${mention.requiresClarification}, ${mention.clarificationPrompt || null},
+            ${REFERENCE_RESOLUTION_POLICY_VERSION}
+          )
+          ON CONFLICT (world_id, command_hash, viewpoint_instance_id, mention_order)
+          DO NOTHING
+          RETURNING resolution_id
+        `;
+        if (inserted[0]) {
+          resolutionIds.push(inserted[0].resolution_id);
+          continue;
         }
-        resolutionIds.push(resolutionId);
+
+        const existing = await sql<{ resolution_id: string }[]>`
+          SELECT resolution_id
+          FROM game.entity_reference_resolutions
+          WHERE world_id = ${input.scope.worldId}
+            AND command_hash = ${hash}
+            AND viewpoint_instance_id = ${input.viewpointId}
+            AND mention_order = ${mention.order}
+        `;
+        if (existing[0]) {
+          resolutionIds.push(existing[0].resolution_id);
+          continue;
+        }
+        throw new ReferenceResolutionStoreError(
+          "audit_conflict",
+          "Reference resolution audit conflicted.",
+        );
       }
       return { commandHash: hash, resolutionIds };
     });

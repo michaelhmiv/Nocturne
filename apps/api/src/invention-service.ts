@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
-  AiProviderClient,
   CONTENT_NORMALIZATION_POLICY_VERSION,
-  DEEPSEEK_FLASH_MODEL,
+  createAiProviderClientFromEnv,
+  resolveAiProviderConfigFromEnv,
   deterministicSurveillanceFallback,
   normalizeGeneratedContent,
 } from "@nocturne/ai-gm";
@@ -22,10 +22,6 @@ import { creationTimeMultiplier, type SkillName } from "@nocturne/rules-engine";
 
 function hash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
-}
-
-function requestedModel(): string {
-  return DEEPSEEK_FLASH_MODEL;
 }
 
 /** Rules-backed craft difficulty derived from the physical domain of the concept. */
@@ -51,9 +47,10 @@ function estimateCraftGating(rawConcept: string): {
 }
 
 export function createInventionService(store: InventionStore, environment = process.env) {
-  const client = new AiProviderClient({
-    deepseekApiKey: environment.DEEPSEEK_API_KEY,
-  });
+  const providerConfiguration = resolveAiProviderConfigFromEnv(environment);
+  const client = createAiProviderClientFromEnv(environment);
+  const requestedModel = providerConfiguration.model;
+  const aiConfigured = Boolean(providerConfiguration.apiKey);
 
   async function normalize(userId: string, rawInput: unknown): Promise<InventionSummary> {
     const input = NormalizeContentRequestSchema.parse(rawInput);
@@ -66,16 +63,19 @@ export function createInventionService(store: InventionStore, environment = proc
     });
     const runId = await store.startAiRun({
       task: "normalize_content",
-      requestedModel: requestedModel(),
+      requestedModel,
       policyVersion: CONTENT_NORMALIZATION_POLICY_VERSION,
       inputHash: hash(input),
-      metadata: { requestId, characterId: input.characterId, provider: "deepseek" },
+      metadata: {
+        requestId,
+        characterId: input.characterId,
+        provider: providerConfiguration.provider,
+      },
     });
     try {
       let envelope: NormalizedContentEnvelope;
       let actualModel: string;
       let providerRequestId: string | undefined;
-      const aiConfigured = Boolean(environment.DEEPSEEK_API_KEY);
       if (!aiConfigured && environment.NOCTURNE_ALLOW_DETERMINISTIC_AI_FALLBACK === "true") {
         envelope = deterministicSurveillanceFallback(input);
         actualModel = "deterministic-development-fallback";

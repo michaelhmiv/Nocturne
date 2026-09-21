@@ -308,25 +308,41 @@ async function ensureNoContainmentCycle(
     throw new UniversalOperationError("containment_cycle", "Entity cannot contain itself.");
   }
   const rows = await sql`
-    WITH RECURSIVE descendants(instance_id) AS (
-      SELECT instance_id
-      FROM game.entity_instances
-      WHERE world_id = ${input.scope.worldId}
-        AND shard_id = ${input.scope.shardId}
-        AND location_id = ${entityId}
-      UNION
-      SELECT child.instance_id
+    WITH RECURSIVE containment_edges(child_id, parent_id) AS (
+      SELECT child.instance_id, child.location_id
       FROM game.entity_instances child
-      JOIN descendants parent ON child.location_id = parent.instance_id
       WHERE child.world_id = ${input.scope.worldId}
         AND child.shard_id = ${input.scope.shardId}
+        AND child.location_id IS NOT NULL
+
+      UNION
+
+      SELECT relation.source_instance_id, relation.target_instance_id
+      FROM game.entity_relations relation
+      JOIN game.entity_instances child
+        ON child.instance_id = relation.source_instance_id
+       AND child.world_id = relation.world_id
+      WHERE relation.world_id = ${input.scope.worldId}
+        AND child.shard_id = ${input.scope.shardId}
+        AND relation.relation_type = 'contained_in'
+    ),
+    descendants(instance_id) AS (
+      SELECT edge.child_id
+      FROM containment_edges edge
+      WHERE edge.parent_id = ${entityId}
+
+      UNION
+
+      SELECT edge.child_id
+      FROM containment_edges edge
+      JOIN descendants parent ON edge.parent_id = parent.instance_id
     )
     SELECT 1 FROM descendants WHERE instance_id = ${locationId} LIMIT 1
   `;
   if (rows[0]) {
     throw new UniversalOperationError(
       "containment_cycle",
-      "Movement would create a containment cycle.",
+      "Containment would create a recursive cycle.",
     );
   }
 }
@@ -859,6 +875,18 @@ export function createUniversalOperationExecutor(
                   "invalid_operation",
                   "Entity cannot hold this relation to itself.",
                 );
+              }
+              if (operation.relationType === "contained_in") {
+                await ensureNoContainmentCycle(sql, input, sourceId, targetId);
+              }
+              if (operation.relationType === "contained_in") {
+                await sql`
+                  DELETE FROM game.entity_relations
+                  WHERE world_id = ${input.scope.worldId}
+                    AND source_instance_id = ${sourceId}
+                    AND relation_type = 'contained_in'
+                    AND target_instance_id <> ${targetId}
+                `;
               }
               const relationRows = await sql<{ relation_id: string }[]>`
                 INSERT INTO game.entity_relations (

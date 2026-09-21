@@ -213,6 +213,55 @@ export function createRelevanceContextStore(database: ReturnType<typeof createDa
     }
 
     if (viewpoint.location_id) {
+      const routeNeighbors = await database.client<{ instance_id: string; depth: number }[]>`
+        WITH RECURSIVE route_neighborhood(instance_id, depth, path) AS (
+          SELECT ${viewpoint.location_id}::uuid, 0, ARRAY[${viewpoint.location_id}::uuid]
+          UNION ALL
+          SELECT
+            CASE
+              WHEN route.source_instance_id = current.instance_id
+                THEN route.target_instance_id
+              ELSE route.source_instance_id
+            END,
+            current.depth + 1,
+            current.path || CASE
+              WHEN route.source_instance_id = current.instance_id
+                THEN route.target_instance_id
+              ELSE route.source_instance_id
+            END
+          FROM route_neighborhood current
+          JOIN game.entity_relations route
+            ON route.world_id = ${input.scope.worldId}
+           AND (route.source_instance_id = current.instance_id
+             OR route.target_instance_id = current.instance_id)
+           AND route.relation_type IN ('adjacent_to', 'accessible_via')
+           AND COALESCE(route.parameters->>'visibility', 'player_known') <> 'hidden'
+          WHERE current.depth < 4
+            AND NOT (
+              CASE
+                WHEN route.source_instance_id = current.instance_id
+                  THEN route.target_instance_id
+                ELSE route.source_instance_id
+              END
+            ) = ANY(current.path)
+        )
+        SELECT DISTINCT ON (instance_id) instance_id, depth
+        FROM route_neighborhood
+        WHERE depth > 0
+        ORDER BY instance_id, depth
+      `;
+      for (const route of routeNeighbors) {
+        addCandidate(
+          candidates,
+          route.instance_id,
+          Math.max(10_000, 19_000 - route.depth * 1_500),
+          "route_neighbor",
+          true,
+        );
+      }
+    }
+
+    if (viewpoint.location_id) {
       const nearby = await database.client<
         {
           instance_id: string;

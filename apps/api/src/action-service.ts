@@ -1,11 +1,13 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import {
   ACTION_PARSE_POLICY_VERSION,
-  CONSUMABLE_ANALYSIS_POLICY_VERSION,
-  DEEPSEEK_FLASH_MODEL,
+  CONSUMABLE_DECISION_POLICY_VERSION,
   EVENT_NARRATION_POLICY_VERSION,
-  AiProviderClient,
-  analyzeConsumable,
+  createAiDecisionClientFromEnv,
+  createAiProviderClientFromEnv,
+  resolveAiDecisionConfigFromEnv,
+  resolveAiProviderConfigFromEnv,
+  decideConsumableFastPath,
   deterministicActionFallback,
   deterministicNarrationFallback,
   narrateCommittedEvent,
@@ -14,6 +16,7 @@ import {
 import {
   SubmitActionRequestSchema,
   type ActionExecutionResponse,
+  type ConsumableAnalysis,
   type OutcomeGrade,
   type ParsedActionEnvelope,
 } from "@nocturne/contracts";
@@ -77,15 +80,20 @@ export function createActionService(
     return { path: [from, to], totalTimeSeconds: Math.max(1, Math.round(60 / speed)) };
   };
 
-  const client = new AiProviderClient({
-    deepseekApiKey: environment.DEEPSEEK_API_KEY,
-  });
-  const aiConfigured = Boolean(environment.DEEPSEEK_API_KEY);
+  const providerConfiguration = resolveAiProviderConfigFromEnv(environment);
+  const decisionConfiguration = resolveAiDecisionConfigFromEnv(environment);
+  const client = createAiProviderClientFromEnv(environment);
+  const decisionClient = createAiDecisionClientFromEnv(environment);
+  const aiConfigured = Boolean(providerConfiguration.apiKey);
+  const decisionConfigured = Boolean(decisionConfiguration.apiKey);
+  const requestedModel = providerConfiguration.model;
+  const narrationModel = providerConfiguration.narrationModel;
 
   async function execute(
     userId: string,
     rawInput: unknown,
     idempotencyKey: string = randomUUID(),
+    hints: { actionType?: string } = {},
   ): Promise<ActionExecutionResponse> {
     const prior = await store.findByIdempotency(userId, idempotencyKey);
     if (prior) return prior;
@@ -99,49 +107,63 @@ export function createActionService(
     );
 
     let parsed: ParsedActionEnvelope;
-    const parseRun = await store.startAiRun({
-      task: "parse_intent",
-      authority: "authoritative",
-      requestedModel: DEEPSEEK_FLASH_MODEL,
-      policyVersion: ACTION_PARSE_POLICY_VERSION,
-      inputHash: hash({ input, context: context.publicContext }),
-      metadata: { actorId: input.actorId, idempotencyKey },
-    });
-
-    try {
-      if (
-        !environment.DEEPSEEK_API_KEY &&
-        environment.NOCTURNE_ALLOW_DETERMINISTIC_AI_FALLBACK === "true"
-      ) {
-        parsed = deterministicActionFallback(
-          input,
-          context.method.definitionId,
-          context.targetLocation.id,
-        );
-        await store.finishAiRun(
-          parseRun,
-          "deterministic-development-fallback",
-          undefined,
-          hash(parsed),
-        );
-      } else {
-        const result = await parseActionWithAi(client, input, context.publicContext);
-        parsed = result.data;
-        await store.finishAiRun(
-          parseRun,
-          result.actualModel,
-          result.providerRequestId,
-          hash(parsed),
-        );
-      }
-    } catch (error) {
-      await store.failAiRun(
-        parseRun,
-        error instanceof Error && "code" in error
-          ? String((error as { code: unknown }).code)
-          : "parse_failed",
+    if (hints.actionType) {
+      const deterministic = deterministicActionFallback(
+        input,
+        context.method.definitionId,
+        context.targetLocation.id,
       );
-      throw error;
+      parsed = {
+        ...deterministic,
+        intent: {
+          ...deterministic.intent,
+          actionType: hints.actionType,
+          assumptions: [],
+          confidence: 1,
+        },
+      };
+    } else {
+      const parseRun = await store.startAiRun({
+        task: "parse_intent",
+        authority: "authoritative",
+        requestedModel,
+        policyVersion: ACTION_PARSE_POLICY_VERSION,
+        inputHash: hash({ input, context: context.publicContext }),
+        metadata: { actorId: input.actorId, idempotencyKey },
+      });
+
+      try {
+        if (!aiConfigured && environment.NOCTURNE_ALLOW_DETERMINISTIC_AI_FALLBACK === "true") {
+          parsed = deterministicActionFallback(
+            input,
+            context.method.definitionId,
+            context.targetLocation.id,
+          );
+          await store.finishAiRun(
+            parseRun,
+            "deterministic-development-fallback",
+            undefined,
+            hash(parsed),
+          );
+        } else {
+          const result = await parseActionWithAi(client, input, context.publicContext);
+          parsed = result.data;
+          await store.finishAiRun(
+            parseRun,
+            result.actualModel,
+            result.providerRequestId,
+            hash(parsed),
+          );
+        }
+      } catch (error) {
+        await store.failAiRun(
+          parseRun,
+          error instanceof Error && "code" in error
+            ? String((error as { code: unknown }).code)
+            : "parse_failed",
+        );
+        throw error;
+      }
     }
 
     if (parsed.intent.actorId !== input.actorId) {
@@ -162,8 +184,8 @@ export function createActionService(
       if (!consumptionStore) {
         throw new Error("The authoritative consumption store is not configured.");
       }
-      if (!aiConfigured) {
-        throw new Error("An AI provider is required to resolve open-ended consumable semantics.");
+      if (!decisionConfigured) {
+        throw new Error("Jev is required to resolve consumable semantics.");
       }
 
       const consumptionContext = await consumptionStore.buildAnalysisRequest({
@@ -172,35 +194,44 @@ export function createActionService(
         rawText: input.rawText,
       });
       const analysisInputHash = hash(consumptionContext);
-      const analysisRun = await store.startAiRun({
+      const decisionRun = await store.startAiRun({
         task: "analyze_consumable",
         authority: "authoritative",
-        requestedModel: DEEPSEEK_FLASH_MODEL,
-        policyVersion: CONSUMABLE_ANALYSIS_POLICY_VERSION,
+        requestedModel: decisionConfiguration.model,
+        policyVersion: CONSUMABLE_DECISION_POLICY_VERSION,
         inputHash: analysisInputHash,
         metadata: {
           actorId: input.actorId,
           idempotencyKey,
           candidateCount: consumptionContext.candidates.length,
+          inferenceMode: "jev_decision",
         },
       });
-
-      let analysis;
+      let analysis: ConsumableAnalysis;
       try {
-        const result = await analyzeConsumable(client, consumptionContext);
-        analysis = result.data;
+        const decision = await decideConsumableFastPath(decisionClient, consumptionContext);
         await store.finishAiRun(
-          analysisRun,
-          result.actualModel,
-          result.providerRequestId,
-          hash(analysis),
+          decisionRun,
+          decision.actualModel,
+          decision.providerRequestId,
+          hash({
+            fastPathEligible: decision.fastPathEligible,
+            fallbackReason: decision.fallbackReason || null,
+            analysis: decision.analysis,
+          }),
         );
+        if (!decision.fastPathEligible || !decision.analysis) {
+          throw new Error(
+            `Jev could not resolve consumable semantics: ${decision.fallbackReason || "low confidence"}.`,
+          );
+        }
+        analysis = decision.analysis;
       } catch (error) {
         await store.failAiRun(
-          analysisRun,
+          decisionRun,
           error instanceof Error && "code" in error
             ? String((error as { code: unknown }).code)
-            : "consumable_analysis_failed",
+            : "consumable_decision_failed",
         );
         throw error;
       }
@@ -217,7 +248,7 @@ export function createActionService(
           seed,
           analysis,
           mechanics,
-          policyVersion: CONSUMABLE_ANALYSIS_POLICY_VERSION,
+          policyVersion: CONSUMABLE_DECISION_POLICY_VERSION,
           analysisInputHash,
         });
       } catch (error) {
@@ -242,7 +273,7 @@ export function createActionService(
         const narrationRun = await store.startAiRun({
           task: "narrate_event",
           authority: "creative",
-          requestedModel: DEEPSEEK_FLASH_MODEL,
+          requestedModel: narrationModel,
           policyVersion: EVENT_NARRATION_POLICY_VERSION,
           inputHash: hash(committed),
           metadata: { eventId: committed.eventId, actionType: "consume" },
@@ -269,12 +300,12 @@ export function createActionService(
             ],
             hiddenFactsToExclude: context.hiddenMechanics.hiddenFacts,
           });
-          narration = result.data.narration;
+          narration = result.text;
           await store.finishAiRun(
             narrationRun,
             result.actualModel,
             result.providerRequestId,
-            hash(result.data),
+            hash(result.text),
           );
         } catch (error) {
           await store.failAiRun(
@@ -408,7 +439,7 @@ export function createActionService(
       const narrationRun = await store.startAiRun({
         task: "narrate_event",
         authority: "creative",
-        requestedModel: DEEPSEEK_FLASH_MODEL,
+        requestedModel: narrationModel,
         policyVersion: EVENT_NARRATION_POLICY_VERSION,
         inputHash: hash(committed),
         metadata: { eventId: committed.eventId },
@@ -423,12 +454,12 @@ export function createActionService(
           ],
           hiddenFactsToExclude: context.hiddenMechanics.hiddenFacts,
         });
-        narration = result.data.narration;
+        narration = result.text;
         await store.finishAiRun(
           narrationRun,
           result.actualModel,
           result.providerRequestId,
-          hash(result.data),
+          hash(result.text),
         );
       } catch (error) {
         await store.failAiRun(

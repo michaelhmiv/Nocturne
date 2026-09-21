@@ -93,6 +93,7 @@ export const SearchDiscoveryResultSchema = z
     materialized: z.boolean(),
     informationIds: z.array(UuidSchema).max(16),
     playerVisibleFacts: z.array(z.string().trim().min(1).max(500)).max(32),
+    narration: z.string().trim().min(1).max(4_000).optional(),
     narrationConstraints: z.array(z.string().trim().min(1).max(500)).max(32),
   })
   .strict()
