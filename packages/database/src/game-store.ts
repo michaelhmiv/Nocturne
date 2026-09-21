@@ -299,7 +299,10 @@ export function createPersistentWorldStore(database: ReturnType<typeof createDat
         })})
       `;
       const hasSelected = await sql`
-        SELECT 1 FROM game.player_characters WHERE user_id = ${userId} AND selected LIMIT 1
+        SELECT 1 FROM game.player_characters
+        WHERE user_id = ${userId} AND world_id = ${DEFAULT_WORLD_ID}
+          AND selected
+        LIMIT 1
       `;
       await sql`
         INSERT INTO game.player_characters (user_id, character_instance_id, selected)
