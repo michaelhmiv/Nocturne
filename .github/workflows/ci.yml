@@ -317,6 +317,12 @@ jobs:
         run: |
           set -o pipefail
           pnpm exec tsx scripts/ci/action-integration.ts 2>&1 | tee artifacts/action-integration.log
+      - name: Play real three-identity story slice through compiled API and PostgreSQL
+        env:
+          NOCTURNE_STORY_SANDBOX: "1"
+        run: |
+          set -o pipefail
+          pnpm exec tsx scripts/ci/multiplayer-story-slice.ts 2>&1 | tee artifacts/multiplayer-story-slice.log
       - name: Validate correlated structured telemetry
         run: |
           set -o pipefail

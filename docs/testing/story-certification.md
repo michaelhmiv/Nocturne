@@ -22,6 +22,12 @@ The four release narratives are _Three Keys on Hester Street_ (residences/claims
 
 Use fictionally named locations and people on the NYC-derived physical graph. The test should adapt to actual accessible fixtures and existing routes instead of conjuring a preferred object to force a pass.
 
+## First executable multiplayer slice
+
+The compiled API integration workflow now runs [multiplayer-story-slice.ts](../../scripts/ci/multiplayer-story-slice.ts) against its **disposable, local PostgreSQL database** and deterministic fake Jev/Laguna provider. Unlike manifest self-tests, it creates three distinct agent identities with independent bearer credentials, three characters, and three actual starter apartments. It alternates six real player actions through the HTTP gameplay endpoint and verifies request/plan/step/event/receipt identity, narration presence, database state, per-user dashboards, cross-user denial, and idempotent replay.
+
+This is an **early executable six-turn engine slice**, not a replay of any full 18- or 72-beat story and not three Better Auth/OAuth sessions. It does not use real OpenRouter models or exercise a production world. The sandbox refuses non-loopback API/database/model endpoints and requires the disposable `nocturne_integration` database and explicit `NOCTURNE_STORY_SANDBOX=1` opt-in. The production-shaped live runner remains blocked by issue #138; credentials and raw authorization must never appear in test artifacts.
+
 ## Required live runner, not yet implemented
 
 1. **Provision** a fresh isolated certification world and shard, three distinct Better Auth user accounts, three separate OAuth/MCP grants and a character/unit for each. No shared cookie jar. Persist sanitized run ID and actor IDs. Record the exact deployed service SHAs, schema revision, provider versions and start time. Never infer isolation from a test email prefix.
