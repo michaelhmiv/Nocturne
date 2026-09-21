@@ -111,12 +111,14 @@ describe("scheduled semantic action resolution", () => {
         eventId,
       }),
     );
-  });  it("uses byte-identical scheduled mutation payloads after worker retry and clock changes", async () => {
+  });
+
+  it("uses byte-identical scheduled mutation payloads after worker retry and clock changes", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-21T18:00:00Z"));
     const actorId = randomUUID();
     const work = claim(actorId);
-    const execute = vi.fn(async () => ({
+    const execute = vi.fn(async (_input: UniversalOperationExecutionInput) => ({
       eventId: randomUUID(),
       receiptId: randomUUID(),
       symbolMap: {},
@@ -135,6 +137,4 @@ describe("scheduled semantic action resolution", () => {
     expect(JSON.stringify(execute.mock.calls[0]![0])).toContain(work.scheduleId);
     expect(JSON.stringify(execute.mock.calls[0]![0])).not.toContain("completedAt");
   });
-
-
 });
