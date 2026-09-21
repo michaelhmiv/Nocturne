@@ -101,7 +101,9 @@ function deterministicCurrentAreaSearchAnalysis(input: {
         input.requestedConcept +
         ", but not a complete discovery.",
       progressDescription:
-        "You make progress toward locating " + input.requestedConcept + ", but do not complete the search.",
+        "You make progress toward locating " +
+        input.requestedConcept +
+        ", but do not complete the search.",
       failureDescription: "You do not locate " + input.requestedConcept + ".",
       reversalDescription:
         "The search goes badly and does not locate " + input.requestedConcept + ".",
