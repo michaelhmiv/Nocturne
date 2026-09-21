@@ -1,4 +1,9 @@
-import { DEFAULT_SHARD_ID, DEFAULT_WORLD_ID, PersistentWorldError, type WorldScope } from "@nocturne/database";
+import {
+  DEFAULT_SHARD_ID,
+  DEFAULT_WORLD_ID,
+  PersistentWorldError,
+  type WorldScope,
+} from "@nocturne/database";
 
 /**
  * The legacy action store loads the shared starter alley and uses unscoped
