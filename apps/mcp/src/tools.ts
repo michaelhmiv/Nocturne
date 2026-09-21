@@ -354,6 +354,7 @@ export function createNocturneTools(config: McpConfig, fetchImpl: FetchLike = fe
           actorId: { type: "string", format: "uuid" },
           idempotencyKey: { type: "string", minLength: 1, maxLength: 256 },
           traceId: { type: "string", minLength: 1, maxLength: 256 },
+          clarificationForRequestId: { type: "string", format: "uuid" },
         },
         required: ["text"],
         additionalProperties: false,
@@ -370,6 +371,9 @@ export function createNocturneTools(config: McpConfig, fetchImpl: FetchLike = fe
           },
           body: JSON.stringify({
             ...(actorId ? { actorId } : {}),
+            ...(optionalString(input, "clarificationForRequestId")
+              ? { clarificationForRequestId: optionalString(input, "clarificationForRequestId") }
+              : {}),
             command: requiredString(input, "text", 4000),
           }),
         });
