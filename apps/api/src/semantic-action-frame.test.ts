@@ -154,6 +154,44 @@ describe("semantic action frame", () => {
     );
   });
 
+  it("recognizes plain possessive objects without turning locations into inventory", () => {
+    const actorId = randomUUID();
+    const sandwich = deriveSemanticActionFrame({
+      kind: "consume",
+      actorId,
+      rawText: "Eat my sandwich.",
+      payload: {},
+      context: context(actorId),
+    });
+    const pistol = deriveSemanticActionFrame({
+      kind: "interact",
+      actorId,
+      rawText: "Fire my pistol into the apartment wall.",
+      payload: {},
+      context: context(actorId),
+    });
+    const knife = deriveSemanticActionFrame({
+      kind: "interact",
+      actorId,
+      rawText: "Cut it with my knife.",
+      payload: {},
+      context: context(actorId),
+    });
+    const currentUnit = deriveSemanticActionFrame({
+      kind: "interact",
+      actorId,
+      rawText: "Look around my current unit and check the room carefully.",
+      payload: {},
+      context: context(actorId, undefined, randomUUID()),
+    });
+
+    expect(sandwich.assumptions).toContain("requires_possession:sandwich");
+    expect(pistol.assumptions).toContain("requires_possession:pistol");
+    expect(knife.assumptions).toContain("requires_possession:knife");
+    expect(currentUnit.assumptions).not.toContain("requires_possession:current unit");
+    expect(currentUnit.claims.some((claim) => claim.claimType === "possession")).toBe(false);
+  });
+
   it("classifies actor anatomy as intrinsic rather than inventory", () => {
     const actorId = randomUUID();
     const frame = deriveSemanticActionFrame({
