@@ -20,6 +20,7 @@ export function readAiJobWorkerConfig(
 ): AiJobWorkerConfig {
   const apiUrl = normalizeAiJobApiUrl(
     environment.AI_JOB_API_URL ||
+      environment.NOCTURNE_API_URL ||
       environment.API_URL ||
       environment.RAILWAY_SERVICE__NOCTURNE_API_URL,
   );
