@@ -58,7 +58,11 @@ describePostgres("server-bound certification player isolation", () => {
   it("routes by authenticated user ID rather than public-world defaults", async () => {
     const scope = await worlds.resolveForAuthenticatedUser(account);
     expect(scope).toMatchObject({
-      worldId, shardId, userId: account, role: "player", selectedCharacterId: null,
+      worldId,
+      shardId,
+      userId: account,
+      role: "player",
+      selectedCharacterId: null,
     });
     expect(await worlds.isCertificationBoundUser(account)).toBe(true);
     const unintended = await db.client`
@@ -71,7 +75,9 @@ describePostgres("server-bound certification player isolation", () => {
   it("routes unbound ordinary players to the public world as before", async () => {
     const scope = await worlds.resolveForAuthenticatedUser(ordinaryAccount);
     expect(scope).toMatchObject({
-      worldId: DEFAULT_WORLD_ID, userId: ordinaryAccount, role: "player",
+      worldId: DEFAULT_WORLD_ID,
+      userId: ordinaryAccount,
+      role: "player",
     });
     expect(await worlds.isCertificationBoundUser(ordinaryAccount)).toBe(false);
   });
@@ -83,19 +89,21 @@ describePostgres("server-bound certification player isolation", () => {
     await expect(legacy.listCharacters(account)).rejects.toMatchObject({
       code: "forbidden",
     });
-    await expect(legacy.createCharacter(
-      account,
-      {
-        name: "Should Never Exist",
-        conceptSummary: "Cross-world onboarding must be rejected.",
-        originSource: "ci",
-        qualities: {},
-      } as never,
-      "blocked-character:" + runId,
-    )).rejects.toMatchObject({ code: "forbidden" });
-    await expect(legacy.rentStarterResidence(
-      account, randomUUID(), "blocked-rent:" + runId,
-    )).rejects.toMatchObject({ code: "forbidden" });
+    await expect(
+      legacy.createCharacter(
+        account,
+        {
+          name: "Should Never Exist",
+          conceptSummary: "Cross-world onboarding must be rejected.",
+          originSource: "ci",
+          qualities: {},
+        } as never,
+        "blocked-character:" + runId,
+      ),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    await expect(
+      legacy.rentStarterResidence(account, randomUUID(), "blocked-rent:" + runId),
+    ).rejects.toMatchObject({ code: "forbidden" });
     const rows = await db.client`
       SELECT 1 FROM game.player_characters WHERE user_id = ${account}
     `;
