@@ -151,12 +151,12 @@ describe("multi-user, original story certification contract", () => {
     const transcript = recordedEvidence();
     transcript.turns[0].durableEvents = [];
     transcript.turns[1].narrationAudit.source = "model_self_report";
-    transcript.turns[2].probes.location.source = "narration";
+    transcript.turns[2].probes.schedule.source = "narration";
     transcript.turns[3].narration = "";
     const errors = auditStoryTranscript(story, transcript).join("\n");
     expect(errors).toMatch(/independently read durable log/);
     expect(errors).toMatch(/independently verified narration-to-fact audit/);
-    expect(errors).toMatch(/authoritative probe location/);
+    expect(errors).toMatch(/authoritative probe schedule/);
     expect(errors).toMatch(/missing player-facing narration/);
   });
 
