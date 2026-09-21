@@ -399,19 +399,64 @@ export function createPersistentPlanStore(database: ReturnType<typeof createData
     outcomeGrade: string;
     resultEventId: string;
     resultReceiptId?: string;
+    /** A due, worker-claimed schedule may finish a waiting step. */
+    scheduleId?: string;
   }) {
     return database.client.begin(async (sql) => {
-      const steps = await sql<{ step_order: number; status: string }[]>`
-        SELECT step_order, status
-        FROM game.action_plan_steps
-        WHERE plan_id = ${input.planId} AND step_id = ${input.stepId}
-        FOR UPDATE
+      const steps = await sql<
+        {
+          step_order: number;
+          status: string;
+          result_event_id: string | null;
+          result_receipt_id: string | null;
+          scheduled_id: string | null;
+          plan_status: string;
+        }[]
+      >`
+        SELECT step.step_order, step.status, step.result_event_id,
+               step.result_receipt_id, schedule.schedule_id AS scheduled_id,
+               plan.status AS plan_status
+        FROM game.action_plan_steps step
+        JOIN game.action_plans plan ON plan.plan_id = step.plan_id
+        LEFT JOIN game.scheduled_actions schedule
+          ON schedule.schedule_id = ${input.scheduleId || null}::uuid
+         AND schedule.plan_id = step.plan_id
+         AND schedule.step_id = step.step_id
+         AND schedule.world_id = plan.world_id
+         AND schedule.shard_id = plan.shard_id
+         AND schedule.status = 'resolving'
+         AND schedule.resolves_at <= now()
+        WHERE step.plan_id = ${input.planId}
+          AND step.step_id = ${input.stepId}
+          AND step.world_id = ${input.scope.worldId}
+          AND plan.world_id = ${input.scope.worldId}
+          AND plan.shard_id = ${input.scope.shardId}
+        FOR UPDATE OF step, plan
       `;
-      if (!steps[0]) throw new PersistentPlanStoreError("step_not_found", "Plan step not found.");
-      if (steps[0].status !== "running") {
+      const step = steps[0];
+      if (!step) throw new PersistentPlanStoreError("step_not_found", "Plan step not found.");
+      if (step.status === "completed") {
+        if (
+          step.result_event_id === input.resultEventId &&
+          step.result_receipt_id === (input.resultReceiptId || null)
+        ) {
+          // A worker can crash after committing a step but before acknowledging
+          // its schedule. Replaying the same event must not duplicate plan events.
+          return;
+        }
         throw new PersistentPlanStoreError(
           "invalid_transition",
-          "Only running steps can complete.",
+          "Completed step cannot be assigned a different result event.",
+        );
+      }
+      const scheduledCompletion =
+        step.status === "waiting" &&
+        step.scheduled_id === input.scheduleId &&
+        ["waiting_for_time", "waiting_for_world_event"].includes(step.plan_status);
+      if (step.status !== "running" && !scheduledCompletion) {
+        throw new PersistentPlanStoreError(
+          "invalid_transition",
+          "Only running steps or their verified due schedules can complete.",
         );
       }
       await sql`
