@@ -6,7 +6,12 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
-import { createAgentStore, createDatabase, DEFAULT_WORLD_ID, DEFAULT_SHARD_ID } from "../../packages/database/src/index.js";
+import {
+  createAgentStore,
+  createDatabase,
+  DEFAULT_WORLD_ID,
+  DEFAULT_SHARD_ID,
+} from "../../packages/database/src/index.js";
 
 const databaseUrl = process.env.DATABASE_URL || "postgres://invalid:invalid@invalid/invalid";
 const apiUrl = process.env.NOCTURNE_API_URL || "https://invalid";
@@ -15,11 +20,21 @@ const databaseAddress = new URL(databaseUrl);
 const apiAddress = new URL(apiUrl);
 const providerAddress = new URL(providerUrl);
 assert.equal(process.env.NOCTURNE_STORY_SANDBOX, "1", "Explicit sandbox flag required.");
-assert.ok(["localhost", "127.0.0.1"].includes(databaseAddress.hostname), "Refusing remote database.");
-assert.equal(databaseAddress.pathname, "/nocturne_integration", "Refusing non-disposable database.");
+assert.ok(
+  ["localhost", "127.0.0.1"].includes(databaseAddress.hostname),
+  "Refusing remote database.",
+);
+assert.equal(
+  databaseAddress.pathname,
+  "/nocturne_integration",
+  "Refusing non-disposable database.",
+);
 assert.ok(["localhost", "127.0.0.1"].includes(apiAddress.hostname), "Refusing remote API.");
 assert.ok(["localhost", "127.0.0.1"].includes(providerAddress.hostname), "Refusing live AI.");
-assert.ok(providerAddress.pathname.endsWith("/api/alpha/decisions"), "Fake Decisions endpoint required.");
+assert.ok(
+  providerAddress.pathname.endsWith("/api/alpha/decisions"),
+  "Fake Decisions endpoint required.",
+);
 
 const db = createDatabase(databaseUrl);
 const agents = createAgentStore(db);
@@ -99,7 +114,10 @@ async function play(player, chapter) {
     "SELECT step_id, status, result_event_id, result_receipt_id FROM game.action_plan_steps WHERE plan_id = $1 ORDER BY step_order",
     [record.plan_id],
   );
-  assert.ok(steps.length && steps.every((step) => step.status === "completed"), "Nonterminal plan.");
+  assert.ok(
+    steps.length && steps.every((step) => step.status === "completed"),
+    "Nonterminal plan.",
+  );
   assert.ok(steps[0].result_event_id, "Completed action lacks event.");
   const [event] = await query(
     "SELECT event_id, event_type, world_id, shard_id, involved_entity_ids FROM game.event_ledger WHERE event_id = $1",
@@ -120,13 +138,23 @@ async function play(player, chapter) {
     [before.version, before.condition, before.state, before.location_id],
     "Routine exercise altered authoritative actor state.",
   );
-  const narration = outcome.narration || outcome.plan?.narration ||
-    outcome.prompt || record.player_safe_result.narration;
+  const narration =
+    outcome.narration ||
+    outcome.plan?.narration ||
+    outcome.prompt ||
+    record.player_safe_result.narration;
   assert.ok(typeof narration === "string" && narration.trim(), "Action has no narration.");
   return {
-    chapter, alias: player.alias, userId: player.userId, actorId: player.actorId,
-    command, idempotencyKey: key, requestId: record.request_id,
-    planId: record.plan_id, eventId: event.event_id, eventType: event.event_type,
+    chapter,
+    alias: player.alias,
+    userId: player.userId,
+    actorId: player.actorId,
+    command,
+    idempotencyKey: key,
+    requestId: record.request_id,
+    planId: record.plan_id,
+    eventId: event.event_id,
+    eventType: event.event_type,
     receiptId: steps[0].result_receipt_id,
     stageTypes: stages.map((stage) => stage.stage_type + ":" + stage.status),
     narration,
@@ -142,18 +170,30 @@ try {
       scopes: ["play", "character:read", "character:write", "action:submit"],
     });
     player.token = token.token; // Deliberately excluded from all results and logs.
-    const created = await ok(player, "/v1/characters", "POST", {
-      name: player.name,
-      conceptSummary: "An original fictional tenant for multiplayer CI certification.",
-      originSource: "ci",
-      qualities: {},
-    }, "story-ci-character:" + runId + ":" + player.alias);
+    const created = await ok(
+      player,
+      "/v1/characters",
+      "POST",
+      {
+        name: player.name,
+        conceptSummary: "An original fictional tenant for multiplayer CI certification.",
+        originSource: "ci",
+        qualities: {},
+      },
+      "story-ci-character:" + runId + ":" + player.alias,
+    );
     player.actorId = created.characterId;
     assert.ok(player.actorId, "Character creation returned no ID.");
     await ok(player, "/v1/characters/" + player.actorId + "/select", "POST", {});
-    const rent = await ok(player, "/v1/residences/starter/rent", "POST", {
-      characterId: player.actorId,
-    }, "story-ci-residence:" + runId + ":" + player.alias);
+    const rent = await ok(
+      player,
+      "/v1/residences/starter/rent",
+      "POST",
+      {
+        characterId: player.actorId,
+      },
+      "story-ci-residence:" + runId + ":" + player.alias,
+    );
     player.residenceId = rent.residenceId;
     assert.ok(player.residenceId, "Starter apartment missing.");
     const dashboard = await ok(player, "/v1/persistent-world/dashboard");
@@ -162,7 +202,11 @@ try {
   }
 
   for (const property of ["token", "userId", "actorId", "residenceId"]) {
-    assert.equal(new Set(players.map((player) => player[property])).size, 3, property + " collision.");
+    assert.equal(
+      new Set(players.map((player) => player[property])).size,
+      3,
+      property + " collision.",
+    );
   }
 
   // Independent credentials and alternating players, not one impersonated test user.
@@ -174,23 +218,43 @@ try {
   assert.equal(new Set(turns.map((turn) => turn.eventId)).size, 6, "Event collision.");
 
   const first = turns[0];
-  const replay = await ok(players[0], "/v1/persistent-world/actions", "POST", {
-    actorId: first.actorId, command: first.command,
-  }, first.idempotencyKey);
-  assert.equal(replay.requestId, first.requestId, "Replay created another request.");
-  const originalEvents = await query(
-    "SELECT event_id FROM game.event_ledger WHERE event_id = $1", [first.eventId],
+  const replay = await ok(
+    players[0],
+    "/v1/persistent-world/actions",
+    "POST",
+    {
+      actorId: first.actorId,
+      command: first.command,
+    },
+    first.idempotencyKey,
   );
+  assert.equal(replay.requestId, first.requestId, "Replay created another request.");
+  const originalEvents = await query("SELECT event_id FROM game.event_ledger WHERE event_id = $1", [
+    first.eventId,
+  ]);
   assert.equal(originalEvents.length, 1, "Replay duplicated the event.");
 
   const forbiddenKey = "story-ci-cross-account:" + runId;
-  const forbidden = await api(players[1], "/v1/persistent-world/actions", "POST", {
-    actorId: players[0].actorId, command: "Do one push-up.",
-  }, forbiddenKey);
+  const forbidden = await api(
+    players[1],
+    "/v1/persistent-world/actions",
+    "POST",
+    {
+      actorId: players[0].actorId,
+      command: "Do one push-up.",
+    },
+    forbiddenKey,
+  );
   assert.equal(forbidden.status, 403, "Acting as another player was not rejected.");
-  assert.equal((await query(
-    "SELECT request_id FROM game.world_action_requests WHERE idempotency_key = $1", [forbiddenKey],
-  )).length, 0, "Forbidden action created a request.");
+  assert.equal(
+    (
+      await query("SELECT request_id FROM game.world_action_requests WHERE idempotency_key = $1", [
+        forbiddenKey,
+      ])
+    ).length,
+    0,
+    "Forbidden action created a request.",
+  );
 
   for (const player of players) {
     const dashboard = await ok(player, "/v1/persistent-world/dashboard");
@@ -209,7 +273,10 @@ try {
     worldId: DEFAULT_WORLD_ID,
     shardId: DEFAULT_SHARD_ID,
     players: players.map(({ alias, userId, actorId, residenceId }) => ({
-      alias, userId, actorId, residenceId,
+      alias,
+      userId,
+      actorId,
+      residenceId,
     })),
     turns,
     independentCredentials: true,
@@ -218,11 +285,17 @@ try {
     idempotentReplay: true,
   };
   await writeFile("artifacts/multiplayer-story-slice.json", JSON.stringify(report, null, 2));
-  console.log(JSON.stringify({
-    status: report.status, stage: report.stage, players: report.players.length,
-    beats: turns.length, events: turns.map((turn) => turn.eventId),
-    crossAccountActionDenied: true, idempotentReplay: true,
-  }));
+  console.log(
+    JSON.stringify({
+      status: report.status,
+      stage: report.stage,
+      players: report.players.length,
+      beats: turns.length,
+      events: turns.map((turn) => turn.eventId),
+      crossAccountActionDenied: true,
+      idempotentReplay: true,
+    }),
+  );
 } finally {
   await db.close();
 }
