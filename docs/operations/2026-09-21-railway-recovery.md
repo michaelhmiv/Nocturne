@@ -4,14 +4,14 @@
 
 Project: `bb436905-bd68-486d-b091-376d30d47a8e`; production environment: `881b221e-01c9-4830-a717-e6ea9a50dc06`. Initial application release is `main` commit `3f5fff0b12438d2220f71cba538c3086bc300a47`; PR #136 must not be described as deployed until its exact merged SHA is verified.
 
-| Component | Railway service | Public origin |
-| --- | --- | --- |
-| PostgreSQL | `Postgres` | Internal networking only |
-| API | `@nocturne/api` | `https://nocturneapi-production.up.railway.app` |
-| Web | `@nocturne/web` | `https://nocturneweb-production.up.railway.app` |
-| Worker | `@nocturne/worker` | No public domain |
-| MCP | `nocturnemcp` | `https://nocturnemcp-production.up.railway.app` |
-| Geospatial importer | `@nocturne/geospatial-importer` | One-shot only |
+| Component           | Railway service                 | Public origin                                   |
+| ------------------- | ------------------------------- | ----------------------------------------------- |
+| PostgreSQL          | `Postgres`                      | Internal networking only                        |
+| API                 | `@nocturne/api`                 | `https://nocturneapi-production.up.railway.app` |
+| Web                 | `@nocturne/web`                 | `https://nocturneweb-production.up.railway.app` |
+| Worker              | `@nocturne/worker`              | No public domain                                |
+| MCP                 | `nocturnemcp`                   | `https://nocturnemcp-production.up.railway.app` |
+| Geospatial importer | `@nocturne/geospatial-importer` | One-shot only                                   |
 
 ## Recovery accomplished
 
