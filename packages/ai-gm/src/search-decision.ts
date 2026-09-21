@@ -35,7 +35,6 @@ const targetFamilyCriteria: Record<SearchTargetFamily, string> = {
 const capabilityCriteria = [
   "Very poor search position or capability.",
   "Poor search position or capability.",
-  "Clearly below-average search position or capability.",
   "Somewhat weak search position or capability.",
   "Slightly weak search position or capability.",
   "Neutral or ordinary search position or capability.",
@@ -49,7 +48,6 @@ const capabilityCriteria = [
 const difficultyCriteria = [
   "Trivial to locate or verify.",
   "Very easy to locate or verify.",
-  "Easy to locate or verify.",
   "Somewhat easy to locate or verify.",
   "Slightly easier than ordinary.",
   "Ordinary search difficulty.",

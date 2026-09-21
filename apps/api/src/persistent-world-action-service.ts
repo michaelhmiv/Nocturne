@@ -19,6 +19,10 @@ import type {
   RelevanceContextStore,
   WorldScope,
 } from "@nocturne/database";
+import {
+  hasExplicitPossessionRequirement,
+  isCurrentAreaSearchCommand,
+} from "./semantic-action-frame.js";
 import type { ExecutableWorldActionStep } from "../../../packages/database/src/world-action-step-store.js";
 
 export type WorldActionStepCompleted = {
@@ -130,9 +134,58 @@ export class PersistentWorldActionServiceError extends Error {
 }
 
 const impossibleMovementPattern = /\b(?:walk|phase|pass)\b.*\bthrough\b.*\b(?:solid )?wall\b/i;
+const movementCommandPattern = /\b(?:go|walk|move|travel|head|run|drive|ride|return|come)\b/i;
+const locationClarificationPattern =
+  /\b(?:hall(?:way)?|corridor|room|apartment|unit|building|home|place|area|lobby|office|floor|street|station|outside|inside)\b/i;
+const locationDefinitionPattern =
+  /(?:location|residence|place|building|room|area|hall|apartment|unit|floor|street|station|office)/i;
 
 function isImpossibleMovementCommand(command: string) {
   return impossibleMovementPattern.test(command);
+}
+
+function isMovementCommand(command: string) {
+  return movementCommandPattern.test(command);
+}
+
+function isLocationClarificationReply(command: string) {
+  return locationClarificationPattern.test(command);
+}
+
+function clarificationDestinationIds(
+  command: string,
+  context: RelevanceCompiledContext,
+  actorId: string,
+) {
+  const normalizedCommand = command
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  const locationEntities = context.entities.filter(
+    (entity) =>
+      entity.entityId !== actorId && locationDefinitionPattern.test(entity.definitionType),
+  );
+  const lexical = locationEntities.find((entity) => {
+    const name = entity.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+    return name.length >= 3 && normalizedCommand.includes(name);
+  });
+  if (lexical) return [lexical.entityId];
+
+  if (/\b(?:hallway|corridor)\b/i.test(command)) {
+    const hallway = locationEntities.find((entity) =>
+      /\b(?:hall|hallway|corridor)\b/i.test(entity.name),
+    );
+    if (hallway) return [hallway.entityId];
+  }
+
+  const actor = context.entities.find((entity) => entity.entityId === actorId);
+  return actor?.locationId &&
+    context.entities.some((entity) => entity.entityId === actor.locationId)
+    ? [actor.locationId]
+    : [];
 }
 
 function planNarration(plan: PersistentActionPlan) {
@@ -557,6 +610,15 @@ export function createPersistentWorldActionService(dependencies: {
         fastDecision.fallbackReasons.every((reason) =>
           ["ambiguous_reference", "clarification"].includes(reason),
         );
+      const continuationMovement = Boolean(
+        pendingClarification &&
+        isMovementCommand(pendingClarification.command) &&
+        isLocationClarificationReply(input.command),
+      );
+      const scopedSearch = isCurrentAreaSearchCommand(command);
+      const possessionRequirement = hasExplicitPossessionRequirement(command);
+      const deterministicBypass =
+        forceImpossibleMovement || continuationMovement || scopedSearch || possessionRequirement;
       await dependencies.references.recordInterpretation({
         scope: input.scope,
         viewpointId: input.actorId,
@@ -564,7 +626,7 @@ export function createPersistentWorldActionService(dependencies: {
         interpretation,
         candidates,
       });
-      if (clarification && !forceImpossibleMovement) {
+      if (clarification && !deterministicBypass) {
         const result = WorldActionPlayerSafeResultSchema.parse({
           state: "waiting_for_clarification",
           requestId: reservation.requestId,
@@ -586,7 +648,11 @@ export function createPersistentWorldActionService(dependencies: {
         });
         return result;
       }
-      const resolvedEntityIds = dependencies.references.explicitEntityIds(interpretation);
+      let resolvedEntityIds = dependencies.references.explicitEntityIds(interpretation);
+      if (continuationMovement) {
+        const destinationIds = clarificationDestinationIds(command, context, input.actorId);
+        if (destinationIds.length) resolvedEntityIds = destinationIds;
+      }
       if (resolvedEntityIds.length) {
         for (const entityId of resolvedEntityIds) {
           await dependencies.simulateReferencedEntity?.({
@@ -629,7 +695,7 @@ export function createPersistentWorldActionService(dependencies: {
           })
         : null;
 
-      if (!fastDecision.fastPathEligible && !forceImpossibleMovement) {
+      if (!fastDecision.fastPathEligible && !deterministicBypass) {
         const reasons = fastDecision.fallbackReasons;
         const prompt = reasons.includes("multi_step")
           ? "Please break that into one action at a time for now."
@@ -660,14 +726,28 @@ export function createPersistentWorldActionService(dependencies: {
         return result;
       }
 
+      const planKind = forceImpossibleMovement
+        ? "interact"
+        : continuationMovement
+          ? "move"
+          : scopedSearch
+            ? "search"
+            : undefined;
+      const actionType = forceImpossibleMovement
+        ? fastDecision.actionType
+        : continuationMovement
+          ? "move"
+          : scopedSearch
+            ? "search"
+            : fastDecision.actionType;
       let proposal;
       try {
         proposal = buildFastSingleStepPlan({
           command,
           actorId: input.actorId,
-          kind: fastDecision.kind,
-          planKind: forceImpossibleMovement ? "interact" : undefined,
-          actionType: fastDecision.actionType,
+          kind: continuationMovement ? "move" : scopedSearch ? "search" : fastDecision.kind,
+          planKind,
+          actionType,
           selectedEntityIds: resolvedEntityIds,
           selectedEntityRoles: fastDecision.selectedEntityRoles,
           context,

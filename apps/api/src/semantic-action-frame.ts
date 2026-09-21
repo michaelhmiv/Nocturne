@@ -260,6 +260,17 @@ function explicitPossessionNames(rawText: string) {
   return [...names];
 }
 
+export function hasExplicitPossessionRequirement(rawText: string) {
+  return explicitPossessionNames(rawText).length > 0;
+}
+
+export function isCurrentAreaSearchCommand(rawText: string) {
+  return (
+    deicticLocationPattern.test(rawText) &&
+    /\b(?:search|look(?:\s+around)?|check|inspect|examine|scan)\b/i.test(rawText)
+  );
+}
+
 function explicitAnatomyNames(rawText: string) {
   const names = new Set<string>();
   for (const match of rawText.matchAll(anatomyPattern)) {
