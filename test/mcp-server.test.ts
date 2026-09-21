@@ -17,7 +17,7 @@ afterEach(async () => {
   );
 });
 
-async function start(fetchImpl: typeof fetch, mode: McpMode = "diagnostic") {
+async function start(fetchImpl: typeof fetch, mode: McpMode = "player") {
   const config: McpConfig = {
     host: "127.0.0.1",
     port: 0,
@@ -127,7 +127,7 @@ describe("Nocturne MCP service", () => {
       }
       return new Response(JSON.stringify({ error: "not_found" }), { status: 404 });
     });
-    const { baseUrl } = await start(apiFetch);
+    const { baseUrl } = await start(apiFetch, "diagnostic");
     const metadata = await fetch(`${baseUrl}/.well-known/oauth-authorization-server`).then(
       (response) => response.json() as Promise<Record<string, unknown>>,
     );
