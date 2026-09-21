@@ -4,6 +4,7 @@ import type { UniversalOperationExecutor, WorldScope } from "@nocturne/database"
 export function createTimedSemanticActionService(executor: UniversalOperationExecutor) {
   async function schedule(input: {
     scope: WorldScope;
+    requestId: string;
     actorId: string;
     planId: string;
     stepId: string;
@@ -49,6 +50,7 @@ export function createTimedSemanticActionService(executor: UniversalOperationExe
             durationSeconds,
             payload: {
               userId: input.scope.userId,
+              requestId: input.requestId,
               actorId: input.actorId,
               frame: input.frame,
               resolution: input.resolution,
