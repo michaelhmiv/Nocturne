@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { deriveSemanticActionFrame, isRoutineSelfDirectedAction } from "./semantic-action-frame.js";
+import { adjudicateActionResolution } from "./resolution-mode-adjudicator.js";
 
 function context(actorId: string, targetId?: string, actorLocation: string | null = null) {
   return {
@@ -238,6 +239,7 @@ describe("semantic action frame", () => {
       ]),
     );
     expect(isRoutineSelfDirectedAction(frame)).toBe(false);
+    expect(adjudicateActionResolution(frame).mode).toBe("timed_task");
   });
 
   it("does not treat a zero-duration instruction as a completed interval", () => {
