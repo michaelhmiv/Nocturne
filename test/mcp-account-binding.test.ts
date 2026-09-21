@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { McpConfig } from "../apps/mcp/src/config.js";
+import type { McpConfig, McpMode } from "../apps/mcp/src/config.js";
 import { createMcpServer } from "../apps/mcp/src/server.js";
 
 const servers: ReturnType<typeof createMcpServer>[] = [];
@@ -19,7 +19,7 @@ afterEach(async () => {
   );
 });
 
-async function start(fetchImpl: typeof fetch) {
+async function start(fetchImpl: typeof fetch, mode?: McpMode) {
   const config: McpConfig = {
     host: "127.0.0.1",
     port: 0,
@@ -33,6 +33,7 @@ async function start(fetchImpl: typeof fetch) {
     accessTokenTtlSeconds: 3600,
     refreshTokenTtlSeconds: 86400,
     requestTimeoutMs: 5000,
+    mode,
   };
   const server = createMcpServer(config, fetchImpl);
   servers.push(server);
@@ -149,7 +150,7 @@ describe("MCP Nocturne account binding", () => {
         headers: { "content-type": "application/json" },
       });
     });
-    const { baseUrl } = await start(apiFetch);
+    const { baseUrl } = await start(apiFetch, "diagnostic");
     const accountA = await authorizeAccount(baseUrl, "user-account-a");
     const accountB = await authorizeAccount(baseUrl, "user-account-b");
 
