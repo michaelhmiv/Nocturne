@@ -18,7 +18,7 @@ export async function registerPlayerDashboardRoutes(
         message: "Select a character before loading the dashboard.",
       });
     }
-    if (scope.selectedCharacterId && actorId !== scope.selectedCharacterId) {
+    if (!scope.selectedCharacterId || actorId !== scope.selectedCharacterId) {
       return reply.code(403).send({
         error: "forbidden",
         message: "The dashboard is limited to the selected character.",
