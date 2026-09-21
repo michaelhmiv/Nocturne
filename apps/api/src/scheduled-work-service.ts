@@ -52,6 +52,7 @@ export function createScheduledWorkService(dependencies: {
       outcomeGrade: "complete_success",
       resultEventId: eventId,
       resultReceiptId: receiptId,
+      scheduleId: claim.scheduleId,
     });
   }
 
@@ -268,7 +269,9 @@ export function createScheduledWorkService(dependencies: {
               actionType: frame.actionType,
               objective: frame.objective,
               resolutionMode: resolution.mode,
-              completedAt: new Date().toISOString(),
+              // Receipt world_time is the completion timestamp. Retrying the
+              // same schedule must generate a byte-identical mutation payload.
+              scheduleId: claim.scheduleId,
             },
             ...(expectedVersion === undefined ? {} : { expectedVersion }),
             preconditionFactIds: resolution.requiredFactIds,
