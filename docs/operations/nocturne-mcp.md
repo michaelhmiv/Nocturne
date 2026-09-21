@@ -74,7 +74,6 @@ Do not rotate `BETTER_AUTH_SECRET` during a normal MCP reset.
 
 `MCP_MODE` defaults to `player` when omitted. Diagnostic tools are exposed only when `MCP_MODE=diagnostic` is explicitly configured, and world-entity inspection and repairs still require independent API-side authorization. Never set `MCP_MODE=diagnostic` on the public player connector as a workaround for certification permissions. The live certification harness requires its own scoped, isolated inspection identity (see issue #138).
 
-
 Player-path tools include character creation and selection, starter housing repair, natural-language action submission, scene inspection, dashboard inspection, and dashboard-change waiting. Inspection tools include health, world start, characters, actions, vehicles, travel paths, operator traces, and world-entity inspection.
 
 `submit_action` accepts natural-language intent rather than internal action kinds or entity-routing parameters. After each write, inspect the dashboard, scene, operator traces, and relevant entities to confirm that narration matches durable state.
