@@ -157,11 +157,11 @@ function clientAddress(request: IncomingMessage) {
 }
 
 function toolAvailableInMode(config: McpConfig, tool: McpTool) {
-  return config.mode !== "player" || !diagnosticToolNames.has(tool.name);
+  return config.mode === "diagnostic" || !diagnosticToolNames.has(tool.name);
 }
 
 function serverInstructions(config: McpConfig) {
-  if (config.mode !== "player") {
+  if (config.mode === "diagnostic") {
     return "Use Nocturne as the authoritative game world for the linked account. Submit player intent through submit_action as natural language without inventing internal IDs or pre-classifying handlers. Ground narration in player-visible scene and dashboard state. For timed travel or scheduled actions, wait for authoritative state changes instead of claiming completion early. Diagnostic tools may be used when troubleshooting or certifying behavior.";
   }
   return "Use Nocturne as the authoritative game world for the linked account. Read the selected character and player-visible scene when context is needed. Submit player intent through submit_action as natural language without inventing internal IDs or pre-classifying handlers. Ground narration in returned world state. For timed travel or scheduled actions, use the dashboard and wait-for-change tools instead of claiming completion early.";
@@ -289,7 +289,7 @@ export function createMcpServer(config: McpConfig, fetchImpl: FetchLike = fetch)
           accountAuth: config.webBaseUrl ? "nocturne_account" : "admin_password",
           apiIdentityMode: config.webBaseUrl ? "per_user" : config.apiAuthMode,
           apiBaseUrl: config.apiBaseUrl,
-          mode: config.mode ?? "diagnostic",
+          mode: config.mode ?? "player",
           toolCount: exposedBaseTools.length,
         });
       }

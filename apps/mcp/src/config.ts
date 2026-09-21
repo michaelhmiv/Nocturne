@@ -56,7 +56,7 @@ export function loadMcpConfig(env: Record<string, string | undefined> = process.
   if (apiAuthMode !== "guest" && apiAuthMode !== "bearer") {
     throw new Error("NOCTURNE_API_AUTH_MODE must be guest or bearer.");
   }
-  const mode = (env.MCP_MODE || "diagnostic").trim().toLowerCase();
+  const mode = (env.MCP_MODE || "player").trim().toLowerCase();
   if (mode !== "player" && mode !== "diagnostic") {
     throw new Error("MCP_MODE must be player or diagnostic.");
   }

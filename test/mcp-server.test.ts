@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { McpConfig, McpMode } from "../apps/mcp/src/config.js";
+import { loadMcpConfig, type McpConfig, type McpMode } from "../apps/mcp/src/config.js";
 import { createMcpServer } from "../apps/mcp/src/server.js";
 
 const servers: ReturnType<typeof createMcpServer>[] = [];
@@ -17,7 +17,7 @@ afterEach(async () => {
   );
 });
 
-async function start(fetchImpl: typeof fetch, mode: McpMode = "diagnostic") {
+async function start(fetchImpl: typeof fetch, mode?: McpMode) {
   const config: McpConfig = {
     host: "127.0.0.1",
     port: 0,
@@ -103,6 +103,20 @@ async function rpc(baseUrl: string, accessToken: string, body: unknown) {
 }
 
 describe("Nocturne MCP service", () => {
+  it("defaults to the player tool surface unless diagnostics are explicitly requested", () => {
+    const env = {
+      MCP_PUBLIC_BASE_URL: "https://mcp.example.test",
+      NOCTURNE_API_URL: "https://api.example.test",
+      MCP_OAUTH_SIGNING_SECRET: "test-signing-secret-test-signing-secret",
+      MCP_ADMIN_PASSWORD: "correct horse battery staple",
+    };
+    expect(loadMcpConfig(env).mode).toBe("player");
+    expect(loadMcpConfig({ ...env, MCP_MODE: "diagnostic" }).mode).toBe("diagnostic");
+    expect(() => loadMcpConfig({ ...env, MCP_MODE: "operator" })).toThrow(
+      "MCP_MODE must be player or diagnostic",
+    );
+  });
+
   it("publishes OAuth metadata, rotates refresh tokens, and exposes diagnostic tools in diagnostic mode", async () => {
     const apiFetch = vi.fn<typeof fetch>(async (input) => {
       if (String(input).endsWith("/health")) {
@@ -127,7 +141,7 @@ describe("Nocturne MCP service", () => {
       }
       return new Response(JSON.stringify({ error: "not_found" }), { status: 404 });
     });
-    const { baseUrl } = await start(apiFetch);
+    const { baseUrl } = await start(apiFetch, "diagnostic");
     const metadata = await fetch(`${baseUrl}/.well-known/oauth-authorization-server`).then(
       (response) => response.json() as Promise<Record<string, unknown>>,
     );
