@@ -57,7 +57,14 @@ export function createCommittedEventNarrator(input: {
       if (expected.size > 0 || supportedFacts.length === 0) {
         throw new Error("Committed narration has no complete player-visible factual evidence.");
       }
-      if (rows.some(({ eventType }) => eventType === "action_failed")) {
+      if (
+        rows.some(({ eventType }) => eventType === "action_failed") &&
+        supportedFacts.some((fact) =>
+          /\b(?:cannot afford|can't afford|insufficient funds?|not enough (?:money|funds|cash))\b/i.test(
+            fact,
+          ),
+        )
+      ) {
         return supportedFacts.join(" ");
       }
       const result = await narratePlayerSafeFacts(input.client, {
