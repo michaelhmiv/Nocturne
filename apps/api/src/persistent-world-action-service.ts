@@ -173,7 +173,9 @@ function clarificationDestinationIds(
   if (lexical) return [lexical.entityId];
 
   if (/\b(?:hallway|corridor)\b/i.test(command)) {
-    const hallway = locationEntities.find((entity) => /\b(?:hall|hallway|corridor)\b/i.test(entity.name));
+    const hallway = locationEntities.find((entity) =>
+      /\b(?:hall|hallway|corridor)\b/i.test(entity.name),
+    );
     if (hallway) return [hallway.entityId];
   }
 
