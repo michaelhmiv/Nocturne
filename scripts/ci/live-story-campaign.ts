@@ -13,7 +13,11 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { STORY_CERTIFICATION_CASES } from "./story-certification-corpus.mjs";
-import { createAgentStore, createDatabase, DEFAULT_WORLD_ID } from "../../packages/database/src/index.js";
+import {
+  createAgentStore,
+  createDatabase,
+  DEFAULT_WORLD_ID,
+} from "../../packages/database/src/index.js";
 
 const databaseUrl = process.env.DATABASE_URL || "postgres://invalid:invalid@invalid/invalid";
 const apiUrl = process.env.NOCTURNE_API_URL || "https://invalid";
@@ -27,7 +31,11 @@ assert.equal(process.env.NOCTURNE_LIVE_STORY_SANDBOX, "1", "Live sandbox opt-in 
 assert.ok(["127.0.0.1", "localhost"].includes(dbAddress.hostname), "Remote database is forbidden.");
 assert.equal(dbAddress.pathname, "/nocturne_live_story", "Disposable database is required.");
 assert.ok(["127.0.0.1", "localhost"].includes(apiAddress.hostname), "Remote API forbidden.");
-assert.equal(modelAddress.origin, "https://openrouter.ai", "Real OpenRouter Jev endpoint required.");
+assert.equal(
+  modelAddress.origin,
+  "https://openrouter.ai",
+  "Real OpenRouter Jev endpoint required.",
+);
 assert.equal(modelAddress.pathname, "/api/alpha/decisions", "Jev Decisions API required.");
 assert.equal(decisionModel, "~typesafe/jev-latest", "Expected Jev latest.");
 assert.equal(narrationModel, "poolside/laguna-xs-2.1", "Expected Laguna XS narrator.");
@@ -88,8 +96,11 @@ async function send(player, path, method = "GET", body, key) {
   });
   const raw = await resp.text();
   let data = null;
-  try { data = JSON.parse(raw); }
-  catch { data = { invalidJson: true, excerpt: raw.slice(0, 300) }; }
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    data = { invalidJson: true, excerpt: raw.slice(0, 300) };
+  }
   return { status: resp.status, data };
 }
 async function snapshot(actorId) {
@@ -110,21 +121,29 @@ async function snapshot(actorId) {
 }
 function narrationFrom(data, record) {
   const values = [
-    data?.narration, data?.prompt, data?.message,
-    data?.plan?.narration, data?.result?.narration,
+    data?.narration,
+    data?.prompt,
+    data?.message,
+    data?.plan?.narration,
+    data?.result?.narration,
     record?.player_safe_result?.narration,
     record?.player_safe_result?.text,
   ];
   return values.find((text) => typeof text === "string" && text.trim()) || "";
 }
 function materialStateChanged(before, after) {
-  return JSON.stringify({
-    locationId: before?.locationId, condition: before?.condition,
-    state: before?.state,
-  }) !== JSON.stringify({
-    locationId: after?.locationId, condition: after?.condition,
-    state: after?.state,
-  });
+  return (
+    JSON.stringify({
+      locationId: before?.locationId,
+      condition: before?.condition,
+      state: before?.state,
+    }) !==
+    JSON.stringify({
+      locationId: after?.locationId,
+      condition: after?.condition,
+      state: after?.state,
+    })
+  );
 }
 async function durableEvidence(requestId) {
   if (!requestId) return { request: null, steps: [], events: [], stages: [] };
@@ -132,15 +151,19 @@ async function durableEvidence(requestId) {
     "SELECT request_id,user_id,actor_id,world_id,shard_id,status,command,plan_id,player_safe_result,completed_at FROM game.world_action_requests WHERE request_id=$1 AND world_id=$2 AND shard_id=$3",
     [requestId, worldId, shardId],
   );
-  const steps = request?.plan_id ? await query(
-    "SELECT step_id,step_order,status,result_event_id,result_receipt_id FROM game.action_plan_steps WHERE plan_id=$1 ORDER BY step_order",
-    [request.plan_id],
-  ) : [];
+  const steps = request?.plan_id
+    ? await query(
+        "SELECT step_id,step_order,status,result_event_id,result_receipt_id FROM game.action_plan_steps WHERE plan_id=$1 ORDER BY step_order",
+        [request.plan_id],
+      )
+    : [];
   const ids = steps.map((s) => s.result_event_id).filter(Boolean);
-  const events = ids.length ? await query(
-    "SELECT event_id,world_id,shard_id,event_type,involved_entity_ids,payload FROM game.event_ledger WHERE event_id=ANY($1::uuid[]) ORDER BY world_time",
-    [ids],
-  ) : [];
+  const events = ids.length
+    ? await query(
+        "SELECT event_id,world_id,shard_id,event_type,involved_entity_ids,payload FROM game.event_ledger WHERE event_id=ANY($1::uuid[]) ORDER BY world_time",
+        [ids],
+      )
+    : [];
   const stages = await query(
     "SELECT stage_type,status FROM game.world_action_execution_stages WHERE request_id=$1 ORDER BY stage_order",
     [requestId],
@@ -158,9 +181,16 @@ async function runBeat(beat, index) {
   let response = null;
   let transportError = null;
   try {
-    response = await send(player, "/v1/persistent-world/actions", "POST", {
-      actorId: player.actorId, command,
-    }, key);
+    response = await send(
+      player,
+      "/v1/persistent-world/actions",
+      "POST",
+      {
+        actorId: player.actorId,
+        command,
+      },
+      key,
+    );
   } catch (err) {
     transportError = safeError(err);
   }
@@ -182,21 +212,27 @@ async function runBeat(beat, index) {
   let dashboardError = null;
   try {
     const answer = await send(player, "/v1/persistent-world/dashboard");
-    dashboard = answer.status === 200 ? (answer.data?.dashboard || answer.data) : null;
+    dashboard = answer.status === 200 ? answer.data?.dashboard || answer.data : null;
     if (!dashboard) dashboardError = "dashboard_http_" + answer.status;
-  } catch (err) { dashboardError = safeError(err); }
+  } catch (err) {
+    dashboardError = safeError(err);
+  }
   const elapsedMs = Date.now() - started;
   const record = evidence.request;
   const scopeCorrect = Boolean(
-    record && record.user_id === player.userId &&
+    record &&
+    record.user_id === player.userId &&
     record.actor_id === player.actorId &&
-    record.world_id === worldId && record.shard_id === shardId,
+    record.world_id === worldId &&
+    record.shard_id === shardId,
   );
-  const durableEventsLinked = evidence.events.every((event) =>
-    event.world_id === worldId &&
-    event.shard_id === shardId &&
-    event.involved_entity_ids?.includes(player.actorId),
-  ) && evidence.events.length === evidence.steps.filter((s) => s.result_event_id).length;
+  const durableEventsLinked =
+    evidence.events.every(
+      (event) =>
+        event.world_id === worldId &&
+        event.shard_id === shardId &&
+        event.involved_entity_ids?.includes(player.actorId),
+    ) && evidence.events.length === evidence.steps.filter((s) => s.result_event_id).length;
   const ownDashboard = dashboard?.character?.characterId === player.actorId;
   const narration = narrationFrom(response?.data, record);
   const observedDefects = [];
@@ -210,36 +246,63 @@ async function runBeat(beat, index) {
   if (record && !durableEventsLinked) observedDefects.push("event_scope_or_link_mismatch");
   if (!ownDashboard) observedDefects.push("player_dashboard_missing_or_wrong");
   if (!narration) observedDefects.push("narration_missing");
-  if (beat.clock === "real" && record?.status === "completed" && elapsedMs < 120000 &&
-    /\btwo minutes\b/i.test(beat.text)) observedDefects.push("two_minute_task_completed_too_soon");
+  if (
+    beat.clock === "real" &&
+    record?.status === "completed" &&
+    elapsedMs < 120000 &&
+    /\btwo minutes\b/i.test(beat.text)
+  )
+    observedDefects.push("two_minute_task_completed_too_soon");
   const result = {
-    beatId: beat.id, index: index + 1, storyId: beat.storyId, storyTitle: beat.storyTitle,
-    actId: beat.actId, sceneSetup: beat.sceneSetup,
-    actor: player.alias, userId: player.userId, actorId: player.actorId,
-    originalStoryCommand: beat.text, executedCommand: command,
-    idempotencyKey: key, sameKeyAs: beat.sameKeyAs || null,
-    checksRequired: beat.checks, clock: beat.clock || null,
+    beatId: beat.id,
+    index: index + 1,
+    storyId: beat.storyId,
+    storyTitle: beat.storyTitle,
+    actId: beat.actId,
+    sceneSetup: beat.sceneSetup,
+    actor: player.alias,
+    userId: player.userId,
+    actorId: player.actorId,
+    originalStoryCommand: beat.text,
+    executedCommand: command,
+    idempotencyKey: key,
+    sameKeyAs: beat.sameKeyAs || null,
+    checksRequired: beat.checks,
+    clock: beat.clock || null,
     httpStatus: response?.status ?? null,
     engineState: response?.data?.state || null,
     requestId,
     durableRequestStatus: record?.status || null,
     planId: record?.plan_id || null,
     steps: evidence.steps.map((s) => ({
-      stepId: s.step_id, status: s.status, eventId: s.result_event_id,
+      stepId: s.step_id,
+      status: s.status,
+      eventId: s.result_event_id,
       receiptId: s.result_receipt_id,
     })),
     events: evidence.events.map((event) => ({
-      eventId: event.event_id, eventType: event.event_type,
-      worldId: event.world_id, shardId: event.shard_id,
-      involvedEntityIds: event.involved_entity_ids, payload: event.payload,
+      eventId: event.event_id,
+      eventType: event.event_type,
+      worldId: event.world_id,
+      shardId: event.shard_id,
+      involvedEntityIds: event.involved_entity_ids,
+      payload: event.payload,
     })),
     stages: evidence.stages.map((s) => ({ stage: s.stage_type, status: s.status })),
-    before, after, materialStateChanged: materialStateChanged(before, after),
-    ownDashboard, dashboardError,
+    before,
+    after,
+    materialStateChanged: materialStateChanged(before, after),
+    ownDashboard,
+    dashboardError,
     narration: narration.slice(0, 12000),
-    elapsedMs, scopeCorrect, durableEventsLinked,
-    observedDefects, transportError,
-    verdict: observedDefects.length ? "observed_failure" : "executed_requires_domain_and_narration_review",
+    elapsedMs,
+    scopeCorrect,
+    durableEventsLinked,
+    observedDefects,
+    transportError,
+    verdict: observedDefects.length
+      ? "observed_failure"
+      : "executed_requires_domain_and_narration_review",
   };
   firstByBeatId.set(beat.id, result);
   return result;
@@ -261,7 +324,8 @@ try {
   for (const player of players) {
     player.userId = "live-story:" + runId + ":" + player.alias;
     const minted = await agents.createToken({
-      userId: player.userId, label: "live-story-" + player.alias,
+      userId: player.userId,
+      label: "live-story-" + player.alias,
       scopes: ["play", "character:read", "character:write", "action:submit"],
     });
     player.token = minted.token; // NEVER persist or log credentials.
@@ -292,22 +356,38 @@ try {
     assert.equal(dashboard.status, 200, "Provisioned player cannot access own dashboard.");
     assert.equal(
       (dashboard.data.dashboard || dashboard.data).character.characterId,
-      player.actorId, "Player dashboard selected the wrong character.",
+      player.actorId,
+      "Player dashboard selected the wrong character.",
     );
   }
   assert.equal(new Set(players.map((p) => p.actorId)).size, 3);
   assert.equal(new Set(players.map((p) => p.residenceId)).size, 3);
   completedSetup = true;
-  console.log(JSON.stringify({
-    event: "live_story_provisioned", runId, worldId, shardId,
-    players: players.map((p) => ({
-      alias: p.alias, actorId: p.actorId, residenceId: p.residenceId,
-    })),
-    models: { decision: decisionModel, narrator: narrationModel }, beatsRequested: beats.length,
-  }));
-  const cross = await send(players[0], "/v1/persistent-world/actions", "POST", {
-    actorId: players[1].actorId, command: "Do one push-up.",
-  }, "live-story:" + runId + ":cross-account");
+  console.log(
+    JSON.stringify({
+      event: "live_story_provisioned",
+      runId,
+      worldId,
+      shardId,
+      players: players.map((p) => ({
+        alias: p.alias,
+        actorId: p.actorId,
+        residenceId: p.residenceId,
+      })),
+      models: { decision: decisionModel, narrator: narrationModel },
+      beatsRequested: beats.length,
+    }),
+  );
+  const cross = await send(
+    players[0],
+    "/v1/persistent-world/actions",
+    "POST",
+    {
+      actorId: players[1].actorId,
+      command: "Do one push-up.",
+    },
+    "live-story:" + runId + ":cross-account",
+  );
   crossAccountDenied = cross.status === 403;
   assert.ok(crossAccountDenied, "Cross-account action succeeded in isolated world.");
 
@@ -316,16 +396,26 @@ try {
     try {
       const result = await runBeat(beat, i);
       turns.push(result);
-      console.log(JSON.stringify({
-        beatId: result.beatId, actor: result.actor, httpStatus: result.httpStatus,
-        engineState: result.engineState, requestId: result.requestId,
-        events: result.events.length, verdict: result.verdict,
-        defects: result.observedDefects, elapsedMs: result.elapsedMs,
-      }));
+      console.log(
+        JSON.stringify({
+          beatId: result.beatId,
+          actor: result.actor,
+          httpStatus: result.httpStatus,
+          engineState: result.engineState,
+          requestId: result.requestId,
+          events: result.events.length,
+          verdict: result.verdict,
+          defects: result.observedDefects,
+          elapsedMs: result.elapsedMs,
+        }),
+      );
     } catch (err) {
       const failure = {
-        beatId: beat.id, actor: beat.actor, verdict: "harness_failure",
-        error: safeError(err), storyId: beat.storyId,
+        beatId: beat.id,
+        actor: beat.actor,
+        verdict: "harness_failure",
+        error: safeError(err),
+        storyId: beat.storyId,
       };
       turns.push(failure);
       console.log(JSON.stringify(failure));
@@ -352,22 +442,44 @@ try {
   const summary = {
     status: "NOT_CERTIFIED_REQUIRES_DOMAIN_PROBES_AND_NARRATION_REVIEW",
     stage: "live_jev_laguna_compiled_api_disposable_isolated_postgres",
-    liveModel: true, production: false, liveOAuthMcp: false,
-    startedAt: startedAt.toISOString(), finishedAt: finishedAt.toISOString(),
-    runId, worldId, shardId, requestedBeats: beats.length, attemptedBeats: turns.length,
-    results, crossAccountDenied, revokedDenied,
-    decisionModel, narrationModel, infrastructureError,
-    firstFailure: turns.find((t) =>
-      t.verdict === "observed_failure" || t.verdict === "harness_failure"
-    )?.beatId || null,
+    liveModel: true,
+    production: false,
+    liveOAuthMcp: false,
+    startedAt: startedAt.toISOString(),
+    finishedAt: finishedAt.toISOString(),
+    runId,
+    worldId,
+    shardId,
+    requestedBeats: beats.length,
+    attemptedBeats: turns.length,
+    results,
+    crossAccountDenied,
+    revokedDenied,
+    decisionModel,
+    narrationModel,
+    infrastructureError,
+    firstFailure:
+      turns.find((t) => t.verdict === "observed_failure" || t.verdict === "harness_failure")
+        ?.beatId || null,
     note: "Every beat attempted; a 2xx response does not prove story/semantic/narration correctness.",
   };
   await mkdir("artifacts/live-story", { recursive: true });
   await writeFile(
     "artifacts/live-story/results.json",
-    JSON.stringify({ summary, players: players.map((p) => ({
-      alias: p.alias, userId: p.userId, actorId: p.actorId, residenceId: p.residenceId,
-    })), turns }, null, 2),
+    JSON.stringify(
+      {
+        summary,
+        players: players.map((p) => ({
+          alias: p.alias,
+          userId: p.userId,
+          actorId: p.actorId,
+          residenceId: p.residenceId,
+        })),
+        turns,
+      },
+      null,
+      2,
+    ),
   );
   const markdown = [
     "# Nocturne: live three-player story — observed responses, not certified fiction",
@@ -397,11 +509,24 @@ try {
   // This is an evidence-generating diagnostic, not a release gate yet. Missing
   // domain probes mean it cannot mark the 72-beat game as passed. Fail on
   // infrastructure/scope violations, even if an ordinary action was rejected.
-  if (infrastructureError || !completedSetup || !crossAccountDenied || !revokedDenied ||
-      turns.length !== beats.length || turns.some((t) => t.verdict === "harness_failure" ||
+  if (
+    infrastructureError ||
+    !completedSetup ||
+    !crossAccountDenied ||
+    !revokedDenied ||
+    turns.length !== beats.length ||
+    turns.some(
+      (t) =>
+        t.verdict === "harness_failure" ||
         t.observedDefects?.some((d) =>
-          ["request_scope_mismatch","event_scope_or_link_mismatch",
-            "player_dashboard_missing_or_wrong"].includes(d)))) {
+          [
+            "request_scope_mismatch",
+            "event_scope_or_link_mismatch",
+            "player_dashboard_missing_or_wrong",
+          ].includes(d),
+        ),
+    )
+  ) {
     process.exitCode = 1;
   }
 }
