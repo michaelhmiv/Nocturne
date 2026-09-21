@@ -228,23 +228,23 @@ export function createWorldInspectorStore(
         active: boolean;
       }[]
     >`
-      SELECT grant.grant_id, run.run_id, run.world_id, run.shard_id,
+      SELECT cert_grant.grant_id, cert_run.run_id, cert_run.world_id, cert_run.shard_id,
              (
-               grant.revoked_at IS NULL
-               AND grant.expires_at > now()
-               AND run.status = 'active'
-               AND run.expires_at > now()
+               cert_grant.revoked_at IS NULL
+               AND cert_grant.expires_at > now()
+               AND cert_run.status = 'active'
+               AND cert_run.expires_at > now()
                AND world.status = 'active'
                AND shard.status = 'active'
                AND world.metadata->>'isolatedCertification' = 'true'
-               AND run.world_id <> '00000000-0000-4000-8000-000000000001'::uuid
+               AND cert_run.world_id <> '00000000-0000-4000-8000-000000000001'::uuid
              ) AS active
-      FROM game.certification_inspection_grants grant
-      JOIN game.certification_runs run ON run.run_id = grant.run_id
-      JOIN game.worlds world ON world.world_id = run.world_id
+      FROM game.certification_inspection_grants cert_grant
+      JOIN game.certification_runs cert_run ON cert_run.run_id = cert_grant.run_id
+      JOIN game.worlds world ON world.world_id = cert_run.world_id
       JOIN game.world_shards shard
-        ON shard.world_id = run.world_id AND shard.shard_id = run.shard_id
-      WHERE grant.token_sha256 = ${tokenHash}
+        ON shard.world_id = cert_run.world_id AND shard.shard_id = cert_run.shard_id
+      WHERE cert_grant.token_sha256 = ${tokenHash}
       LIMIT 1
     `;
     if (!grant) {
