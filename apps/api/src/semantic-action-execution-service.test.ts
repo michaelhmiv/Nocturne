@@ -111,15 +111,11 @@ function frame(
   };
 }
 
-function resolution(
-  mode: ActionResolutionDecision["mode"],
-): ActionResolutionDecision {
+function resolution(mode: ActionResolutionDecision["mode"]): ActionResolutionDecision {
   return {
     mode,
     rationale: "Test resolution",
-    meaningfulUncertainty: ["unopposed_check", "opposed_contest"].includes(
-      mode,
-    ),
+    meaningfulUncertainty: ["unopposed_check", "opposed_contest"].includes(mode),
     difficulty: 0,
     opposition: 0,
     consequenceLevel: 0,
@@ -203,9 +199,7 @@ describe("semantic action execution service", () => {
       context: context(actorId),
     });
     expect(execute).not.toHaveBeenCalled();
-    expect(record).toHaveBeenCalledWith(
-      expect.objectContaining({ eventType: "question_asked" }),
-    );
+    expect(record).toHaveBeenCalledWith(expect.objectContaining({ eventType: "question_asked" }));
   });
 
   it("records failed no-effect attempts without a mutation", async () => {
@@ -222,9 +216,7 @@ describe("semantic action execution service", () => {
       context: context(actorId),
     });
     expect(execute).not.toHaveBeenCalled();
-    expect(record).toHaveBeenCalledWith(
-      expect.objectContaining({ eventType: "action_failed" }),
-    );
+    expect(record).toHaveBeenCalledWith(expect.objectContaining({ eventType: "action_failed" }));
   });
 
   it("commits successful combat damage through the mutation executor", async () => {
@@ -331,11 +323,7 @@ describe("semantic action execution service", () => {
       const targetId = randomUUID();
       const objectId = randomUUID();
       const { service, execute, record } = serviceMocks();
-      const transferFrame = frame(
-        actorId,
-        "transfer",
-        destination === "target" ? [targetId] : [],
-      );
+      const transferFrame = frame(actorId, "transfer", destination === "target" ? [targetId] : []);
       transferFrame.actionType = actionType;
       transferFrame.objectIds = [objectId];
       transferFrame.properties.illegal = actionType === "steal";
@@ -353,10 +341,7 @@ describe("semantic action execution service", () => {
         idempotencyKey: `semantic:transfer:${actionType}`,
         frame: transferFrame,
         resolution: transferResolution,
-        context: context(
-          actorId,
-          destination === "target" ? targetId : undefined,
-        ),
+        context: context(actorId, destination === "target" ? targetId : undefined),
       });
 
       expect(record).not.toHaveBeenCalled();
@@ -406,9 +391,7 @@ describe("semantic action execution service", () => {
     });
 
     expect(result.outcomeGrade).toBe("failure");
-    expect(result.narration).toMatch(
-      /no verified price, payment, and inventory transfer/i,
-    );
+    expect(result.narration).toMatch(/no verified price, payment, and inventory transfer/i);
     expect(execute).not.toHaveBeenCalled();
     expect(record).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -469,9 +452,7 @@ describe("semantic action execution service", () => {
       });
 
       expect(result.outcomeGrade).toBe("failure");
-      expect(result.narration).toMatch(
-        /no authoritative effect was established/i,
-      );
+      expect(result.narration).toMatch(/no authoritative effect was established/i);
       expect(execute).not.toHaveBeenCalled();
       expect(record).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -546,9 +527,7 @@ describe("semantic action execution service", () => {
         preconditionFactIds: ["fact:object", "fact:container"],
       }),
     ]);
-    expect(
-      operations.some((operation) => operation.type === "transfer_possession"),
-    ).toBe(false);
+    expect(operations.some((operation) => operation.type === "transfer_possession")).toBe(false);
   });
 
   it("uses the same deterministic roll for the same idempotency key", async () => {
