@@ -52,6 +52,7 @@ export function createScheduledWorkService(dependencies: {
       outcomeGrade: "complete_success",
       resultEventId: eventId,
       resultReceiptId: receiptId,
+      scheduleId: claim.scheduleId,
     });
   }
 
@@ -268,7 +269,7 @@ export function createScheduledWorkService(dependencies: {
               actionType: frame.actionType,
               objective: frame.objective,
               resolutionMode: resolution.mode,
-              completedAt: new Date().toISOString(),
+              scheduleId: claim.scheduleId,
             },
             ...(expectedVersion === undefined ? {} : { expectedVersion }),
             preconditionFactIds: resolution.requiredFactIds,
