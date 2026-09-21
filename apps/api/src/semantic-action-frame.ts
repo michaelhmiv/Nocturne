@@ -8,7 +8,8 @@ import {
   type WorldActionKind,
 } from "@nocturne/contracts";
 
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const routineSelfDirectedPatterns = [
   /\bpush[ -]?ups?\b/i,
@@ -25,7 +26,8 @@ const routineSelfDirectedPatterns = [
   /\blie down\b/i,
 ];
 
-const destructivePattern = /\b(?:break|destroy|smash|rip|tear|burn|cut|damage|wreck|demolish)\b/i;
+const destructivePattern =
+  /\b(?:break|destroy|smash|rip|tear|burn|cut|damage|wreck|demolish)\b/i;
 const illegalPattern =
   /\b(?:steal|rob|break in|trespass|bribe|forge|hack|assault|murder|kidnap)\b/i;
 const explicitDurationPattern =
@@ -46,7 +48,8 @@ const smallNumbers: Record<string, number> = {
 };
 const highEffortPattern =
   /\b(?:one[- ]arm|hundred|100|marathon|maximum|until failure|exhausted|heavy)\b/i;
-const technicalPattern = /\b(?:hack|repair|build|craft|wire|program|forge|pick the lock|disarm)\b/i;
+const technicalPattern =
+  /\b(?:hack|repair|build|craft|wire|program|forge|pick the lock|disarm)\b/i;
 const precisionPattern =
   /\b(?:carefully|precisely|surgically|without spilling|without being seen|bullseye)\b/i;
 const dangerPattern =
@@ -89,13 +92,18 @@ function firstString(payload: Record<string, unknown>, keys: string[]) {
 
 function numberValue(payload: Record<string, unknown>, key: string) {
   const value = payload[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
 function stringArray(payload: Record<string, unknown>, key: string) {
   const value = payload[key];
   return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+    ? value.filter(
+        (item): item is string =>
+          typeof item === "string" && Boolean(item.trim()),
+      )
     : [];
 }
 
@@ -108,12 +116,17 @@ type ReferenceBuckets = {
 
 function referenceBucket(key: string) {
   const normalized = key.replace(/[^a-z0-9]/gi, "").toLowerCase();
-  if (/(?:tool|method|weapon|instrument)/.test(normalized)) return "tools" as const;
-  if (/(?:object|item|asset|vehicle|device|equipment|source)/.test(normalized)) {
+  if (/(?:tool|method|weapon|instrument)/.test(normalized))
+    return "tools" as const;
+  if (
+    /(?:object|item|asset|vehicle|device|equipment|source)/.test(normalized)
+  ) {
     return "objects" as const;
   }
   if (
-    /(?:target|recipient|subject|opponent|person|npc|character|holder|possessor)/.test(normalized)
+    /(?:target|recipient|subject|opponent|person|npc|character|holder|possessor)/.test(
+      normalized,
+    )
   ) {
     return "targets" as const;
   }
@@ -149,13 +162,20 @@ function normalizedActionType(
   const supplied = firstString(payload, ["actionType", "verb", "intent"]);
   if (supplied && /^[a-z][a-z0-9_]{0,63}$/.test(supplied)) return supplied;
   if (/\bpush[ -]?ups?\b/i.test(rawText)) return "exercise";
-  if (/\b(?:sit|stand|stretch|blink|breathe|clap|wave|smile|nod|kneel|lie down)\b/i.test(rawText)) {
+  if (
+    /\b(?:sit|stand|stretch|blink|breathe|clap|wave|smile|nod|kneel|lie down)\b/i.test(
+      rawText,
+    )
+  ) {
     return "routine_body_action";
   }
-  if (/\b(?:open|close|turn on|turn off|pick up|put down|use)\b/i.test(rawText)) {
+  if (
+    /\b(?:open|close|turn on|turn off|pick up|put down|use)\b/i.test(rawText)
+  ) {
     return "interact";
   }
-  if (kind === "combat") return /\barrest|restrain\b/i.test(rawText) ? "arrest" : "attack";
+  if (kind === "combat")
+    return /\barrest|restrain\b/i.test(rawText) ? "arrest" : "attack";
   if (kind === "dialogue") return "talk";
   if (kind === "question") return "ask";
   return kind;
@@ -235,10 +255,7 @@ function isIntrinsicAnatomyPhrase(value: string) {
 }
 
 function isLocationPossessionPhrase(value: string) {
-  const normalized = value
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
+  const normalized = value.toLowerCase().replace(/\s+/g, " ").trim();
   return /^(?:(?:current|this|the)\s+)?(?:room|apartment|unit|building|location|home|place|area|hallway)$/.test(
     normalized,
   );
@@ -330,8 +347,13 @@ export function deriveSemanticActionFrame(input: {
     (input.context?.entities ?? []).map((entity) => [entity.entityId, entity]),
   );
   for (const id of buckets.unclassified) {
-    const definitionType = contextById.get(id)?.definitionType.toLowerCase() || "";
-    if (/(?:item|object|device|vehicle|equipment|weapon|tool)/.test(definitionType)) {
+    const definitionType =
+      contextById.get(id)?.definitionType.toLowerCase() || "";
+    if (
+      /(?:item|object|device|vehicle|equipment|weapon|tool)/.test(
+        definitionType,
+      )
+    ) {
       buckets.objects.add(id);
     } else if (/(?:character|npc|person|creature)/.test(definitionType)) {
       buckets.targets.add(id);
@@ -347,15 +369,18 @@ export function deriveSemanticActionFrame(input: {
   );
   const explicitSelfDirected = selfBodyReferencePattern.test(input.rawText);
   const kindImpliesOpposition = ["combat", "relationship"].includes(input.kind);
-  const transferResistance = input.kind === "transfer" && illegalPattern.test(input.rawText);
-  const opposed = Boolean(payload.opposed) || kindImpliesOpposition || transferResistance;
+  const transferResistance =
+    input.kind === "transfer" && illegalPattern.test(input.rawText);
+  const opposed =
+    Boolean(payload.opposed) || kindImpliesOpposition || transferResistance;
   const selfDirected =
     (routineSelfDirected || explicitSelfDirected) &&
     targetIds.length === 0 &&
     objectIds.length === 0;
   const durationSeconds =
     numberValue(payload, "durationSeconds") || durationFromText(input.rawText);
-  const quantity = numberValue(payload, "quantity") || quantityFromText(input.rawText);
+  const quantity =
+    numberValue(payload, "quantity") || quantityFromText(input.rawText);
   const physicalEffort = highEffortPattern.test(input.rawText)
     ? 7
     : /\bpush[ -]?ups?|run|lift|climb|jump|fight|attack\b/i.test(input.rawText)
@@ -364,10 +389,13 @@ export function deriveSemanticActionFrame(input: {
         : 2
       : 1;
   const explicitLocationId = firstString(payload, ["locationId"]);
-  const actorLocationId = contextById.get(input.actorId)?.locationId || undefined;
+  const actorLocationId =
+    contextById.get(input.actorId)?.locationId || undefined;
   const deicticLocation = deicticLocationPattern.exec(input.rawText)?.[0];
-  const locationId = explicitLocationId || (deicticLocation ? actorLocationId : undefined);
-  const selfHarmDanger = explicitSelfDirected && harmfulContactPattern.test(input.rawText);
+  const locationId =
+    explicitLocationId || (deicticLocation ? actorLocationId : undefined);
+  const selfHarmDanger =
+    explicitSelfDirected && harmfulContactPattern.test(input.rawText);
   const danger = selfHarmDanger
     ? 7
     : dangerPattern.test(input.rawText)
@@ -495,7 +523,8 @@ export function deriveSemanticActionFrame(input: {
     kind: input.kind,
     actionType: normalizedActionType(input.kind, input.rawText, payload),
     objective:
-      firstString(payload, ["objective", "desiredOutcome"]) || objectiveFromRawText(input.rawText),
+      firstString(payload, ["objective", "desiredOutcome"]) ||
+      objectiveFromRawText(input.rawText),
     actorId: input.actorId,
     targetIds,
     objectIds,
