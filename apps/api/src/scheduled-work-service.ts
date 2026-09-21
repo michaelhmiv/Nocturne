@@ -31,6 +31,13 @@ export function createScheduledWorkService(dependencies: {
   executor: UniversalOperationExecutor;
   plans: PersistentPlanStore;
   relationships: RelationshipStore;
+  finalizeCompletedRequest(input: {
+    scope: Pick<WorldScope, "worldId" | "shardId">;
+    planId: string;
+    stepId: string;
+    actorId: string;
+    eventId: string;
+  }): Promise<unknown>;
 }) {
   async function requireScope(claim: ScheduledWorkClaim): Promise<WorldScope> {
     const userId = String(claim.payload.userId || "scheduled-system");
@@ -54,6 +61,19 @@ export function createScheduledWorkService(dependencies: {
       resultReceiptId: receiptId,
       scheduleId: claim.scheduleId,
     });
+    const actorId =
+      typeof claim.payload.actorId === "string"
+        ? claim.payload.actorId
+        : claim.subjectEntityIds[0];
+    if (actorId) {
+      await dependencies.finalizeCompletedRequest({
+        scope: { worldId: claim.worldId, shardId: claim.shardId },
+        planId: claim.planId,
+        stepId: claim.stepId,
+        actorId,
+        eventId,
+      });
+    }
   }
 
   async function resolveMove(claim: ScheduledWorkClaim, scope: WorldScope) {
