@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { deriveSemanticActionFrame, isRoutineSelfDirectedAction } from "./semantic-action-frame.js";
+import { adjudicateActionResolution } from "./resolution-mode-adjudicator.js";
 
 function context(actorId: string, targetId?: string, actorLocation: string | null = null) {
   return {
@@ -213,6 +214,45 @@ describe("semantic action frame", () => {
         expect.objectContaining({ claimType: "duration", durationSeconds: 120 }),
       ]),
     );
+  });
+
+  it.each([
+    ["Exercise continuously for exactly two minutes.", 120],
+    ["Do push-ups for two minutes", 120],
+    ["Stretch over the next three minutes", 180],
+    ["Work for 15 minutes", 900],
+    ["Wait for twelve seconds", 12],
+  ] as [string, number][])("schedules %s", (rawText, seconds) => {
+    const actorId = randomUUID();
+    const frame = deriveSemanticActionFrame({
+      kind: "interact",
+      actorId,
+      rawText,
+      payload: { rawText, actionType: "exercise" },
+      context: context(actorId),
+    });
+    expect(frame.durationSeconds).toBe(seconds);
+    expect(frame.properties.continuous).toBe(true);
+    expect(frame.claims).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ claimType: "duration", durationSeconds: seconds }),
+      ]),
+    );
+    expect(isRoutineSelfDirectedAction(frame)).toBe(false);
+    expect(adjudicateActionResolution(frame).mode).toBe("timed_task");
+  });
+
+  it("does not treat a zero-duration instruction as a completed interval", () => {
+    const actorId = randomUUID();
+    const frame = deriveSemanticActionFrame({
+      kind: "interact",
+      actorId,
+      rawText: "Exercise for 0 minutes",
+      payload: {},
+      context: context(actorId),
+    });
+    expect(frame.durationSeconds).toBeUndefined();
+    expect(frame.claims.some((claim) => claim.claimType === "duration")).toBe(false);
   });
 
   it("resolves current-location deixis to the actor's authoritative location", () => {

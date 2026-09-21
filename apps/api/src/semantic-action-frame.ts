@@ -28,7 +28,22 @@ const routineSelfDirectedPatterns = [
 const destructivePattern = /\b(?:break|destroy|smash|rip|tear|burn|cut|damage|wreck|demolish)\b/i;
 const illegalPattern =
   /\b(?:steal|rob|break in|trespass|bribe|forge|hack|assault|murder|kidnap)\b/i;
-const continuousPattern = /\b(?:for|over)\s+\d+\s*(?:seconds?|minutes?|hours?|days?)\b/i;
+const explicitDurationPattern =
+  /\b(?:for|over)\s+(?:(?:exactly|the\s+next|next)\s+)?(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s*(seconds?|minutes?|hours?|days?)\b/i;
+const smallNumbers: Record<string, number> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+};
 const highEffortPattern =
   /\b(?:one[- ]arm|hundred|100|marathon|maximum|until failure|exhausted|heavy)\b/i;
 const technicalPattern = /\b(?:hack|repair|build|craft|wire|program|forge|pick the lock|disarm)\b/i;
@@ -147,9 +162,12 @@ function normalizedActionType(
 }
 
 function durationFromText(rawText: string) {
-  const match = /\b(?:for|over)\s+(\d+)\s*(seconds?|minutes?|hours?|days?)\b/i.exec(rawText);
+  const match = explicitDurationPattern.exec(rawText);
   if (!match) return undefined;
-  const amount = Number(match[1]!);
+  const amount = /^\d+$/.test(match[1]!)
+    ? Number(match[1]!)
+    : smallNumbers[match[1]!.toLowerCase()];
+  if (!Number.isFinite(amount) || !amount || amount <= 0) return undefined;
   const unit = match[2]!.toLowerCase();
   const multiplier = unit.startsWith("second")
     ? 1
@@ -477,7 +495,7 @@ export function deriveSemanticActionFrame(input: {
       illegal: illegalPattern.test(input.rawText),
       social: ["dialogue", "question", "relationship"].includes(input.kind),
       movement: input.kind === "move",
-      continuous: Boolean(durationSeconds) || continuousPattern.test(input.rawText),
+      continuous: Boolean(durationSeconds),
     },
     demands: {
       physicalEffort,
