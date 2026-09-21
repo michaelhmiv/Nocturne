@@ -322,6 +322,139 @@ try {
   );
   assert.equal(publicCharacters.length, 0, "Certification account created public actor.");
 
+  // Three MORE independent normal player credentials, this time inside one
+  // genuinely isolated certification world. SQL fixture setup remains
+  // operator-controlled, never available as an HTTP/MCP mutation.
+  const certifiedPlayers = [
+    {
+      alias: "mara",
+      name: "Mara Velez",
+      userId: certificationUser,
+      token: certificationPlayer.token,
+    },
+  ];
+  for (const identity of [
+    { alias: "dax", name: "Dax Mercer" },
+    { alias: "imani", name: "Imani Brooks" },
+  ]) {
+    const userId = "story-ci-certification:" + runId + ":" + identity.alias;
+    const minted = await agents.createToken({
+      userId,
+      label: "isolated-" + identity.alias,
+      scopes: ["play", "character:read", "character:write", "action:submit"],
+    });
+    await query(
+      "INSERT INTO game.certification_players(run_id,user_id,world_id,shard_id) VALUES ($1,$2,$3,$4)",
+      [certificationRun, userId, certificationWorld, certificationShard],
+    );
+    await query(
+      "INSERT INTO game.world_memberships(world_id,user_id,role,status) VALUES ($1,$2,'player','active')",
+      [certificationWorld, userId],
+    );
+    certifiedPlayers.push({ ...identity, userId, token: minted.token });
+  }
+  const [certDistrict] = await query(
+    "SELECT game.provision_certification_district($1) AS district",
+    [certificationRun],
+  );
+  assert.equal(certDistrict.district.worldId, certificationWorld);
+  const certifiedTurns = [];
+  for (const player of certifiedPlayers) {
+    const [provisioned] = await query(
+      "SELECT * FROM game.provision_certification_player($1,$2,$3)",
+      [certificationRun, player.userId, player.name],
+    );
+    assert.ok(provisioned.actor_id && provisioned.residence_id);
+    assert.equal(provisioned.already_provisioned, false);
+    const dashboard = await ok(player, "/v1/persistent-world/dashboard");
+    assert.equal(
+      (dashboard.dashboard || dashboard).character.characterId,
+      provisioned.actor_id,
+      "Bound player did not see their own isolated character.",
+    );
+    const key = "story-ci-isolated:" + runId + ":" + player.alias;
+    const command = "Do one push-up.";
+    const before = await actorState(provisioned.actor_id);
+    const outcome = await ok(
+      player,
+      "/v1/persistent-world/actions",
+      "POST",
+      { actorId: provisioned.actor_id, command },
+      key,
+    );
+    assert.equal(outcome.state, "completed", "Isolated routine action did not finish.");
+    const [record] = await query(
+      "SELECT request_id,world_id,shard_id,user_id,actor_id,plan_id,status,player_safe_result FROM game.world_action_requests WHERE request_id=$1",
+      [outcome.requestId],
+    );
+    assert.ok(record?.plan_id && record.player_safe_result);
+    assert.equal(record.world_id, certificationWorld);
+    assert.equal(record.shard_id, certificationShard);
+    assert.equal(record.user_id, player.userId);
+    assert.equal(record.actor_id, provisioned.actor_id);
+    assert.equal(record.status, "completed");
+    const steps = await query(
+      "SELECT result_event_id FROM game.action_plan_steps WHERE plan_id=$1",
+      [record.plan_id],
+    );
+    assert.ok(steps.length && steps[0].result_event_id, "Isolated plan lacks event.");
+    const [event] = await query(
+      "SELECT event_id,world_id,shard_id,involved_entity_ids FROM game.event_ledger WHERE event_id=$1",
+      [steps[0].result_event_id],
+    );
+    assert.ok(event && event.involved_entity_ids.includes(provisioned.actor_id));
+    assert.equal(event.world_id, certificationWorld);
+    assert.equal(event.shard_id, certificationShard);
+    const after = await actorState(provisioned.actor_id);
+    assert.equal(after.world_id, certificationWorld);
+    assert.equal(after.shard_id, certificationShard);
+    assert.deepEqual(
+      [after.version, after.location_id, after.condition],
+      [before.version, before.location_id, before.condition],
+      "Nonmutating isolated exercise changed authoritative state.",
+    );
+    certifiedTurns.push({
+      alias: player.alias,
+      userId: player.userId,
+      actorId: provisioned.actor_id,
+      residenceId: provisioned.residence_id,
+      requestId: record.request_id,
+      eventId: event.event_id,
+      worldId: record.world_id,
+      shardId: record.shard_id,
+    });
+  }
+  assert.equal(new Set(certifiedTurns.map((turn) => turn.actorId)).size, 3);
+  assert.equal(new Set(certifiedTurns.map((turn) => turn.residenceId)).size, 3);
+  assert.equal(new Set(certifiedTurns.map((turn) => turn.eventId)).size, 3);
+  const impersonation = await api(
+    certifiedPlayers[0],
+    "/v1/persistent-world/actions",
+    "POST",
+    { actorId: certifiedTurns[1].actorId, command: "Do one push-up." },
+    "story-ci-isolated-impersonation:" + runId,
+  );
+  assert.equal(impersonation.status, 403, "Isolated players may not impersonate each other.");
+  const crossed = await api(
+    certifiedPlayers[0],
+    "/v1/persistent-world/actions",
+    "POST",
+    { actorId: players[0].actorId, command: "Do one push-up." },
+    "story-ci-isolated-cross-world:" + runId,
+  );
+  assert.equal(crossed.status, 403, "Isolated players may not act in public world.");
+  await query(
+    "UPDATE game.certification_runs SET status='revoked' WHERE run_id=$1",
+    [certificationRun],
+  );
+  const revoked = await api(certifiedPlayers[0], "/v1/persistent-world/dashboard");
+  assert.equal(revoked.status, 403, "Revoked player must never fall back to public world.");
+  const noPublic = await query(
+    "SELECT user_id FROM game.world_memberships WHERE world_id=$1 AND user_id=ANY($2::text[])",
+    [DEFAULT_WORLD_ID, certifiedPlayers.map((player) => player.userId)],
+  );
+  assert.equal(noPublic.length, 0, "Isolated players acquired public membership.");
+
   const report = {
     status: "passed",
     stage: "real-api-postgres-fake-provider",
@@ -341,6 +474,15 @@ try {
     crossAccountActionDenied: true,
     crossAccountDashboardDenied: true,
     idempotentReplay: true,
+    isolatedCertification: {
+      worldId: certificationWorld,
+      shardId: certificationShard,
+      district: certDistrict.district,
+      turns: certifiedTurns,
+      crossActorDenied: true,
+      crossWorldDenied: true,
+      revokedRunDenied: true,
+    },
   };
   await writeFile("artifacts/multiplayer-story-slice.json", JSON.stringify(report, null, 2));
   console.log(
