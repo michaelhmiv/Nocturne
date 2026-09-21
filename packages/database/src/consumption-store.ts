@@ -439,7 +439,10 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
           sourceEventId: eventId,
         };
       }
-      if (actuallyConsumed && (input.mechanics.resourceDeltas.length || input.mechanics.conditions.length)) {
+      if (
+        actuallyConsumed &&
+        (input.mechanics.resourceDeltas.length || input.mechanics.conditions.length)
+      ) {
         actorState = { ...actorState, resources, activeConditions };
         await sql`
           UPDATE game.entity_instances
@@ -484,7 +487,7 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
         margin: effectiveOutcomeGrade === "failure" ? -1 : 1,
         operations: [],
         informationGained: [],
-        costs: consumption && consumption.unitsConsumed > 0
+        costs: consumption?.unitsConsumed
           ? [{ resource: "quantity" as const, amount: consumption.unitsConsumed }]
           : [],
         consumption,
