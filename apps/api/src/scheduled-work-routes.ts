@@ -10,6 +10,7 @@ import {
 } from "@nocturne/database";
 import { z } from "zod";
 import { createScheduledWorkService, ScheduledWorkServiceError } from "./scheduled-work-service.js";
+import type { ScheduledPersistentActionContinuation } from "./persistent-world-runtime.js";
 
 const paramsSchema = z.object({ scheduleId: z.string().uuid() }).strict();
 const bodySchema = z
@@ -25,7 +26,10 @@ function safeEqual(left: string, right: string) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-export async function registerScheduledWorkRoutesFromEnv(app: FastifyInstance) {
+export async function registerScheduledWorkRoutesFromEnv(
+  app: FastifyInstance,
+  continuation?: ScheduledPersistentActionContinuation,
+) {
   const databaseUrl = process.env.DATABASE_URL;
   const workerSecret = process.env.AI_JOB_WORKER_SECRET;
   if (!databaseUrl) throw new Error("DATABASE_URL is required for scheduled-work routes.");
@@ -100,6 +104,24 @@ export async function registerScheduledWorkRoutesFromEnv(app: FastifyInstance) {
     };
     try {
       const result = await service.resolve(claim);
+      const requestId =
+        typeof row.payload?.requestId === "string" ? row.payload.requestId : null;
+      const actorId =
+        typeof row.payload?.actorId === "string"
+          ? row.payload.actorId
+          : row.subject_entity_ids[0] || null;
+      if (continuation && row.plan_id && row.step_id && requestId && actorId) {
+        await continuation.resume({
+          worldId: row.world_id,
+          shardId: row.shard_id,
+          userId: String(row.payload?.userId || "scheduled-system"),
+          requestId,
+          planId: row.plan_id,
+          stepId: row.step_id,
+          actorId,
+          eventId: result.eventId,
+        });
+      }
       return reply.send({
         scheduleId,
         eventId: result.eventId,
@@ -107,14 +129,48 @@ export async function registerScheduledWorkRoutesFromEnv(app: FastifyInstance) {
       });
     } catch (error) {
       const code =
-        error instanceof ScheduledWorkServiceError ? error.code : "scheduled_resolution_failed";
+        error instanceof ScheduledWorkServiceError
+          ? error.code
+          : typeof error === "object" &&
+              error !== null &&
+              "code" in error &&
+              typeof error.code === "string"
+            ? error.code
+            : "scheduled_resolution_failed";
       const retryable = ![
         "unsupported_kind",
         "stale_state",
         "superseded",
         "target_missing",
         "domain_rejection",
+        "entity_not_found",
+        "cross_world_reference",
+        "invalid_location",
+        "invalid_operation",
+        "unmet_precondition",
+        "forbidden",
+        "idempotency_conflict",
       ].includes(code);
+      const requestId =
+        typeof row.payload?.requestId === "string" ? row.payload.requestId : null;
+      const actorId =
+        typeof row.payload?.actorId === "string"
+          ? row.payload.actorId
+          : row.subject_entity_ids[0] || null;
+      if (!retryable && continuation && row.plan_id && row.step_id && requestId && actorId) {
+        await continuation.fail({
+          worldId: row.world_id,
+          shardId: row.shard_id,
+          userId: String(row.payload?.userId || "scheduled-system"),
+          requestId,
+          planId: row.plan_id,
+          stepId: row.step_id,
+          actorId,
+          errorCode: code,
+          message:
+            error instanceof Error ? error.message.slice(0, 2_000) : "Scheduled resolution failed.",
+        });
+      }
       return reply.code(retryable ? 500 : 422).send({
         error: code,
         message:
