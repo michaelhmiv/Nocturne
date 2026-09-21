@@ -1,7 +1,31 @@
 import { describe, expect, it } from "vitest";
-import { PlayerSafeFactNarrationError, narratePlayerSafeFacts } from "./player-safe-narrator.js";
+import {
+  PlayerSafeFactNarrationError,
+  assertPlayerSafeFactNarration,
+  narratePlayerSafeFacts,
+} from "./player-safe-narrator.js";
 
 describe("player-safe fact narration", () => {
+  it("accepts a truthful negated arrival while travel remains in progress", () => {
+    const input = {
+      eventType: "travel_started",
+      playerVisibleFacts: [
+        "Travel was scheduled.",
+        "The actor has not arrived yet.",
+        "The ETA is 42 seconds.",
+      ],
+    };
+    expect(() =>
+      assertPlayerSafeFactNarration("You have not arrived yet. ETA: 42 seconds.", input),
+    ).not.toThrow();
+    expect(() =>
+      assertPlayerSafeFactNarration("You have not arrived yet, but then arrive.", input),
+    ).toThrow(PlayerSafeFactNarrationError);
+    expect(() =>
+      assertPlayerSafeFactNarration("You arrived at the destination.", input),
+    ).toThrow(PlayerSafeFactNarrationError);
+  });
+
   it("accepts prose constrained to committed visible facts", async () => {
     const client = {
       generateText: async () => ({
