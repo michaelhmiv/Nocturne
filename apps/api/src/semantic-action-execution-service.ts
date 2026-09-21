@@ -208,6 +208,7 @@ export function createSemanticActionExecutionService(input: {
     frame: SemanticActionFrame;
     resolution: ActionResolutionDecision;
     context: RelevanceCompiledContext;
+    failureNarration?: string;
   }) {
     if (
       ![
@@ -224,6 +225,7 @@ export function createSemanticActionExecutionService(input: {
     }
     const roll = deterministicRoll(input.rollSecret, request.idempotencyKey);
     const initiallySucceeded =
+      !request.failureNarration &&
       request.resolution.mode !== "automatic_failure" &&
       request.resolution.mode !== "clarification_required" &&
       successFor(request.frame, request.resolution, request.context, roll);
@@ -252,11 +254,12 @@ export function createSemanticActionExecutionService(input: {
       request.frame.kind !== "dialogue" &&
       request.frame.kind !== "question";
     const succeeded = initiallySucceeded && !purchaseWithoutSettlement && !unsupportedSuccess;
-    const playerNarration = purchaseWithoutSettlement
+    const playerNarration = request.failureNarration ||
+      (purchaseWithoutSettlement
       ? "The purchase cannot be completed: no verified price, payment, and inventory transfer were committed."
       : unsupportedSuccess
         ? "The action could not be completed: no authoritative effect was established."
-        : narration(request.frame, request.resolution, succeeded, hazard);
+        : narration(request.frame, request.resolution, succeeded, hazard));
     const committedOperations = proposedOperations;
 
     const receipt =
