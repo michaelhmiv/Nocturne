@@ -14,7 +14,7 @@ The script `scripts/ci/provision-certification-inspection.ts` requires database 
 
 `scripts/ci/revoke-certification-inspection.ts` requires `NOCTURNE_CERT_REVOKE=1` and `NOCTURNE_CERT_RUN_ID`. Revoke after every run; expiry is a second backstop. Revocation retains the run audit and does not clean up game assets, alter a public player membership, or delete unrelated data.
 
-**Do not run a live story against a newly issued world yet.** It has deliberately not been seeded with starter streets/housing. Legacy character creation, starter housing SQL and player scope resolution still hard-code the default world. Making these world-aware, provisioning three distinct *player* identities, and binding those identities to the isolated run are separate prerequisites before issue #138 can close. The inspector token by itself cannot perform gameplay.
+**Do not run a live story against a newly issued world yet.** It has deliberately not been seeded with starter streets/housing. Legacy character creation, starter housing SQL and player scope resolution still hard-code the default world. Making these world-aware, provisioning three distinct _player_ identities, and binding those identities to the isolated run are separate prerequisites before issue #138 can close. The inspector token by itself cannot perform gameplay.
 
 ## Mandatory test boundaries
 

@@ -31,8 +31,12 @@ try {
   await db.begin(async (sql) => {
     await sql.unsafe(
       "INSERT INTO game.worlds(world_id,slug,name,status,metadata) VALUES ($1,$2,$3,'active',$4::jsonb)",
-      [worldId, "certification-" + runId, "Isolated certification " + runId,
-        JSON.stringify({ isolatedCertification: true, runId, starterProvisioned: false })],
+      [
+        worldId,
+        "certification-" + runId,
+        "Isolated certification " + runId,
+        JSON.stringify({ isolatedCertification: true, runId, starterProvisioned: false }),
+      ],
     );
     await sql.unsafe(
       "INSERT INTO game.world_shards(shard_id,world_id,slug,name) VALUES ($1,$2,'primary','Primary')",
@@ -52,18 +56,22 @@ try {
   try {
     await writeFile(output, token + "\n", { flag: "wx", mode: 0o600 });
   } catch (error) {
-    await db.unsafe(
-      "UPDATE game.certification_runs SET status = 'revoked' WHERE run_id = $1",
-      [runId],
-    );
+    await db.unsafe("UPDATE game.certification_runs SET status = 'revoked' WHERE run_id = $1", [
+      runId,
+    ]);
     throw error;
   }
-  console.log(JSON.stringify({
-    event: "certification_inspection_provisioned",
-    runId, worldId, shardId, expiresAt: expiresAt.toISOString(),
-    starterProvisioned: false,
-    note: "Read-only inspector only; player character/housing world-scoping is not enabled.",
-  }));
+  console.log(
+    JSON.stringify({
+      event: "certification_inspection_provisioned",
+      runId,
+      worldId,
+      shardId,
+      expiresAt: expiresAt.toISOString(),
+      starterProvisioned: false,
+      note: "Read-only inspector only; player character/housing world-scoping is not enabled.",
+    }),
+  );
 } finally {
   await db.end();
 }

@@ -20,12 +20,14 @@ try {
     "UPDATE game.certification_inspection_grants SET revoked_at=COALESCE(revoked_at,now()) WHERE run_id=$1",
     [runId],
   );
-  console.log(JSON.stringify({
-    event: "certification_inspection_revoked",
-    runId,
-    worldId: rows[0].world_id,
-    shardId: rows[0].shard_id,
-  }));
+  console.log(
+    JSON.stringify({
+      event: "certification_inspection_revoked",
+      runId,
+      worldId: rows[0].world_id,
+      shardId: rows[0].shard_id,
+    }),
+  );
 } finally {
   await db.end();
 }

@@ -35,7 +35,10 @@ describe("read-only certification inspection HTTP boundary", () => {
   it("rejects ordinary player cookies/tokens as inspection credentials", async () => {
     const { app, inspectCertified } = await setup();
     try {
-      const result = await app.inject({ method: "GET", url: "/v1/certification/world/entities/" + entityId });
+      const result = await app.inject({
+        method: "GET",
+        url: "/v1/certification/world/entities/" + entityId,
+      });
       expect(result.statusCode).toBe(403);
       expect(result.json()).toMatchObject({ error: "forbidden" });
       expect(inspectCertified).not.toHaveBeenCalled();

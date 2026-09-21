@@ -46,8 +46,12 @@ describePostgres("read-only certification grants (PostgreSQL)", () => {
     ]) {
       await database.client.unsafe(
         "INSERT INTO game.worlds(world_id,slug,name,metadata) VALUES ($1,$2,$3,$4::jsonb)",
-        [worldId, "cert-inspect-test-" + worldId, "Certification isolated " + index,
-          JSON.stringify({ isolatedCertification: true })],
+        [
+          worldId,
+          "cert-inspect-test-" + worldId,
+          "Certification isolated " + index,
+          JSON.stringify({ isolatedCertification: true }),
+        ],
       );
       await database.client.unsafe(
         "INSERT INTO game.world_shards(shard_id,world_id,slug,name) VALUES ($1,$2,'primary','Primary')",
@@ -89,19 +93,25 @@ describePostgres("read-only certification grants (PostgreSQL)", () => {
   });
 
   it("denies first-run access to second-run entities without revealing their state", async () => {
-    await expect(inspector.inspectCertified({ token: tokenOne, entityId: entityTwo })).rejects.toMatchObject({
+    await expect(
+      inspector.inspectCertified({ token: tokenOne, entityId: entityTwo }),
+    ).rejects.toMatchObject({
       code: "entity_not_found",
     });
-    await expect(inspector.inspectCertified({ token: tokenTwo, entityId: entityOne })).rejects.toMatchObject({
+    await expect(
+      inspector.inspectCertified({ token: tokenTwo, entityId: entityOne }),
+    ).rejects.toMatchObject({
       code: "entity_not_found",
     });
   });
 
   it("never permits inspection of a default-world entity through certification", async () => {
-    await expect(inspector.inspectCertified({
-      token: tokenOne,
-      entityId: "10000000-0000-4000-8000-000000000005",
-    })).rejects.toMatchObject({ code: "entity_not_found" });
+    await expect(
+      inspector.inspectCertified({
+        token: tokenOne,
+        entityId: "10000000-0000-4000-8000-000000000005",
+      }),
+    ).rejects.toMatchObject({ code: "entity_not_found" });
   });
 
   it("rejects malformed, unknown, expired and revoked tokens", async () => {
@@ -112,15 +122,22 @@ describePostgres("read-only certification grants (PostgreSQL)", () => {
       expiredToken,
       revokedToken,
     ]) {
-      await expect(inspector.inspectCertified({ token, entityId: entityOne })).rejects.toMatchObject({
+      await expect(
+        inspector.inspectCertified({ token, entityId: entityOne }),
+      ).rejects.toMatchObject({
         code: "forbidden",
       });
     }
   });
 
   it("rejects a run after revocation even if its token has not expired", async () => {
-    await database.client.unsafe("UPDATE game.certification_runs SET status = 'revoked' WHERE run_id = $1", [runTwo]);
-    await expect(inspector.inspectCertified({ token: tokenTwo, entityId: entityTwo })).rejects.toMatchObject({
+    await database.client.unsafe(
+      "UPDATE game.certification_runs SET status = 'revoked' WHERE run_id = $1",
+      [runTwo],
+    );
+    await expect(
+      inspector.inspectCertified({ token: tokenTwo, entityId: entityTwo }),
+    ).rejects.toMatchObject({
       code: "forbidden",
     });
   });
@@ -133,13 +150,15 @@ describePostgres("read-only certification grants (PostgreSQL)", () => {
       role: "player" as const,
       selectedCharacterId: null,
     };
-    await expect(inspector.inspect({ scope: ordinaryScope, entityId: entityOne })).rejects.toBeInstanceOf(
-      WorldInspectorStoreError,
-    );
-    await expect(inspector.repair({
-      scope: ordinaryScope,
-      request: { actionType: "toggle_runtime_feature", reason: "not allowed" } as never,
-    })).rejects.toMatchObject({ code: "forbidden" });
+    await expect(
+      inspector.inspect({ scope: ordinaryScope, entityId: entityOne }),
+    ).rejects.toBeInstanceOf(WorldInspectorStoreError);
+    await expect(
+      inspector.repair({
+        scope: ordinaryScope,
+        request: { actionType: "toggle_runtime_feature", reason: "not allowed" } as never,
+      }),
+    ).rejects.toMatchObject({ code: "forbidden" });
   });
 
   it("audits valid, cross-run, expired and revoked attempts without plaintext tokens", async () => {
@@ -150,7 +169,9 @@ describePostgres("read-only certification grants (PostgreSQL)", () => {
     expect(rows.some((entry) => entry.granted === true && entry.reason === "read")).toBe(true);
     expect(rows.some((entry) => entry.reason === "entity_not_found")).toBe(true);
     expect(rows.some((entry) => entry.reason === "expired_or_revoked")).toBe(true);
-    expect(rows.every((entry) => entry.world_id === worldOne && entry.shard_id === shardOne)).toBe(true);
+    expect(rows.every((entry) => entry.world_id === worldOne && entry.shard_id === shardOne)).toBe(
+      true,
+    );
     const credentialLeak = await database.client.unsafe(
       "SELECT count(*)::int AS count FROM game.certification_inspection_audit WHERE reason LIKE $1",
       ["%" + tokenOne + "%"],

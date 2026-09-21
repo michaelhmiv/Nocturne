@@ -216,7 +216,10 @@ export function createWorldInspectorStore(
     entityId: string;
   }): Promise<WorldInspectorEntity> {
     if (!/^noct_cert_[A-Za-z0-9_-]{64}$/.test(input.token)) {
-      throw new WorldInspectorStoreError("forbidden", "Invalid certification inspection credential.");
+      throw new WorldInspectorStoreError(
+        "forbidden",
+        "Invalid certification inspection credential.",
+      );
     }
     const tokenHash = createHash("sha256").update(input.token).digest("hex");
     const [grant] = await database.client<
@@ -248,7 +251,10 @@ export function createWorldInspectorStore(
       LIMIT 1
     `;
     if (!grant) {
-      throw new WorldInspectorStoreError("forbidden", "Invalid certification inspection credential.");
+      throw new WorldInspectorStoreError(
+        "forbidden",
+        "Invalid certification inspection credential.",
+      );
     }
     const audit = async (reason: "read" | "entity_not_found" | "expired_or_revoked") => {
       await database.client`
@@ -262,7 +268,10 @@ export function createWorldInspectorStore(
     };
     if (!grant.active) {
       await audit("expired_or_revoked");
-      throw new WorldInspectorStoreError("forbidden", "Certification inspection grant expired or revoked.");
+      throw new WorldInspectorStoreError(
+        "forbidden",
+        "Certification inspection grant expired or revoked.",
+      );
     }
     try {
       const entity = await inspectEntity({
