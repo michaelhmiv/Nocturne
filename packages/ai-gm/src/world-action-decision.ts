@@ -418,7 +418,6 @@ export async function decideWorldActionFastPath(
   const kindConfidence = actionTypeConfidence;
   if (actionTypeConfidence < MIN_KIND_CONFIDENCE)
     fallbackReasons.push("low_action_type_confidence");
-  if (clarification.noul >= CLARIFICATION_THRESHOLD) fallbackReasons.push("clarification");
   if (multiStep.noul >= MULTI_STEP_THRESHOLD) fallbackReasons.push("multi_step");
   if (interpretation.mentions.some(({ status }) => status === "ambiguous")) {
     fallbackReasons.push("ambiguous_reference");
@@ -448,7 +447,15 @@ function requestedSearchConcept(command: string) {
   const forMatch = /\bfor\s+(.+)$/i.exec(trimmed);
   const findMatch = /\bfind\s+(.+)$/i.exec(trimmed);
   const raw = (forMatch?.[1] || findMatch?.[1] || "").replace(/^(?:a|an|the|some)\s+/i, "").trim();
-  return raw.length >= 2 && raw.length <= 180 ? raw : null;
+  if (raw.length >= 2 && raw.length <= 180) return raw;
+  if (
+    /\b(?:this|the current|my current)\s+(?:room|apartment|unit|building|location)\b|\bhere\b/i.test(
+      trimmed,
+    )
+  ) {
+    return "the current area";
+  }
+  return null;
 }
 
 function locationEntity(context: RelevanceCompiledContext, entityIds: string[]) {
@@ -464,11 +471,13 @@ export function buildFastSingleStepPlan(input: {
   command: string;
   actorId: string;
   kind: WorldActionKind;
+  planKind?: WorldActionKind;
   actionType: string;
   selectedEntityIds: string[];
   selectedEntityRoles?: Record<string, PlanReferenceRole>;
   context: RelevanceCompiledContext;
 }): PersistentActionPlanProposal {
+  const effectiveKind = input.planKind || input.kind;
   const entityMap = new Map(input.context.entities.map((entity) => [entity.entityId, entity]));
   const referencedEntities: PersistentActionPlanProposal["steps"][number]["referencedEntities"] = [
     {
@@ -510,7 +519,7 @@ export function buildFastSingleStepPlan(input: {
     ...(locationIds.length === 1 ? { locationId: locationIds[0] } : {}),
   };
 
-  if (input.kind === "move") {
+  if (effectiveKind === "move") {
     if (input.actionType === "drive") {
       throw new Error(
         "Vehicle travel requires authoritative actor-and-vehicle cohort movement, which is not enabled in this runtime yet.",
@@ -526,7 +535,7 @@ export function buildFastSingleStepPlan(input: {
       locationId: destination.entityId,
       destinationId: destination.entityId,
     };
-  } else if (input.kind === "search") {
+  } else if (effectiveKind === "search") {
     const actor = entityMap.get(input.actorId);
     const selectedArea = locationEntity(input.context, input.selectedEntityIds);
     const areaId = selectedArea?.entityId || actor?.locationId;
@@ -546,11 +555,11 @@ export function buildFastSingleStepPlan(input: {
 
   return {
     originalCommand: input.command,
-    exclusivePhysical: !["dialogue", "question"].includes(input.kind),
+    exclusivePhysical: !["dialogue", "question"].includes(effectiveKind),
     steps: [
       {
         order: 1,
-        kind: input.kind,
+        kind: effectiveKind,
         description: input.command,
         intentPayload,
         referencedEntities,
