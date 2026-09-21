@@ -24,7 +24,7 @@ describe("ChatGPT player-facing MCP contract", () => {
     expect(byName.get("create_character")?.title).toBe("Create character");
     expect(byName.get("submit_action")?.description).toContain("natural-language player action");
     expect(byName.get("submit_action")?.description).toContain("fixed command catalog");
-    expect(byName.get("get_operator_dashboard")?.description).toContain("Diagnostic");
+    expect(byName.get("get_operator_dashboard")?.description).toContain("scoped");
     expect(byName.get("nocturne_health")?.description).toContain(
       "not as part of ordinary gameplay",
     );
