@@ -196,12 +196,12 @@ describe("semantic action frame", () => {
     expect(currentUnit.assumptions).not.toContain("requires_possession:current unit");
     expect(currentUnit.claims.some((claim) => claim.claimType === "possession")).toBe(false);
     expect(hasExplicitPossessionRequirement("Cut it with my knife.")).toBe(true);
-    expect(hasExplicitPossessionRequirement("Look around my current unit and check the room carefully.")).toBe(
-      false,
-    );
-    expect(isCurrentAreaSearchCommand("Look around my current unit and check the room carefully.")).toBe(
-      true,
-    );
+    expect(
+      hasExplicitPossessionRequirement("Look around my current unit and check the room carefully."),
+    ).toBe(false);
+    expect(
+      isCurrentAreaSearchCommand("Look around my current unit and check the room carefully."),
+    ).toBe(true);
   });
 
   it("classifies actor anatomy as intrinsic rather than inventory", () => {
