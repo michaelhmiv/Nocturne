@@ -97,6 +97,13 @@ describePostgres("isolated, physically playable certification district", () => {
     );
     expect(traversable).toHaveLength(1);
     expect(traversable[0].parameters).toMatchObject({ bidirectional: true });
+    const runtime = await db.client.unsafe(
+      "SELECT enabled,configuration FROM game.runtime_features WHERE world_id=$1 AND feature_key='persistent_world_runtime'",
+      [world],
+    );
+    expect(runtime).toHaveLength(1);
+    expect(runtime[0].enabled).toBe(true);
+    expect(runtime[0].configuration.isolatedCertification).toBe(true);
   });
 
   it("creates three separate real characters, apartments, ownership and logged events", async () => {
@@ -144,6 +151,11 @@ describePostgres("isolated, physically playable certification district", () => {
       [world, district.buildingId],
     );
     expect(routes).toHaveLength(3);
+    const wrongWorldRoutes = await db.client.unsafe(
+      "SELECT source_instance_id FROM game.entity_relations WHERE world_id=$1 AND source_instance_id=ANY($2::uuid[]) AND relation_type='accessible_via'",
+      [DEFAULT_WORLD_ID, units.map((unit) => unit.instance_id)],
+    );
+    expect(wrongWorldRoutes).toHaveLength(0);
     const events = await db.client.unsafe(
       "SELECT event_type,world_id,shard_id FROM game.event_ledger WHERE world_id=$1 AND event_type IN ('character_created','starter_residence_provisioned')",
       [world],
