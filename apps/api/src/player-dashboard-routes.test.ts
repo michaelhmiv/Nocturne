@@ -69,6 +69,26 @@ describe("player dashboard actor authorization", () => {
     }
   });
 
+  it("maps revoked certification membership to 403 without reading another world", async () => {
+    const { app, build, resolveScope } = await setup(actorId);
+    resolveScope.mockRejectedValueOnce(
+      Object.assign(new Error("Certification run is revoked."), {
+        code: "membership_inactive",
+      }),
+    );
+    try {
+      const response = await app.inject({
+        method: "GET",
+        url: "/v1/persistent-world/dashboard?actorId=" + actorId,
+      });
+      expect(response.statusCode).toBe(403);
+      expect(response.json()).toMatchObject({ error: "forbidden" });
+      expect(build).not.toHaveBeenCalled();
+    } finally {
+      await app.close();
+    }
+  });
+
   it("allows only the selected actor's dashboard and rejects a different actor", async () => {
     const { app, build } = await setup(actorId);
     try {
