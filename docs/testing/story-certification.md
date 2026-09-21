@@ -8,6 +8,10 @@ The four original crime-drama scenarios in [story-certification-corpus.mjs](../.
 
 Issue #138 must deliver an isolated certification world, separate real account grants, scoped read-only inspection, and safe test provisioning. Until then, do not turn shared-world player signups into operators, put diagnostic tools on the public player MCP endpoint, run destructive story actions on real player property, or synthesize passing evidence.
 
+## First executable story path
+
+The separate required CI job **Certification / Three-Account Story Smoke** exercises the opening with three real independently signed-up Better Auth accounts, selected characters and distinct starter units against a fresh PostgreSQL container and a compiled API. It submits real natural-language actions with deterministic Jev/Laguna stand-ins; it queries persistent request/plan/event/receipt rows and rejects cross-account dashboard and actor access. Replays must return the exact original request and event IDs. This is a substantial improvement over mocked session assertions, but **it is not a live OpenRouter story, does not test the full 72 beats, and does not establish production readiness**. The full long-form runner still requires issue #138.
+
 ## Fiction and characters
 
 Write **original GTA-inspired urban crime drama**, not pasted fan fiction or scripts from other games. The script's scene descriptions are prompts for the test _operator_, not reality injected into the game. An act must never predeclare that there is a key, an arsonist, a paid job, a gun, an operable car, a chair or a witness unless real seeded/committed world facts establish it. A story can be compelling when an attempted action fails, a witness is mistaken, a route is blocked, or a character has to work around circumstances.
