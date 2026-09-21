@@ -202,6 +202,10 @@ jobs:
         run: |
           set -o pipefail
           pnpm --filter @nocturne/database exec vitest run test/server-bound-certification-players.integration.test.ts 2>&1 | tee artifacts/server-bound-certification-players.log
+      - name: Verify physically isolated three-player story district, unique housing and ledger
+        run: |
+          set -o pipefail
+          pnpm --filter @nocturne/database exec vitest run test/isolated-certification-story-fixtures.integration.test.ts 2>&1 | tee artifacts/isolated-certification-story-fixtures.log
       - if: failure()
         uses: actions/upload-artifact@v4
         with:

@@ -24,6 +24,14 @@ A bound account remains bound after its run expires or is revoked: subsequent ga
 
 **Binding is not enabled for live story runs yet.** This step does not create Better Auth accounts, certification-world housing, routes or NPCs, nor does it grant an inspector token the ability to play. The outstanding #138 work is trusted onboarding provisioning for three normal OAuth player identities, physically isolated starter geography and units, and the live 15-case and 72-turn acceptance suites.
 
+## Isolated physical story fixture (database-only)
+
+Migration 0041 introduces two **privileged database fixture functions**, not player-facing routes: `game.provision_certification_district(run_id)` seeds a fictional five-place location hierarchy with its own UUIDs, world/shard, containment, and a traversable building–alley route; `game.provision_certification_player(run_id,user_id,name)` checks the exact persisted player binding and PLAYER membership, then creates a unique character, bare-bones apartment, occupancy, apartment-door route and **world/shard-scoped append-only character and housing events**. The run row is locked, so retries return the original actor and residence rather than duplicating housing or payroll. No public-world asset is referenced, and a revoked/expired run cannot provision even an existing character.
+
+Required PostgreSQL tests assert three distinct independent players, apartments, events, access routes and no default-world membership/character, cross-run denial, idempotent retries and revocation. The disposable compiled API test also creates **three independently authenticated isolated players** and attempts one real non-mutating action each, verifying request/plan/event scopes and cross-actor/world denial; public ordinary players retain their earlier six-turn integration scenario. A fake AI provider is still used. This is neither production OAuth enrollment nor the full 72-turn live Jev/Laguna campaign.
+
+The isolated fixture intentionally models a **small certification district**, not the full NYC map. It must not be confused with a complete importer or a finished economy. The scene can legitimately reject an unavailable knife, food or car. Those rejections become part of later long-form story acceptance rather than grounds for inventing props.
+
 ## Mandatory test boundaries
 
 PostgreSQL tests seed two truly separate certification worlds and two grants, then inspect one scoped entity per run. They check cross-run, cross-shard/default-world denial, unknown/malformed/expired/revoked credentials, operator/repair separation, and audit records. Fastify route tests verify that an ordinary player cannot substitute a session for the inspector token; the token does not authorize operator entity inspection or repair; no POST certification repair route exists. Both tests run under regular required CI. No skipped test or static fixture makes the 15-case live suite green.

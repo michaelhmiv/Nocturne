@@ -16,12 +16,13 @@ async function setup(selectedCharacterId: string | null) {
     role: "player",
     selectedCharacterId,
   };
+  const resolveScope = vi.fn().mockResolvedValue(scope);
   await registerPlayerDashboardRoutes(app, {
     dashboard: { build } as unknown as PlayerDashboardStore,
-    resolveScope: async () => scope,
+    resolveScope,
   });
   await app.ready();
-  return { app, build };
+  return { app, build, resolveScope };
 }
 
 describe("player dashboard actor authorization", () => {
@@ -63,6 +64,26 @@ describe("player dashboard actor authorization", () => {
       });
       expect(response.statusCode).toBe(409);
       expect(response.json()).toMatchObject({ error: "actor_required" });
+      expect(build).not.toHaveBeenCalled();
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("maps revoked certification membership to 403 without reading another world", async () => {
+    const { app, build, resolveScope } = await setup(actorId);
+    resolveScope.mockRejectedValueOnce(
+      Object.assign(new Error("Certification run is revoked."), {
+        code: "membership_inactive",
+      }),
+    );
+    try {
+      const response = await app.inject({
+        method: "GET",
+        url: "/v1/persistent-world/dashboard?actorId=" + actorId,
+      });
+      expect(response.statusCode).toBe(403);
+      expect(response.json()).toMatchObject({ error: "forbidden" });
       expect(build).not.toHaveBeenCalled();
     } finally {
       await app.close();
