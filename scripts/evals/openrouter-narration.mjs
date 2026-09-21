@@ -19,7 +19,7 @@ const cases = [
   {
     id: "routine_pushup",
     instruction:
-      "Narrate the committed event in second person as concise, grounded immersive game prose.",
+      "Narrate exactly one completed push-up in second person. Do not invent standing up, travel, additional movements, or the actor\u0027s final posture.",
     committed: [
       "The actor attempted one push-up.",
       "The action completed successfully.",
@@ -176,6 +176,28 @@ const cases = [
   },
 ];
 
+function findForbiddenClaims(testCase, narration) {
+  // A truthful statement that the actor has NOT arrived is not an arrival.
+  // Strip only that negated claim; any additional positive arrival still fails.
+  const evaluatedText =
+    testCase.id === "travel_started"
+      ? narration.replace(/\\b(?:not|never)\\s+(?:yet\\s+)?arrived\\b/gi, "still en route")
+      : narration;
+  return testCase.forbidden
+    .filter((pattern) => pattern.test(evaluatedText))
+    .map((pattern) => String(pattern));
+}
+
+const travelFixture = cases.find(({ id }) => id === "travel_started");
+if (
+  !travelFixture ||
+  findForbiddenClaims(travelFixture, "The actor has not arrived yet.").length !== 0 ||
+  findForbiddenClaims(travelFixture, "The actor has not arrived, but then arrived.").length === 0 ||
+  findForbiddenClaims(travelFixture, "The actor arrived at the destination.").length === 0
+) {
+  throw new Error("Narration evaluation must distinguish denial from a positive arrival claim.");
+}
+
 const headers = {
   Authorization: `Bearer ${key}`,
   "Content-Type": "application/json",
@@ -218,9 +240,7 @@ async function request(model, testCase) {
   const payload = JSON.parse(text);
   const narration = payload.choices?.[0]?.message?.content?.trim();
   if (!narration) throw new Error("Provider returned no narration content.");
-  const forbiddenMatches = testCase.forbidden
-    .filter((pattern) => pattern.test(narration))
-    .map((pattern) => String(pattern));
+  const forbiddenMatches = findForbiddenClaims(testCase, narration);
   return {
     id: testCase.id,
     instruction:
