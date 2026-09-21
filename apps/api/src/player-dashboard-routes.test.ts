@@ -16,12 +16,13 @@ async function setup(selectedCharacterId: string | null) {
     role: "player",
     selectedCharacterId,
   };
+  const resolveScope = vi.fn().mockResolvedValue(scope);
   await registerPlayerDashboardRoutes(app, {
     dashboard: { build } as unknown as PlayerDashboardStore,
-    resolveScope: async () => scope,
+    resolveScope,
   });
   await app.ready();
-  return { app, build };
+  return { app, build, resolveScope };
 }
 
 describe("player dashboard actor authorization", () => {
