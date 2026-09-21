@@ -1,3 +1,52 @@
+-- A starter unit's door is a same-world physical edge. The legacy trigger
+-- defaulted entity_relations.world_id to the public world, silently making
+-- isolated units appear disconnected in their actual scoped graph.
+CREATE OR REPLACE FUNCTION game.ensure_starter_residence_route()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $
+DECLARE
+  v_building_id uuid;
+BEGIN
+  IF COALESCE(NEW.state->>'housingType', '') <> 'starter_apartment' THEN
+    RETURN NEW;
+  END IF;
+  v_building_id := COALESCE(
+    NULLIF(NEW.state->>'buildingId', '')::uuid,
+    NEW.location_id
+  );
+  IF v_building_id IS NULL OR NOT EXISTS (
+    SELECT 1
+    FROM game.entity_instances building
+    WHERE building.instance_id = v_building_id
+      AND building.world_id = NEW.world_id
+      AND building.shard_id = NEW.shard_id
+  ) THEN
+    RAISE EXCEPTION 'Starter residence has no building in its world and shard'
+      USING ERRCODE = '23514';
+  END IF;
+  INSERT INTO game.entity_relations (
+    source_instance_id, target_instance_id,
+    relation_type, parameters, world_id
+  ) VALUES (
+    NEW.instance_id, v_building_id,
+    'accessible_via',
+    jsonb_build_object(
+      'connectionType', 'apartment_door',
+      'travel_time_seconds', 20,
+      'bidirectional', true,
+      'privateInterior', true,
+      'unitLabel', NEW.state->>'unitLabel'
+    ),
+    NEW.world_id
+  )
+  ON CONFLICT (source_instance_id, target_instance_id, relation_type)
+  DO UPDATE SET parameters = EXCLUDED.parameters,
+                world_id = EXCLUDED.world_id;
+  RETURN NEW;
+END;
+$;
+
 -- Offline-only fixture functions. Never expose these as ordinary API or MCP tools.
 -- World/shard and membership are read from the authoritative run, never from a
 -- caller-supplied player world ID. This is intentionally a small original
@@ -147,6 +196,21 @@ BEGIN
     'neighborhoodId', v_neighborhood,
     'buildingId', v_building, 'alleyId', v_alley
   );
+  -- The runtime gate is per world, not per deployment. Never change the
+  -- public world's feature flag from certification fixture provisioning.
+  INSERT INTO game.runtime_features (
+    world_id, feature_key, enabled, configuration, updated_by
+  ) VALUES (
+    v_run.world_id, 'persistent_world_runtime', true,
+    '{"runtimeVersion":"persistent-world-v1","isolatedCertification":true}'::jsonb,
+    'isolated_certification_provisioner'
+  )
+  ON CONFLICT (world_id, feature_key) DO UPDATE
+  SET enabled = true,
+      configuration = game.runtime_features.configuration || EXCLUDED.configuration,
+      updated_by = EXCLUDED.updated_by,
+      updated_at = now();
+
   UPDATE game.worlds
   SET metadata = metadata || jsonb_build_object('certificationDistrict', v_ids),
       updated_at = now()
