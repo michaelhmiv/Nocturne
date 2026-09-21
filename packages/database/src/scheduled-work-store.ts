@@ -29,6 +29,15 @@ export class ScheduledWorkStoreError extends Error {
   }
 }
 
+/** postgres-js may decode a timestamptz as a Date or an ISO-like string. */
+export function formatScheduledLeaseExpiration(value: Date | string): string {
+  const timestamp = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(timestamp.getTime())) {
+    throw new ScheduledWorkStoreError("invalid_state", "Scheduled worker lease has an invalid timestamp.");
+  }
+  return timestamp.toISOString();
+}
+
 export function createScheduledWorkStore(database: ReturnType<typeof createDatabase>) {
   async function claimDue(input: {
     workerId: string;
@@ -74,7 +83,7 @@ export function createScheduledWorkStore(database: ReturnType<typeof createDatab
           plan_id: string | null;
           step_id: string | null;
           attempt_count: number;
-          lease_expires_at: Date;
+          lease_expires_at: Date | string;
         }[]
       >`
         UPDATE game.scheduled_actions action
@@ -107,7 +116,7 @@ export function createScheduledWorkStore(database: ReturnType<typeof createDatab
           ) VALUES (
             ${randomUUID()}, ${row.schedule_id}, ${row.attempt_count},
             ${input.workerId}, 'running',
-            ${json({ leaseExpiresAt: row.lease_expires_at.toISOString() })}::jsonb
+            ${json({ leaseExpiresAt: formatScheduledLeaseExpiration(row.lease_expires_at) })}::jsonb
           )
         `;
       }
@@ -124,7 +133,7 @@ export function createScheduledWorkStore(database: ReturnType<typeof createDatab
         planId: row.plan_id,
         stepId: row.step_id,
         attemptNumber: row.attempt_count,
-        leaseExpiresAt: row.lease_expires_at.toISOString(),
+        leaseExpiresAt: formatScheduledLeaseExpiration(row.lease_expires_at),
       }));
     });
   }
