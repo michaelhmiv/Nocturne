@@ -2,6 +2,8 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import {
   WorldActionPlayerSafeResultSchema,
   type MaterializationAnalysisRequest,
+  type RelevanceCompiledContext,
+  type SemanticActionFrame,
   type WorldActionKind,
   type WorldActionPlayerSafeResult,
 } from "@nocturne/contracts";
@@ -125,6 +127,13 @@ export async function registerPersistentWorldRuntime(
       entityId: string;
       relevantFacts: string[];
     }): Promise<void>;
+    validateVehiclePurchase?(input: {
+      scope: WorldScope;
+      actorId: string;
+      rawText: string;
+      frame: SemanticActionFrame;
+      context: RelevanceCompiledContext;
+    }): Promise<{ rejectionNarration: string } | null>;
   },
 ) {
   const executor = createUniversalOperationExecutor(dependencies.database);
@@ -219,6 +228,7 @@ export async function registerPersistentWorldRuntime(
     scheduleTimedAction: timedActions.schedule,
     executeRoutineAction: routineActions.execute,
     executeSemanticAction: semanticActions.execute,
+    validateVehiclePurchase: dependencies.validateVehiclePurchase,
     executeExistingAction: dependencies.executeExistingAction,
   });
   const actions = createPersistentWorldActionService({
