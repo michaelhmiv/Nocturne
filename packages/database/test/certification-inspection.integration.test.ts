@@ -71,7 +71,7 @@ describePostgres("read-only certification grants (PostgreSQL)", () => {
       [runTwo, tokenTwo, "30 minutes", false],
       [runOne, expiredToken, "-1 minute", false],
       [runOne, revokedToken, "30 minutes", true],
-    ]) {
+    ] as const) {
       await database.client.unsafe(
         "INSERT INTO game.certification_inspection_grants(run_id,token_sha256,expires_at,revoked_at) VALUES ($1,$2,now()+$3::interval,CASE WHEN $4::boolean THEN now() ELSE NULL END)",
         [runId, createHash("sha256").update(token).digest("hex"), expiry, revoked],
