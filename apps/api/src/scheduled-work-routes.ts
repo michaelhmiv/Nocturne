@@ -5,6 +5,7 @@ import {
   createPersistentPlanStore,
   createRelationshipStore,
   createUniversalOperationExecutor,
+  formatScheduledLeaseExpiration,
   type ScheduledWorkClaim,
 } from "@nocturne/database";
 import { z } from "zod";
@@ -61,7 +62,7 @@ export async function registerScheduledWorkRoutesFromEnv(app: FastifyInstance) {
         plan_id: string | null;
         step_id: string | null;
         attempt_count: number;
-        lease_expires_at: Date;
+        lease_expires_at: Date | string;
       }[]
     >`
       SELECT schedule_id, world_id, shard_id, idempotency_key, kind, payload,
@@ -95,7 +96,7 @@ export async function registerScheduledWorkRoutesFromEnv(app: FastifyInstance) {
       planId: row.plan_id,
       stepId: row.step_id,
       attemptNumber: row.attempt_count,
-      leaseExpiresAt: row.lease_expires_at.toISOString(),
+      leaseExpiresAt: formatScheduledLeaseExpiration(row.lease_expires_at),
     };
     try {
       const result = await service.resolve(claim);
