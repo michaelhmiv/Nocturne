@@ -16,6 +16,14 @@ The script `scripts/ci/provision-certification-inspection.ts` requires database 
 
 **Do not run a live story against a newly issued world yet.** It has deliberately not been seeded with starter streets/housing. Legacy character creation, starter housing SQL and player scope resolution still hard-code the default world. Making these world-aware, provisioning three distinct _player_ identities, and binding those identities to the isolated run are separate prerequisites before issue #138 can close. The inspector token by itself cannot perform gameplay.
 
+## Server-bound player identities (follow-up boundary)
+
+An isolated inspection token is NEVER used as a player's authentication. A separate `game.certification_players` record can bind an ordinary authenticated user ID to the exact run/world/shard under a composite foreign key. This record may be created only through trusted, offline database provisioning; names, email prefixes, HTTP headers, a `worldId` query parameter, and public MCP tools cannot grant access. The authenticated player scope resolver reads the run binding directly from PostgreSQL and verifies the run's active status, expiration, world marker, shard and **player-only** membership. It does not auto-enroll bound users into the public world.
+
+A bound account remains bound after its run expires or is revoked: subsequent gameplay fails closed instead of falling back into production. Until genuinely isolated character creation and housing land, all historical default-world character creation, listing, selection and starter rental methods refuse a bound certification account. The compiled API three-identity test adds a fourth real credential and confirms that it cannot create or list public-world characters or acquire an unintended public membership.
+
+**Binding is not enabled for live story runs yet.** This step does not create Better Auth accounts, certification-world housing, routes or NPCs, nor does it grant an inspector token the ability to play. The outstanding #138 work is trusted onboarding provisioning for three normal OAuth player identities, physically isolated starter geography and units, and the live 15-case and 72-turn acceptance suites.
+
 ## Mandatory test boundaries
 
 PostgreSQL tests seed two truly separate certification worlds and two grants, then inspect one scoped entity per run. They check cross-run, cross-shard/default-world denial, unknown/malformed/expired/revoked credentials, operator/repair separation, and audit records. Fastify route tests verify that an ordinary player cannot substitute a session for the inspector token; the token does not authorize operator entity inspection or repair; no POST certification repair route exists. Both tests run under regular required CI. No skipped test or static fixture makes the 15-case live suite green.
