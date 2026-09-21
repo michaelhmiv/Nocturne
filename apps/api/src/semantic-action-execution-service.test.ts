@@ -313,7 +313,6 @@ describe("semantic action execution service", () => {
   it.each([
     ["pick_up", "actor"],
     ["steal", "actor"],
-    ["buy", "actor"],
     ["give", "target"],
     ["transfer", "target"],
     ["drop", "none"],
@@ -363,6 +362,68 @@ describe("semantic action execution service", () => {
       } else {
         expect(operation?.possessorRef).toBeNull();
       }
+    },
+  );
+
+  it("does not grant a purchased item without an atomic payment operation", async () => {
+    const actorId = randomUUID();
+    const objectId = randomUUID();
+    const { service, execute, record } = serviceMocks();
+    const purchase = frame(actorId, "transfer");
+    purchase.actionType = "buy";
+    purchase.objectIds = [objectId];
+
+    const result = await service.execute({
+      scope,
+      actorId,
+      planId: randomUUID(),
+      stepId: randomUUID(),
+      idempotencyKey: "semantic:unsettled-purchase",
+      frame: purchase,
+      resolution: resolution("transaction"),
+      context: context(actorId),
+    });
+
+    expect(result.outcomeGrade).toBe("failure");
+    expect(result.narration).toMatch(/no verified price, payment, and inventory transfer/i);
+    expect(execute).not.toHaveBeenCalled();
+    expect(record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "action_failed",
+        payload: expect.objectContaining({ succeeded: false }),
+      }),
+    );
+  });
+
+  it.each(["accept_shift", "finish_shift", "check_balance"])(
+    "does not call an effectless %s action a success",
+    async (actionType) => {
+      const actorId = randomUUID();
+      const { service, execute, record } = serviceMocks();
+      const noOp = frame(actorId, "interact");
+      noOp.actionType = actionType;
+      noOp.objective = actionType;
+
+      const result = await service.execute({
+        scope,
+        actorId,
+        planId: randomUUID(),
+        stepId: randomUUID(),
+        idempotencyKey: `semantic:effectless:${actionType}`,
+        frame: noOp,
+        resolution: resolution("automatic_success"),
+        context: context(actorId),
+      });
+
+      expect(result.outcomeGrade).toBe("failure");
+      expect(result.narration).toMatch(/no authoritative effect was established/i);
+      expect(execute).not.toHaveBeenCalled();
+      expect(record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: "action_failed",
+          payload: expect.objectContaining({ succeeded: false }),
+        }),
+      );
     },
   );
 

@@ -223,18 +223,41 @@ export function createSemanticActionExecutionService(input: {
       throw new Error(`Semantic executor cannot execute ${request.resolution.mode}.`);
     }
     const roll = deterministicRoll(input.rollSecret, request.idempotencyKey);
-    const succeeded =
+    const initiallySucceeded =
       request.resolution.mode !== "automatic_failure" &&
       request.resolution.mode !== "clarification_required" &&
       successFor(request.frame, request.resolution, request.context, roll);
-    const hazard = hazardEffect(request.frame, request.resolution, succeeded);
-    const playerNarration = narration(request.frame, request.resolution, succeeded, hazard);
-    const committedOperations = operations({
+    // Transferring a purchased item without atomically charging the verified price
+    // is not a purchase. Never allow the general possession operation to masquerade
+    // as settlement; a dedicated scoped commerce executor must implement both effects.
+    const purchaseWithoutSettlement =
+      initiallySucceeded && request.frame.kind === "transfer" && request.frame.actionType === "buy";
+    const hazard = hazardEffect(
+      request.frame,
+      request.resolution,
+      initiallySucceeded && !purchaseWithoutSettlement,
+    );
+    const proposedOperations = operations({
       frame: request.frame,
       resolution: request.resolution,
-      succeeded,
+      succeeded: initiallySucceeded && !purchaseWithoutSettlement,
       hazard,
     });
+    // A no-op may accurately describe speech or asking a question, but it cannot
+    // establish that an item was bought, a shift was accepted, or an object changed.
+    const unsupportedSuccess =
+      initiallySucceeded &&
+      !purchaseWithoutSettlement &&
+      proposedOperations.length === 0 &&
+      request.frame.kind !== "dialogue" &&
+      request.frame.kind !== "question";
+    const succeeded = initiallySucceeded && !purchaseWithoutSettlement && !unsupportedSuccess;
+    const playerNarration = purchaseWithoutSettlement
+      ? "The purchase cannot be completed: no verified price, payment, and inventory transfer were committed."
+      : unsupportedSuccess
+        ? "The action could not be completed: no authoritative effect was established."
+        : narration(request.frame, request.resolution, succeeded, hazard);
+    const committedOperations = proposedOperations;
 
     const receipt =
       committedOperations.length > 0
