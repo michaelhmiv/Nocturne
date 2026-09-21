@@ -9,7 +9,26 @@ export async function registerPlayerDashboardRoutes(
   },
 ) {
   app.get("/v1/persistent-world/dashboard", async (request, reply) => {
-    const scope = await dependencies.resolveScope(request);
+    let scope: WorldScope;
+    try {
+      scope = await dependencies.resolveScope(request);
+    } catch (error) {
+      const code =
+        error instanceof Error && "code" in error
+          ? String(error.code)
+          : "";
+      if (
+        ["membership_inactive", "membership_not_found", "cross_world_reference", "forbidden"].includes(
+          code,
+        )
+      ) {
+        return reply.code(403).send({
+          error: "forbidden",
+          message: "World access is not available for this account.",
+        });
+      }
+      throw error;
+    }
     const query = request.query as { actorId?: string; historyLimit?: string | number };
     const actorId = String(query.actorId || scope.selectedCharacterId || "").trim();
     if (!actorId) {
