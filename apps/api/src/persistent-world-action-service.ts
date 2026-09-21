@@ -6,6 +6,7 @@ import {
   type WorldActionPlayerSafeResult,
 } from "@nocturne/contracts";
 import {
+  AiProviderError,
   buildFastSingleStepPlan,
   decideWorldActionFastPath,
   type AiDecisionClient,
@@ -164,7 +165,7 @@ export function createPersistentWorldActionService(dependencies: {
     error: unknown;
   }) {
     const errorCode =
-      input.error instanceof PersistentWorldActionServiceError
+      input.error instanceof PersistentWorldActionServiceError || input.error instanceof AiProviderError
         ? input.error.code
         : "request_failed";
     await dependencies.requests
@@ -454,6 +455,9 @@ export function createPersistentWorldActionService(dependencies: {
           candidates,
         });
       } catch (error) {
+        // Provider failures are infrastructure errors, never failed player plans.
+        // Preserve their typed code so the API returns 502/503/504 rather than 422.
+        if (error instanceof AiProviderError) throw error;
         throw new PersistentWorldActionServiceError(
           "planning_failed",
           error instanceof Error
