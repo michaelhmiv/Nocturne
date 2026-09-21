@@ -21,9 +21,9 @@ describe("player-safe fact narration", () => {
     expect(() =>
       assertPlayerSafeFactNarration("You have not arrived yet, but then arrive.", input),
     ).toThrow(PlayerSafeFactNarrationError);
-    expect(() =>
-      assertPlayerSafeFactNarration("You arrived at the destination.", input),
-    ).toThrow(PlayerSafeFactNarrationError);
+    expect(() => assertPlayerSafeFactNarration("You arrived at the destination.", input)).toThrow(
+      PlayerSafeFactNarrationError,
+    );
   });
 
   it("accepts prose constrained to committed visible facts", async () => {
