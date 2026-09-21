@@ -285,6 +285,31 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
         narration: `Travel started. ETA ${durationSeconds} seconds.`,
       };
     },
+    validateVehiclePurchase: async ({ scope, actorId, rawText }) => {
+      const normalize = (value: string) =>
+        value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      const command = normalize(rawText);
+      const listings = (await locations.listVehicles())
+        .filter((vehicle) => vehicle.ownerId === null && vehicle.forSale && vehicle.priceCents > 0)
+        .filter((vehicle) => {
+          const name = normalize(vehicle.name);
+          return name.length >= 2 && command.includes(name);
+        });
+      if (listings.length !== 1) return null;
+      const listing = listings[0]!;
+      const actorRows = await database.client<{ state: Record<string, unknown> | null }[]>`
+        SELECT state
+        FROM game.entity_instances
+        WHERE world_id = ${scope.worldId}
+          AND shard_id = ${scope.shardId}
+          AND instance_id = ${actorId}
+      `;
+      const cash = Number(actorRows[0]?.state?.cashOnPerson ?? 0);
+      if (cash >= listing.priceCents) return null;
+      return {
+        rejectionNarration: `You cannot afford the ${listing.name}; it costs ${listing.priceCents} cents and you have ${cash} cents in cash.`,
+      };
+    },
     executeExistingAction: async ({
       kind,
       scope,
