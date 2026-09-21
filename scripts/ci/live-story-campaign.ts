@@ -11,7 +11,7 @@
  */
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { STORY_CERTIFICATION_CASES } from "./story-certification-corpus.mjs";
 import {
   createAgentStore,
@@ -450,6 +450,48 @@ try {
     }
   }
   const finishedAt = new Date();
+  // The presence of configured model names is NOT proof that either provider
+  // was called. Read the compiled API's telemetry instead of trusting the
+  // manuscript, response latency, or provider configuration alone.
+  const providerEvidence = {
+    jevDecisionCalls: 0,
+    lagunaNarrationCalls: 0,
+    otherProviderCalls: 0,
+    failedProviderCalls: 0,
+  };
+  try {
+    const apiLog = await readFile("artifacts/live-story/api-process.log", "utf8");
+    for (const line of apiLog.split("\\n")) {
+      let entry;
+      try {
+        entry = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      const event = entry?.telemetry;
+      if (!event || typeof event !== "object") continue;
+      const model = String(event.model || "").toLowerCase();
+      if (event.eventName === "provider_call_failed") {
+        providerEvidence.failedProviderCalls += 1;
+      }
+      if (event.eventName !== "provider_call_completed") continue;
+      if (event.details?.inferenceMode === "decision" && model.includes("jev")) {
+        providerEvidence.jevDecisionCalls += 1;
+      } else if (model.includes("laguna")) {
+        providerEvidence.lagunaNarrationCalls += 1;
+      } else {
+        providerEvidence.otherProviderCalls += 1;
+      }
+    }
+  } catch (err) {
+    infrastructureError ||= "Provider telemetry unavailable: " + safeError(err);
+  }
+  if (completedSetup && providerEvidence.jevDecisionCalls === 0) {
+    infrastructureError ||= "No completed Jev provider calls observed in API telemetry.";
+  }
+  if (completedSetup && providerEvidence.lagunaNarrationCalls === 0) {
+    infrastructureError ||= "No completed Laguna provider calls observed in API telemetry.";
+  }
   const results = turns.reduce((map, t) => {
     map[t.verdict] = (map[t.verdict] || 0) + 1;
     return map;
@@ -457,7 +499,9 @@ try {
   const summary = {
     status: "NOT_CERTIFIED_REQUIRES_DOMAIN_PROBES_AND_NARRATION_REVIEW",
     stage: "live_jev_laguna_compiled_api_disposable_isolated_postgres",
-    liveModel: true,
+    liveModel:
+      providerEvidence.jevDecisionCalls > 0 && providerEvidence.lagunaNarrationCalls > 0,
+    providerEvidence,
     production: false,
     liveOAuthMcp: false,
     startedAt: startedAt.toISOString(),
