@@ -79,12 +79,7 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
 
   async function resolveScope(request: FastifyRequest): Promise<WorldScope> {
     const user = await requireUser(request);
-    await worlds.ensureMembership({ userId: user.id, worldId: DEFAULT_WORLD_ID });
-    let scope = await worlds.resolveForUser({
-      userId: user.id,
-      worldId: DEFAULT_WORLD_ID,
-      shardId: DEFAULT_SHARD_ID,
-    });
+    let scope = await worlds.resolveForAuthenticatedUser(user.id);
     const characters = await database.client<{ character_instance_id: string }[]>`
       SELECT character.character_instance_id
       FROM game.player_characters character
@@ -100,11 +95,7 @@ export async function registerPersistentWorldRuntimeFromEnv(app: FastifyInstance
     const selectedCharacterId = characters[0]?.character_instance_id || null;
     if (selectedCharacterId && selectedCharacterId !== scope.selectedCharacterId) {
       await worlds.setSelectedCharacter({ scope, characterId: selectedCharacterId });
-      scope = await worlds.resolveForUser({
-        userId: user.id,
-        worldId: DEFAULT_WORLD_ID,
-        shardId: DEFAULT_SHARD_ID,
-      });
+      scope = await worlds.resolveForAuthenticatedUser(user.id);
     }
     return scope;
   }
