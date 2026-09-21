@@ -59,13 +59,15 @@ describePostgres("scheduled plan completion and retry invariants (PostgreSQL)", 
       proposal: {
         originalCommand: "Stretch for one second",
         exclusivePhysical: false,
-        steps: [{
-          order: 1,
-          kind: "interact",
-          description: "Stretch",
-          intentPayload: {},
-          referencedEntities: [],
-        }],
+        steps: [
+          {
+            order: 1,
+            kind: "interact",
+            description: "Stretch",
+            intentPayload: {},
+            referencedEntities: [],
+          },
+        ],
         dependencies: [],
       },
     });
@@ -81,17 +83,19 @@ describePostgres("scheduled plan completion and retry invariants (PostgreSQL)", 
       idempotencyKey: `${root}:schedule`,
       declaredFactIds: [],
       branch: {
-        operations: [{
-          type: "schedule_timed_work",
-          symbol: "work",
-          kind: "semantic_action_completion",
-          subjectRefs: [{ kind: "existing", entityId: actorId }],
-          description: "Stretch",
-          durationSeconds: 1,
-          payload: { actorId },
-          expectedVersions: {},
-          preconditionFactIds: [],
-        }],
+        operations: [
+          {
+            type: "schedule_timed_work",
+            symbol: "work",
+            kind: "semantic_action_completion",
+            subjectRefs: [{ kind: "existing", entityId: actorId }],
+            description: "Stretch",
+            durationSeconds: 1,
+            payload: { actorId },
+            expectedVersions: {},
+            preconditionFactIds: [],
+          },
+        ],
       },
       playerVisibleFacts: ["Stretching starts."],
       hiddenFacts: [],
@@ -99,7 +103,11 @@ describePostgres("scheduled plan completion and retry invariants (PostgreSQL)", 
     const scheduleId = scheduled.symbolMap.work!;
     expect(scheduleId).toBeTruthy();
     await steps.markWaiting({
-      scope, planId: plan.planId, stepId, scheduleId, reason: "Waiting for elapsed time",
+      scope,
+      planId: plan.planId,
+      stepId,
+      scheduleId,
+      reason: "Waiting for elapsed time",
     });
     const current = await plans.read({ scope, planId: plan.planId });
     await plans.transitionPlan({
@@ -161,12 +169,17 @@ describePostgres("scheduled plan completion and retry invariants (PostgreSQL)", 
           attempt_count = 1, lease_expires_at = now() + interval '60 seconds'
       WHERE schedule_id = ${ids.scheduleId}
     `;
-    await expect(plans.completeStep({ ...completion, scheduleId: undefined })).rejects.toMatchObject({
+    await expect(
+      plans.completeStep({ ...completion, scheduleId: undefined }),
+    ).rejects.toMatchObject({
       code: "invalid_transition",
     });
-    await expect(plans.completeStep({
-      ...completion, scope: { ...scope, worldId: randomUUID() },
-    })).rejects.toMatchObject({ code: "step_not_found" });
+    await expect(
+      plans.completeStep({
+        ...completion,
+        scope: { ...scope, worldId: randomUUID() },
+      }),
+    ).rejects.toMatchObject({ code: "step_not_found" });
     await plans.completeStep(completion);
     await plans.completeStep(completion);
     expect((await plans.read({ scope, planId: ids.planId })).status).toBe("completed");
@@ -175,9 +188,12 @@ describePostgres("scheduled plan completion and retry invariants (PostgreSQL)", 
       WHERE plan_id = ${ids.planId} AND event_type = 'step_completed'
     `;
     expect(events[0]?.count).toBe(1);
-    await expect(plans.completeStep({
-      ...completion, resultEventId: randomUUID(),
-    })).rejects.toMatchObject({ code: "invalid_transition" });
+    await expect(
+      plans.completeStep({
+        ...completion,
+        resultEventId: randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "invalid_transition" });
   });
 
   it("does not complete a cancelled waiting plan even with a claimed schedule", async () => {
@@ -192,12 +208,21 @@ describePostgres("scheduled plan completion and retry invariants (PostgreSQL)", 
     `;
     const current = await plans.read({ scope, planId: ids.planId });
     await plans.transitionPlan({
-      scope, planId: ids.planId, expectedVersion: current.planVersion, status: "cancelled",
+      scope,
+      planId: ids.planId,
+      expectedVersion: current.planVersion,
+      status: "cancelled",
     });
-    await expect(plans.completeStep({
-      scope, planId: ids.planId, stepId: ids.stepId, scheduleId: ids.scheduleId,
-      outcomeGrade: "complete_success", resultEventId: receipt.eventId,
-      resultReceiptId: receipt.receiptId,
-    })).rejects.toMatchObject({ code: "invalid_transition" });
+    await expect(
+      plans.completeStep({
+        scope,
+        planId: ids.planId,
+        stepId: ids.stepId,
+        scheduleId: ids.scheduleId,
+        outcomeGrade: "complete_success",
+        resultEventId: receipt.eventId,
+        resultReceiptId: receipt.receiptId,
+      }),
+    ).rejects.toMatchObject({ code: "invalid_transition" });
   });
 });
