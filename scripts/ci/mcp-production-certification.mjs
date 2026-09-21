@@ -403,6 +403,9 @@ async function certifyPreflight(accessToken) {
 
   const listed = await rpc(accessToken, "tools/list", {});
   const names = new Set((listed.tools || []).map((tool) => tool.name));
+  // Public MCP must remain player-only. Diagnostic/repair privileges are
+  // NEVER a workaround for certification; unsupported inspection cases fail
+  // individually and remain visible in the final 15-case report.
   for (const name of [
     "create_character",
     "select_character",
@@ -410,11 +413,16 @@ async function certifyPreflight(accessToken) {
     "get_scene",
     "get_dashboard",
     "submit_action",
+  ]) {
+    assert.ok(names.has(name), `production certification requires player tool ${name}`);
+  }
+  for (const name of [
     "get_travel_path",
     "get_operator_dashboard",
     "inspect_world_entity",
+    "repair_world_entity",
   ]) {
-    assert.ok(names.has(name), `production certification requires diagnostic tool ${name}`);
+    assert.ok(!names.has(name), `public player MCP must not expose diagnostic tool ${name}`);
   }
 
   const health = await payloadTool(accessToken, "nocturne_health");
