@@ -38,6 +38,7 @@ export async function submitPersistentWorldAction(input: {
   command: string;
   actorId?: string;
   idempotencyKey: string;
+  clarificationForRequestId?: string;
   accessToken?: string;
   signal?: AbortSignal;
 }): Promise<WorldActionPlayerSafeResult> {
@@ -51,6 +52,9 @@ export async function submitPersistentWorldAction(input: {
     body: JSON.stringify({
       command: input.command,
       ...(input.actorId ? { actorId: input.actorId } : {}),
+      ...(input.clarificationForRequestId
+        ? { clarificationForRequestId: input.clarificationForRequestId }
+        : {}),
     }),
     signal: input.signal,
   });
