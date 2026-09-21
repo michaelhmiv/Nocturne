@@ -264,7 +264,7 @@ export function createScheduledWorkService(dependencies: {
           {
             type: "set_state_value",
             entityRef: { kind: "existing", entityId: actorId },
-            path: ["activity", "last_completed_timed_action"],
+            path: ["last_completed_timed_action"],
             value: {
               actionType: frame.actionType,
               objective: frame.objective,
