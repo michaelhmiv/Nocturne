@@ -215,6 +215,44 @@ describe("semantic action frame", () => {
     );
   });
 
+  it.each([
+    ["Exercise continuously for exactly two minutes.", 120],
+    ["Do push-ups for two minutes", 120],
+    ["Stretch over the next three minutes", 180],
+    ["Work for 15 minutes", 900],
+    ["Wait for twelve seconds", 12],
+  ])("schedules explicit duration from natural language: %s", (rawText, seconds) => {
+    const actorId = randomUUID();
+    const frame = deriveSemanticActionFrame({
+      kind: "interact",
+      actorId,
+      rawText,
+      payload: { rawText, actionType: "exercise" },
+      context: context(actorId),
+    });
+    expect(frame.durationSeconds).toBe(seconds);
+    expect(frame.properties.continuous).toBe(true);
+    expect(frame.claims).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ claimType: "duration", durationSeconds: seconds }),
+      ]),
+    );
+    expect(isRoutineSelfDirectedAction(frame)).toBe(false);
+  });
+
+  it("does not treat a zero-duration instruction as a completed interval", () => {
+    const actorId = randomUUID();
+    const frame = deriveSemanticActionFrame({
+      kind: "interact",
+      actorId,
+      rawText: "Exercise for 0 minutes",
+      payload: {},
+      context: context(actorId),
+    });
+    expect(frame.durationSeconds).toBeUndefined();
+    expect(frame.claims.some((claim) => claim.claimType === "duration")).toBe(false);
+  });
+
   it("resolves current-location deixis to the actor's authoritative location", () => {
     const actorId = randomUUID();
     const locationId = randomUUID();
