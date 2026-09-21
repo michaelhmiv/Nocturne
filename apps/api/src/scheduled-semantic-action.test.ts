@@ -82,6 +82,7 @@ describe("scheduled semantic action resolution", () => {
       executor: { execute } as never,
       plans: { completeStep, satisfyExternalDependency } as never,
       relationships: {} as never,
+      finalizeCompletedRequest: vi.fn(),
     });
     const work = claim(actorId);
 
@@ -111,6 +112,8 @@ describe("scheduled semantic action resolution", () => {
         eventId,
       }),
     );
+    // The worker must terminalize the owning player request after the plan step.
+    expect(completeStep).toHaveBeenCalledOnce();
   });
 
   it("uses byte-identical scheduled mutation payloads after worker retry and clock changes", async () => {
@@ -128,6 +131,7 @@ describe("scheduled semantic action resolution", () => {
       executor: { execute } as never,
       plans: { completeStep: vi.fn(), satisfyExternalDependency: vi.fn() } as never,
       relationships: {} as never,
+      finalizeCompletedRequest: vi.fn(),
     });
     await service.resolve(work);
     vi.setSystemTime(new Date("2026-09-21T18:05:00Z"));
