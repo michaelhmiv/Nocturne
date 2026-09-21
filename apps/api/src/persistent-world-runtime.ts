@@ -1,5 +1,10 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import type { MaterializationAnalysisRequest, WorldActionKind } from "@nocturne/contracts";
+import {
+  WorldActionPlayerSafeResultSchema,
+  type MaterializationAnalysisRequest,
+  type WorldActionKind,
+  type WorldActionPlayerSafeResult,
+} from "@nocturne/contracts";
 import type { AiDecisionClient, AiProviderClient } from "@nocturne/ai-gm";
 import {
   createMaterializationStore,
@@ -39,6 +44,30 @@ import { createSearchDiscoveryService } from "./search-discovery-service.js";
 import { createSemanticActionExecutionService } from "./semantic-action-execution-service.js";
 import { createTimedSemanticActionService } from "./timed-semantic-action-service.js";
 import { createWorldActionHandlerRegistry } from "./world-action-handler-registry.js";
+
+export type ScheduledPersistentActionContinuation = {
+  resume(input: {
+    worldId: string;
+    shardId: string;
+    userId: string;
+    requestId: string;
+    planId: string;
+    stepId: string;
+    actorId: string;
+    eventId: string;
+  }): Promise<WorldActionPlayerSafeResult>;
+  fail(input: {
+    worldId: string;
+    shardId: string;
+    userId: string;
+    requestId: string;
+    planId: string;
+    stepId: string;
+    actorId: string;
+    errorCode: string;
+    message: string;
+  }): Promise<void>;
+};
 
 export async function registerPersistentWorldRuntime(
   app: FastifyInstance,
@@ -205,6 +234,157 @@ export async function registerPersistentWorldRuntime(
     recordCompletedTurn: narrativeMemory.recordCompletedTurn,
     simulateReferencedEntity: dependencies.simulateReferencedEntity,
   });
+
+  /**
+   * Scheduled work commits its authoritative event before it can re-enter the
+   * normal persistent-action continuation loop. Keep that boundary explicit:
+   * the worker never invents a second execution path, and a retry can safely
+   * call this function again because completed requests return their durable
+   * player-safe result.
+   */
+  const scheduledContinuation: ScheduledPersistentActionContinuation = {
+    resume: async (input) => {
+      const rows = await dependencies.database.client<{
+        request_id: string;
+        user_id: string;
+        actor_id: string;
+        world_id: string;
+        shard_id: string;
+        plan_id: string | null;
+        command: string;
+        status: string;
+        player_safe_result: WorldActionPlayerSafeResult | null;
+      }[]>`
+        SELECT request_id, user_id, actor_id, world_id, shard_id, plan_id,
+               command, status, player_safe_result
+        FROM game.world_action_requests
+        WHERE request_id = ${input.requestId}
+          AND world_id = ${input.worldId}
+          AND shard_id = ${input.shardId}
+      `;
+      const request = rows[0];
+      if (
+        !request ||
+        request.user_id !== input.userId ||
+        request.actor_id !== input.actorId ||
+        request.plan_id !== input.planId
+      ) {
+        throw new Error("Scheduled continuation request scope does not match its claim.");
+      }
+      if (request.status === "completed" && request.player_safe_result) {
+        return WorldActionPlayerSafeResultSchema.parse(request.player_safe_result);
+      }
+      if (!["waiting", "executing"].includes(request.status)) {
+        throw new Error(
+          `Scheduled continuation cannot resume request in status ${request.status}.`,
+        );
+      }
+      const scope: WorldScope = {
+        worldId: input.worldId,
+        shardId: input.shardId,
+        userId: input.userId,
+        role: "player",
+        selectedCharacterId: input.actorId,
+      };
+      const compiledContext = await context.compile({
+        scope,
+        viewpointId: input.actorId,
+        command: request.command,
+        activePlanId: input.planId,
+      });
+      return actions.executePlan({
+        scope,
+        requestId: input.requestId,
+        actorId: input.actorId,
+        planId: input.planId,
+        context: compiledContext,
+        initialEventIds: [input.eventId],
+      });
+    },
+    fail: async (input) => {
+      const rows = await dependencies.database.client<{
+        request_id: string;
+        user_id: string;
+        actor_id: string;
+        world_id: string;
+        shard_id: string;
+        plan_id: string | null;
+        status: string;
+      }[]>`
+        SELECT request_id, user_id, actor_id, world_id, shard_id, plan_id, status
+        FROM game.world_action_requests
+        WHERE request_id = ${input.requestId}
+          AND world_id = ${input.worldId}
+          AND shard_id = ${input.shardId}
+      `;
+      const request = rows[0];
+      if (
+        !request ||
+        request.user_id !== input.userId ||
+        request.actor_id !== input.actorId ||
+        request.plan_id !== input.planId ||
+        ["completed", "failed", "cancelled", "superseded"].includes(request.status)
+      ) {
+        return;
+      }
+      const scope: WorldScope = {
+        worldId: input.worldId,
+        shardId: input.shardId,
+        userId: input.userId,
+        role: "player",
+        selectedCharacterId: input.actorId,
+      };
+      await steps
+        .failStep({
+          scope,
+          planId: input.planId,
+          stepId: input.stepId,
+          failureCode: input.errorCode,
+        })
+        .catch(() => {});
+      const plan = await plans.read({ scope, planId: input.planId }).catch(() => null);
+      if (
+        plan &&
+        ["planned", "running", "waiting_for_time", "waiting_for_world_event", "blocked"].includes(
+          plan.status,
+        )
+      ) {
+        await plans
+          .transitionPlan({
+            scope,
+            planId: input.planId,
+            expectedVersion: plan.planVersion,
+            status: "failed",
+            activeStepId: null,
+            failureCode: input.errorCode,
+            eventType: "scheduled_continuation_failed",
+            payload: { stepId: input.stepId, message: input.message },
+          })
+          .catch(() => {});
+      }
+      await requests
+        .transition({
+          scope,
+          requestId: input.requestId,
+          expectedStatus: [
+            "reserved",
+            "compiling_context",
+            "resolving_references",
+            "planning",
+            "executing",
+            "waiting",
+          ],
+          status: "failed",
+          errorCode: input.errorCode,
+          authoritativeResult: {
+            scheduledContinuation: "failed",
+            message: input.message,
+          },
+        })
+        .catch(() => {});
+    },
+  };
+
   const scene = createPersistentSceneStore(dependencies.database);
   const effects = createPlayerEffectStore(dependencies.database);
   const dashboard = createPlayerDashboardStore(dependencies.database, { scene, effects });
@@ -239,4 +419,9 @@ export async function registerPersistentWorldRuntime(
     dashboard: operatorDashboard,
     resolveScope: dependencies.resolveScope,
   });
+
+  return {
+    resumeScheduledAction: scheduledContinuation.resume,
+    failScheduledAction: scheduledContinuation.fail,
+  };
 }
