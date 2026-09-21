@@ -499,8 +499,7 @@ try {
   const summary = {
     status: "NOT_CERTIFIED_REQUIRES_DOMAIN_PROBES_AND_NARRATION_REVIEW",
     stage: "live_jev_laguna_compiled_api_disposable_isolated_postgres",
-    liveModel:
-      providerEvidence.jevDecisionCalls > 0 && providerEvidence.lagunaNarrationCalls > 0,
+    liveModel: providerEvidence.jevDecisionCalls > 0 && providerEvidence.lagunaNarrationCalls > 0,
     providerEvidence,
     production: false,
     liveOAuthMcp: false,
