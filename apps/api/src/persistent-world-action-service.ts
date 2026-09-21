@@ -165,7 +165,8 @@ export function createPersistentWorldActionService(dependencies: {
     error: unknown;
   }) {
     const errorCode =
-      input.error instanceof PersistentWorldActionServiceError || input.error instanceof AiProviderError
+      input.error instanceof PersistentWorldActionServiceError ||
+      input.error instanceof AiProviderError
         ? input.error.code
         : "request_failed";
     await dependencies.requests
