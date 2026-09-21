@@ -5,10 +5,12 @@ import {
   createPersistentPlanStore,
   createRelationshipStore,
   createUniversalOperationExecutor,
+  createWorldActionRequestStore,
   formatScheduledLeaseExpiration,
   type ScheduledWorkClaim,
 } from "@nocturne/database";
 import { z } from "zod";
+import { createScheduledRequestFinalizer } from "./scheduled-request-finalizer.js";
 import { createScheduledWorkService, ScheduledWorkServiceError } from "./scheduled-work-service.js";
 
 const paramsSchema = z.object({ scheduleId: z.string().uuid() }).strict();
@@ -35,7 +37,15 @@ export async function registerScheduledWorkRoutesFromEnv(app: FastifyInstance) {
   const executor = createUniversalOperationExecutor(database);
   const plans = createPersistentPlanStore(database);
   const relationships = createRelationshipStore(database, executor);
-  const service = createScheduledWorkService({ database, executor, plans, relationships });
+  const requests = createWorldActionRequestStore(database);
+  const finalizeCompletedRequest = createScheduledRequestFinalizer({ database, plans, requests });
+  const service = createScheduledWorkService({
+    database,
+    executor,
+    plans,
+    relationships,
+    finalizeCompletedRequest,
+  });
 
   app.addHook("onClose", async () => {
     await database.close();
