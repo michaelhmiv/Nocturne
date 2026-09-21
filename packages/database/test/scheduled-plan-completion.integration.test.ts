@@ -124,7 +124,7 @@ describePostgres("scheduled plan completion and retry invariants (PostgreSQL)", 
     const operation = {
       type: "set_state_value" as const,
       entityRef: { kind: "existing" as const, entityId: actorId },
-      path: ["activity", "last_completed_timed_action"],
+      path: ["last_completed_timed_action"],
       value: { actionType: "stretch", scheduleId: ids.scheduleId },
       preconditionFactIds: [],
     };
@@ -144,6 +144,16 @@ describePostgres("scheduled plan completion and retry invariants (PostgreSQL)", 
     const second = await executor.execute(input);
     expect(second.eventId).toBe(first.eventId);
     expect(second.idempotentReplay).toBe(true);
+    const [actor] = await db.client<{ state: Record<string, unknown> }[]>`
+      SELECT state FROM game.entity_instances
+      WHERE world_id = ${scope.worldId}
+        AND shard_id = ${scope.shardId}
+        AND instance_id = ${actorId}
+    `;
+    expect(actor?.state.last_completed_timed_action).toEqual({
+      actionType: "stretch",
+      scheduleId: ids.scheduleId,
+    });
     return first;
   }
 
