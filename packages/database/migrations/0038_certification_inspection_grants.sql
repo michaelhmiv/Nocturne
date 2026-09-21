@@ -1,5 +1,6 @@
 -- Dedicated certification inspection capability; NEVER a game-world operator role.
 -- No credentials are created by this migration. No default-world grant is allowed.
+-- Certification is an inspector capability only; it never changes player membership or repair roles.
 CREATE TABLE IF NOT EXISTS game.certification_runs (
   run_id uuid PRIMARY KEY,
   world_id uuid NOT NULL REFERENCES game.worlds(world_id) ON DELETE CASCADE,
