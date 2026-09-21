@@ -87,6 +87,80 @@ export function createWorldStore(database: ReturnType<typeof createDatabase>) {
     };
   }
 
+  /**
+   * The authenticated user ID is the ONLY routing input for certification.
+   * A previously bound user must NEVER silently fall back into the public
+   * world when the run expires or is revoked.
+   *
+   * Provisioning inserts both the binding and PLAYER membership offline.
+   * Unlike public sign-in, certification sign-in cannot create membership.
+   */
+  async function resolveForAuthenticatedUser(userId: string): Promise<WorldScope> {
+    const [binding] = await database.client<
+      {
+        run_id: string;
+        world_id: string;
+        shard_id: string;
+        active: boolean;
+      }[]
+    >`
+      SELECT player.run_id, player.world_id, player.shard_id,
+             (
+               run.status = 'active'
+               AND run.expires_at > now()
+               AND world.status = 'active'
+               AND world.metadata->>'isolatedCertification' = 'true'
+               AND shard.status = 'active'
+             ) AS active
+      FROM game.certification_players player
+      JOIN game.certification_runs run
+        ON run.run_id = player.run_id
+       AND run.world_id = player.world_id
+       AND run.shard_id = player.shard_id
+      JOIN game.worlds world ON world.world_id = player.world_id
+      JOIN game.world_shards shard
+        ON shard.world_id = player.world_id
+       AND shard.shard_id = player.shard_id
+      WHERE player.user_id = ${userId}
+      LIMIT 1
+    `;
+    if (binding) {
+      if (!binding.active || binding.world_id === DEFAULT_WORLD_ID) {
+        throw new WorldScopeError(
+          "membership_inactive",
+          "Certification run is expired, revoked, or inactive.",
+        );
+      }
+      const scope = await resolveForUser({
+        userId,
+        worldId: binding.world_id,
+        shardId: binding.shard_id,
+      });
+      if (scope.role !== "player") {
+        throw new WorldScopeError(
+          "membership_inactive",
+          "Certification users may only hold the player role.",
+        );
+      }
+      return scope;
+    }
+    await ensureMembership({ userId, worldId: DEFAULT_WORLD_ID });
+    return resolveForUser({
+      userId,
+      worldId: DEFAULT_WORLD_ID,
+      shardId: DEFAULT_SHARD_ID,
+    });
+  }
+
+  /** Includes expired/revoked runs: their users must not write to the public world. */
+  async function isCertificationBoundUser(userId: string): Promise<boolean> {
+    const rows = await database.client`
+      SELECT 1 FROM game.certification_players WHERE user_id = ${userId}
+      LIMIT 1
+    `;
+    return rows.length > 0;
+  }
+
   async function requireEntitiesInScope(
     scope: Pick<WorldScope, "worldId" | "shardId">,
     entityIds: string[],
@@ -158,6 +232,8 @@ export function createWorldStore(database: ReturnType<typeof createDatabase>) {
 
   return {
     resolveForUser,
+    resolveForAuthenticatedUser,
+    isCertificationBoundUser,
     requireEntitiesInScope,
     ensureMembership,
     setSelectedCharacter,
