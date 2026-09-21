@@ -46,6 +46,10 @@ Nightly is the appropriate home for later expansion into:
 - long multi-player and multi-turn scenarios;
 - prior-release database upgrade fixtures.
 
+### Multi-user story certification (new prerequisite)
+
+The 15 production MCP regressions catch isolated failures but cannot establish sustained gameplay. The [original story certification corpus](testing/story-certification.md) defines four interconnected crime-drama scenarios with three independently authenticated characters, 12 acts and 72 natural-language player beats. The required PR job `Certification / Multi-User Story Contract` validates the corpus and exercises the fail-closed evidence auditor; **it does not play the story or prove any story action works yet**. Issue #138 must supply an isolated live testing world and scoped inspection before the real multi-account story runner can be safely enabled. The live runner must assert Jev intent, authoritative state, per-actor knowledge, time, event logs, inter-player continuity and Laguna narration separately, and publish sanitized chapters and machine-verifiable evidence.
+
 ### Live provider contract
 
 `.github/workflows/provider-contract.yml` performs two minimal real structured-output calls against the configured provider: one authoritative and one creative. It verifies authentication, model availability, endpoint compatibility, JSON mode, thinking configuration, and schema validation without mutating world state.
