@@ -43,7 +43,12 @@ describe("committed-event Laguna narration", () => {
     const { narrate, generateText, readEvidence, onFailure } = setup();
     const text = await narrate({ scope, actorId, eventIds: [eventId], fallback: "Fallback" });
     expect(text).toMatch(/purchase fails/i);
-    expect(readEvidence).toHaveBeenCalledWith({ scope, actorId, eventIds: [eventId] });
+    expect(readEvidence).toHaveBeenCalledWith({
+      scope,
+      actorId,
+      eventIds: [eventId],
+      fallback: "Fallback",
+    });
     expect(generateText).toHaveBeenCalledOnce();
     expect(generateText.mock.calls[0]![0].task).toBe("narrate_event");
     expect(JSON.stringify(generateText.mock.calls[0]![0])).toContain("No money or stock changed");
@@ -64,7 +69,7 @@ describe("committed-event Laguna narration", () => {
     ["cross-actor", [{ ...evidence, actorId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" }]],
     ["missing receipt", []],
     ["empty visible facts", [{ ...evidence, playerVisibleFacts: [] }]],
-  ] as const)("does not narrate %s", async (_name, rows) => {
+  ] as [string, CommittedEventNarrationEvidence[]][])("does not narrate %s", async (_name, rows) => {
     const { narrate, generateText, onFailure } = setup([...rows]);
     expect(
       await narrate({ scope, actorId, eventIds: [eventId], fallback: "Committed fallback" }),
