@@ -176,16 +176,17 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
     const containers = [locationId, residenceId].filter((value): value is string => Boolean(value));
     if (containers.length) {
       const poolRows = await database.client`
-        SELECT pool_id, name, description, units_remaining, constraints, state
+        SELECT pool.pool_id, pool.name, pool.description, pool.units_remaining,
+               pool.constraints, pool.state
         FROM game.ambient_asset_pools pool
         JOIN game.entity_instances container
           ON container.instance_id = pool.container_instance_id
          AND container.world_id = ${DEFAULT_WORLD_ID}
          AND container.shard_id = ${DEFAULT_SHARD_ID}
         WHERE pool.container_instance_id = ANY(${database.client.array(containers, 2950)})
-          AND visibility = 'player_known'
-          AND units_remaining > 0
-        ORDER BY updated_at DESC
+          AND pool.visibility = 'player_known'
+          AND pool.units_remaining > 0
+        ORDER BY pool.updated_at DESC
         LIMIT 8
       `;
       for (const row of poolRows) {
