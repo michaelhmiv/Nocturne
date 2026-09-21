@@ -124,6 +124,25 @@ describePostgres("legacy character controls respect world and shard boundaries",
     expect(after[0].count).toBe(before[0].count);
   });
 
+  it("rejects direct SQL attempts to rent public housing for a certification-world actor", async () => {
+    const before = await db.client`
+      SELECT count(*)::int AS count FROM game.residence_occupancies
+      WHERE character_instance_id = ${foreignActor}
+    `;
+    await expect(
+      db.client`
+        SELECT * FROM game.provision_starter_residence(
+          ${userId}, ${foreignActor}, ${"direct-cross-world:" + runId}
+        )
+      `,
+    ).rejects.toMatchObject({ code: "42501" });
+    const after = await db.client`
+      SELECT count(*)::int AS count FROM game.residence_occupancies
+      WHERE character_instance_id = ${foreignActor}
+    `;
+    expect(after[0].count).toBe(before[0].count);
+  });
+
   it("does not allow another user to select or rent the default-world character", async () => {
     await expect(store.selectCharacter(userId, otherUserActor)).rejects.toMatchObject({
       code: "forbidden",
