@@ -458,6 +458,99 @@ jobs:
           name: story-contract-${{ github.run_id }}
           path: artifacts/
 
+  three-account-smoke:
+    name: Certification / Three-Account Story Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nocturne_three_account_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d nocturne_three_account_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/nocturne_three_account_ci
+      NOCTURNE_STORY_ISOLATED_DB: "true"
+      NOCTURNE_GUEST_MODE: "false"
+      BETTER_AUTH_SECRET: certification-secret-at-least-thirty-two-characters
+      BETTER_AUTH_URL: http://127.0.0.1:3000
+      BETTER_AUTH_TRUSTED_ORIGINS: http://127.0.0.1:3000,http://127.0.0.1:3101
+      NOCTURNE_RESOLUTION_SECRET: certification-resolution-secret
+      NOCTURNE_ROLL_SECRET: certification-roll-secret
+      AI_JOB_WORKER_SECRET: certification-worker-secret
+      AI_PROVIDER: openai_compatible
+      AI_BASE_URL: http://127.0.0.1:4010
+      AI_API_KEY: certification-fake-key
+      DEEPSEEK_API_KEY: certification-fake-key
+      AI_MODEL: nocturne-certification-model
+      AI_AUTHORITATIVE_MODEL: nocturne-certification-model
+      AI_CREATIVE_MODEL: nocturne-certification-model
+      AI_THINKING_MODE: omit
+      AI_JSON_MODE: "true"
+      AI_SEND_TEMPERATURE: "true"
+      AI_TIMEOUT_MS: "10000"
+      AI_DECISION_MODEL: nocturne-certification-decision-model
+      AI_DECISION_ENDPOINT: http://127.0.0.1:4010/api/alpha/decisions
+      AI_DECISION_TIMEOUT_MS: "10000"
+      NOCTURNE_API_URL: http://127.0.0.1:3101
+      NOCTURNE_WEB_URL: http://127.0.0.1:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: mkdir -p artifacts
+      - name: Build API and migrate isolated game and account schemas
+        run: |
+          set -o pipefail
+          pnpm --filter @nocturne/api build 2>&1 | tee artifacts/three-account-build.log
+          pnpm db:migrate 2>&1 | tee artifacts/three-account-db-migrate.log
+          pnpm --filter @nocturne/auth auth:migrate --yes 2>&1 | tee artifacts/three-account-auth-migrate.log
+      - name: Start compiled API and deterministic Jev/Laguna stand-ins
+        run: |
+          pnpm exec tsx scripts/ci/fake-ai-provider.ts > artifacts/three-account-provider.log 2>&1 &
+          echo $! > artifacts/three-account-provider.pid
+          PORT=3101 node apps/api/dist/index.js > artifacts/three-account-api.log 2>&1 &
+          echo $! > artifacts/three-account-api.pid
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:4010/health >/dev/null && curl --fail --silent http://127.0.0.1:3101/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat artifacts/three-account-provider.log artifacts/three-account-api.log || true
+          exit 1
+      - name: Play opening with three authenticated players and verify durable state
+        run: |
+          set -o pipefail
+          pnpm exec tsx scripts/ci/real-three-account-story.ts 2>&1 | tee artifacts/three-account-story.log
+      - name: Check database invariants after multi-account actions
+        run: pnpm --filter @nocturne/database db:invariants
+      - if: always()
+        name: Stop compiled API and fake provider
+        run: |
+          kill $(cat artifacts/three-account-api.pid) $(cat artifacts/three-account-provider.pid) 2>/dev/null || true
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: three-account-story-${{ github.run_id }}
+          path: artifacts/
+          retention-days: 30
+
   required-gate:
     name: Certification / Required Gate
     runs-on: ubuntu-latest
@@ -472,6 +565,7 @@ jobs:
       - integration
       - browser
       - story-contract
+      - three-account-smoke
     steps:
       - name: Require every certification job
         env:
@@ -484,6 +578,7 @@ jobs:
           INTEGRATION_RESULT: ${{ needs.integration.result }}
           BROWSER_RESULT: ${{ needs.browser.result }}
           STORY_RESULT: ${{ needs.story-contract.result }}
+          THREE_ACCOUNT_RESULT: ${{ needs.three-account-smoke.result }}
         run: |
           for result in \
             "$FORMAT_RESULT" \
@@ -494,7 +589,8 @@ jobs:
             "$ACTION_MATRIX_RESULT" \
             "$INTEGRATION_RESULT" \
             "$BROWSER_RESULT" \
-            "$STORY_RESULT"; do
+            "$STORY_RESULT" \
+            "$THREE_ACCOUNT_RESULT"; do
             if [ "$result" != "success" ]; then
               echo "Certification dependency failed, was cancelled, or was skipped: $result"
               exit 1
