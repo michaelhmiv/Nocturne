@@ -125,11 +125,7 @@ type WorldActionStepStoreLike = {
 export class PersistentWorldActionServiceError extends Error {
   constructor(
     readonly code:
-      | "in_progress"
-      | "unsupported_handler"
-      | "planning_failed"
-      | "step_failed"
-      | "request_failed",
+      "in_progress" | "unsupported_handler" | "planning_failed" | "step_failed" | "request_failed",
     message: string,
   ) {
     super(message);
