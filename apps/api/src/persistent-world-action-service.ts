@@ -140,6 +140,11 @@ export function createPersistentWorldActionService(dependencies: {
     viewpointId: string;
     command: string;
   }): Promise<NarrativeContextProjection>;
+  narrateCommittedResult?(input: {
+    scope: Pick<WorldScope, "worldId" | "shardId">;
+    eventIds: string[];
+    fallbackNarration: string;
+  }): Promise<string>;
   recordCompletedTurn?(input: {
     scope: WorldScope;
     viewpointId: string;
@@ -200,7 +205,22 @@ export function createPersistentWorldActionService(dependencies: {
       if (!started) {
         const plan = await dependencies.plans.read({ scope: input.scope, planId: input.planId });
         if (plan.status === "completed") {
-          const narration = narrations.join(" ") || planNarration(plan);
+          const fallbackNarration = narrations.join(" ") || planNarration(plan);
+          let narration = fallbackNarration;
+          if (eventIds.length > 0 && dependencies.narrateCommittedResult) {
+            try {
+              narration =
+                (await dependencies.narrateCommittedResult({
+                  scope: input.scope,
+                  eventIds,
+                  fallbackNarration,
+                })) || fallbackNarration;
+            } catch {
+              // Gameplay is already committed. A prose-provider failure must not
+              // strand an executed request or cause a duplicate world mutation.
+              narration = fallbackNarration;
+            }
+          }
           const result = WorldActionPlayerSafeResultSchema.parse({
             state: "completed",
             requestId: input.requestId,
