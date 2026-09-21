@@ -403,6 +403,9 @@ async function certifyPreflight(accessToken) {
 
   const listed = await rpc(accessToken, "tools/list", {});
   const names = new Set((listed.tools || []).map((tool) => tool.name));
+  // Public MCP must remain player-only. Diagnostic/repair privileges are
+  // NEVER a workaround for certification; unsupported inspection cases fail
+  // individually and remain visible in the final 15-case report.
   for (const name of [
     "create_character",
     "select_character",
@@ -410,21 +413,26 @@ async function certifyPreflight(accessToken) {
     "get_scene",
     "get_dashboard",
     "submit_action",
+  ]) {
+    assert.ok(names.has(name), `production certification requires player tool ${name}`);
+  }
+  for (const name of [
     "get_travel_path",
     "get_operator_dashboard",
     "inspect_world_entity",
+    "repair_world_entity",
   ]) {
-    assert.ok(names.has(name), `production certification requires diagnostic tool ${name}`);
+    assert.ok(!names.has(name), `public player MCP must not expose diagnostic tool ${name}`);
   }
 
-  const health = await payloadTool(accessToken, "nocturne_health");
-  assert.equal(health?.api?.status, "ok");
-  assert.equal(health?.operational?.status, "ready");
-  assert.equal(health?.operational?.dependencies?.database?.ready, true);
-  assert.equal(health?.operational?.dependencies?.database?.migrationsReady, true);
-  assert.equal(health?.operational?.dependencies?.worker?.configured, true);
-  assert.equal(health?.operational?.dependencies?.worker?.online, true);
-  return health;
+  // Public /health is not an operator diagnostic MCP tool. Keep the worker,
+  // database, and migration diagnostics restricted and attest them separately
+  // in the isolated operator-scoped certification runner.
+  const health = await json(await request(`${mcpBaseUrl}/health`), "Public MCP HTTP health");
+  assert.equal(health?.status, "ok");
+  assert.equal(health?.service, "nocturne-mcp");
+  assert.equal(health?.mode, "player");
+  return { mcp: health, operational: null };
 }
 
 async function certifyKnownRegressions(accessToken, player) {

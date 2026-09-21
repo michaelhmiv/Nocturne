@@ -28,6 +28,7 @@ type ConsumptionMechanicsResult = {
 };
 import type { createDatabase } from "./index.js";
 import { serializeJson as json } from "./json.js";
+import { DEFAULT_SHARD_ID, DEFAULT_WORLD_ID } from "./world-schema.js";
 
 export class ConsumptionStoreError extends Error {
   constructor(
@@ -86,14 +87,17 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
              occupancy.residence_instance_id
       FROM game.player_characters pc
       JOIN game.entity_instances actor ON actor.instance_id = pc.character_instance_id
+        AND actor.world_id = pc.world_id AND actor.shard_id = ${DEFAULT_SHARD_ID}
       JOIN game.entity_definitions definition ON definition.definition_id = actor.definition_id
       LEFT JOIN game.entity_instances location ON location.instance_id = actor.location_id
+        AND location.world_id = actor.world_id AND location.shard_id = actor.shard_id
       LEFT JOIN game.entity_definitions location_definition
         ON location_definition.definition_id = location.definition_id
       LEFT JOIN game.residence_occupancies occupancy
         ON occupancy.character_instance_id = actor.instance_id AND occupancy.status = 'active'
       WHERE pc.user_id = ${input.userId}
         AND pc.character_instance_id = ${input.actorId}
+        AND pc.world_id = ${DEFAULT_WORLD_ID}
     `;
     const actor = actorRows[0];
     if (!actor) {
@@ -119,6 +123,8 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
       LEFT JOIN game.definition_revisions revision
         ON revision.revision_id = definition.current_revision_id
       WHERE item.instance_id <> ${input.actorId}
+        AND item.world_id = ${DEFAULT_WORLD_ID}
+        AND item.shard_id = ${DEFAULT_SHARD_ID}
         AND (
           item.owner_id = ${input.actorId}
           OR item.location_id = ${input.actorId}
@@ -170,12 +176,17 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
     const containers = [locationId, residenceId].filter((value): value is string => Boolean(value));
     if (containers.length) {
       const poolRows = await database.client`
-        SELECT pool_id, name, description, units_remaining, constraints, state
-        FROM game.ambient_asset_pools
-        WHERE container_instance_id = ANY(${database.client.array(containers, 2950)})
-          AND visibility = 'player_known'
-          AND units_remaining > 0
-        ORDER BY updated_at DESC
+        SELECT pool.pool_id, pool.name, pool.description, pool.units_remaining,
+               pool.constraints, pool.state
+        FROM game.ambient_asset_pools pool
+        JOIN game.entity_instances container
+          ON container.instance_id = pool.container_instance_id
+         AND container.world_id = ${DEFAULT_WORLD_ID}
+         AND container.shard_id = ${DEFAULT_SHARD_ID}
+        WHERE pool.container_instance_id = ANY(${database.client.array(containers, 2950)})
+          AND pool.visibility = 'player_known'
+          AND pool.units_remaining > 0
+        ORDER BY pool.updated_at DESC
         LIMIT 8
       `;
       for (const row of poolRows) {
@@ -231,10 +242,12 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
                occupancy.residence_instance_id
         FROM game.player_characters pc
         JOIN game.entity_instances actor ON actor.instance_id = pc.character_instance_id
+        AND actor.world_id = pc.world_id AND actor.shard_id = ${DEFAULT_SHARD_ID}
         LEFT JOIN game.residence_occupancies occupancy
           ON occupancy.character_instance_id = actor.instance_id AND occupancy.status = 'active'
         WHERE pc.user_id = ${input.userId}
           AND pc.character_instance_id = ${input.actorId}
+          AND pc.world_id = ${DEFAULT_WORLD_ID}
         FOR UPDATE OF actor
       `;
       const actor = actorRows[0];
@@ -255,7 +268,8 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
 
       if (
         input.analysis.selection.sourceType !== "none" &&
-        input.analysis.classification.consumable
+        input.analysis.classification.consumable &&
+        input.analysis.consumeUnits > 0
       ) {
         if (!sourceId) {
           throw new ConsumptionStoreError("invalid_analysis", "Consumption source is missing.");
@@ -265,6 +279,8 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
             SELECT item.instance_id, item.owner_id, item.location_id, item.state
             FROM game.entity_instances item
             WHERE item.instance_id = ${sourceId}
+              AND item.world_id = ${DEFAULT_WORLD_ID}
+              AND item.shard_id = ${DEFAULT_SHARD_ID}
             FOR UPDATE
           `;
           const item = itemRows[0];
@@ -291,12 +307,18 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
             UPDATE game.entity_instances
             SET state = ${json(applyQuantity(itemState, remainingUnits))}, updated_at = now()
             WHERE instance_id = ${sourceId}
+              AND world_id = ${DEFAULT_WORLD_ID}
+              AND shard_id = ${DEFAULT_SHARD_ID}
           `;
           concreteEntityId = sourceId;
         } else {
           const poolRows = await sql`
             SELECT pool.pool_id, pool.container_instance_id, pool.units_remaining
             FROM game.ambient_asset_pools pool
+            JOIN game.entity_instances container
+              ON container.instance_id = pool.container_instance_id
+             AND container.world_id = ${DEFAULT_WORLD_ID}
+             AND container.shard_id = ${DEFAULT_SHARD_ID}
             WHERE pool.pool_id = ${sourceId}
             FOR UPDATE
           `;
@@ -388,6 +410,11 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
         }
       }
 
+      const actuallyConsumed =
+        input.analysis.selection.sourceType !== "none" &&
+        input.analysis.classification.consumable &&
+        input.analysis.consumeUnits > 0;
+      const effectiveOutcomeGrade = actuallyConsumed ? input.mechanics.outcomeGrade : "failure";
       let actorState = object(actor.state);
       let conditionValue = numeric(actor.condition, 100);
       const resources = { ...object(actorState.resources) };
@@ -402,7 +429,6 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
           );
         }
       }
-      actorState = { ...actorState, resources };
       const activeConditions = { ...object(actorState.activeConditions) };
       for (const effect of input.mechanics.conditions) {
         activeConditions[effect.key] = {
@@ -413,12 +439,19 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
           sourceEventId: eventId,
         };
       }
-      actorState.activeConditions = activeConditions;
-      await sql`
-        UPDATE game.entity_instances
-        SET state = ${json(actorState)}, condition = ${conditionValue}, updated_at = now()
-        WHERE instance_id = ${input.actorId}
-      `;
+      if (
+        actuallyConsumed &&
+        (input.mechanics.resourceDeltas.length || input.mechanics.conditions.length)
+      ) {
+        actorState = { ...actorState, resources, activeConditions };
+        await sql`
+          UPDATE game.entity_instances
+          SET state = ${json(actorState)}, condition = ${conditionValue}, updated_at = now()
+          WHERE instance_id = ${input.actorId}
+            AND world_id = ${DEFAULT_WORLD_ID}
+            AND shard_id = ${DEFAULT_SHARD_ID}
+        `;
+      }
 
       const consumption: ConsumptionResult | undefined =
         input.analysis.selection.sourceType !== "none" && sourceId
@@ -450,11 +483,11 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
 
       const involved = [input.actorId, sourceId, concreteEntityId].filter(Boolean);
       const eventPayload = {
-        outcomeGrade: input.mechanics.outcomeGrade,
-        margin: input.mechanics.outcomeGrade === "failure" ? -1 : 1,
+        outcomeGrade: effectiveOutcomeGrade,
+        margin: effectiveOutcomeGrade === "failure" ? -1 : 1,
         operations: [],
         informationGained: [],
-        costs: consumption
+        costs: consumption?.unitsConsumed
           ? [{ resource: "quantity" as const, amount: consumption.unitsConsumed }]
           : [],
         consumption,
@@ -462,10 +495,10 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
       };
       await sql`
         INSERT INTO game.event_ledger (
-          event_id, idempotency_key, world_time, event_type,
+          event_id, idempotency_key, world_id, shard_id, world_time, event_type,
           involved_entity_ids, payload, source_intent_id
         ) VALUES (
-          ${eventId}, ${input.idempotencyKey}, ${createdAt}, 'consumption_resolved',
+          ${eventId}, ${input.idempotencyKey}, ${DEFAULT_WORLD_ID}, ${DEFAULT_SHARD_ID}, ${createdAt}, 'consumption_resolved',
           ${json(involved)}, ${json(eventPayload)}, ${intentId}
         )
       `;
@@ -476,7 +509,7 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
           proposed_operations, narrative_constraints, authoritative_seed,
           actor_score, target_score
         ) VALUES (
-          ${resolutionId}, ${intentId}, ${eventId}, ${input.mechanics.outcomeGrade},
+          ${resolutionId}, ${intentId}, ${eventId}, ${effectiveOutcomeGrade},
           ${json(input.mechanics.calculationTrace)}, '[]'::jsonb,
           ${json([
             "Use the selected substance's human-readable name.",
@@ -521,8 +554,8 @@ export function createConsumptionStore(database: ReturnType<typeof createDatabas
         intentId,
         resolutionId,
         rawText: input.rawText,
-        outcomeGrade: input.mechanics.outcomeGrade,
-        margin: input.mechanics.outcomeGrade === "failure" ? -1 : 1,
+        outcomeGrade: effectiveOutcomeGrade,
+        margin: effectiveOutcomeGrade === "failure" ? -1 : 1,
         narration: "The consumption event has been committed and awaits narration.",
         calculationTrace: input.mechanics.calculationTrace,
         informationGained: [],

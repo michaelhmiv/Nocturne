@@ -8,6 +8,7 @@ import type {
 } from "@nocturne/contracts";
 import { StateOperationSchema } from "@nocturne/contracts";
 import { STARTER_WORLD_IDS } from "./game-store.js";
+import { DEFAULT_SHARD_ID, DEFAULT_WORLD_ID } from "./world-schema.js";
 import type { createDatabase } from "./index.js";
 import { serializeJson as json } from "./json.js";
 
@@ -107,12 +108,14 @@ export function createActionStore(database: ReturnType<typeof createDatabase>) {
       SELECT d.name, actor.state, o.residence_instance_id, rd.name AS residence_name
       FROM game.player_characters pc
       JOIN game.entity_instances actor ON actor.instance_id = pc.character_instance_id
+        AND actor.world_id = pc.world_id AND actor.shard_id = ${DEFAULT_SHARD_ID}
       JOIN game.entity_definitions d ON d.definition_id = actor.definition_id
       LEFT JOIN game.residence_occupancies o
         ON o.character_instance_id = actor.instance_id AND o.status = 'active'
       LEFT JOIN game.entity_instances ri ON ri.instance_id = o.residence_instance_id
       LEFT JOIN game.entity_definitions rd ON rd.definition_id = ri.definition_id
       WHERE pc.user_id = ${userId} AND pc.character_instance_id = ${actorId}
+        AND pc.world_id = ${DEFAULT_WORLD_ID}
     `;
     const actor = actorRows[0];
     if (!actor) {
@@ -131,6 +134,7 @@ export function createActionStore(database: ReturnType<typeof createDatabase>) {
       JOIN game.entity_relations rel
         ON rel.source_instance_id = i.instance_id AND rel.relation_type = 'installed_in'
       WHERE i.owner_id = ${actorId}
+        AND i.world_id = ${DEFAULT_WORLD_ID} AND i.shard_id = ${DEFAULT_SHARD_ID}
         AND rel.target_instance_id = ${actor.residence_instance_id}
         AND (${requestedMethodId || null}::uuid IS NULL OR i.instance_id = ${requestedMethodId || null})
       ORDER BY i.created_at ASC
@@ -168,6 +172,7 @@ export function createActionStore(database: ReturnType<typeof createDatabase>) {
 
     const targetRows = await database.client`
       SELECT state FROM game.entity_instances WHERE instance_id = ${ALLEY_TARGET.instanceId}
+        AND world_id = ${DEFAULT_WORLD_ID} AND shard_id = ${DEFAULT_SHARD_ID}
     `;
     const targetState = (targetRows[0]?.state as Record<string, unknown>) || {};
     const environment = { clutter: 1, darkness: 2, coverageSupport: 1 };
@@ -233,6 +238,7 @@ export function createActionStore(database: ReturnType<typeof createDatabase>) {
       JOIN game.action_intents ai ON ai.intent_id = e.source_intent_id
       JOIN game.resolution_results rr ON rr.event_id = e.event_id
       WHERE e.idempotency_key = ${idempotencyKey} AND ai.user_id = ${userId}
+        AND e.world_id = ${DEFAULT_WORLD_ID} AND e.shard_id = ${DEFAULT_SHARD_ID}
     `;
     if (!rows[0]) return null;
     const row = rows[0];
@@ -327,6 +333,19 @@ export function createActionStore(database: ReturnType<typeof createDatabase>) {
         );
       }
 
+      const authorizedActor = await sql`
+        SELECT 1 FROM game.player_characters pc
+        JOIN game.entity_instances actor
+          ON actor.instance_id = pc.character_instance_id
+         AND actor.world_id = pc.world_id AND actor.shard_id = ${DEFAULT_SHARD_ID}
+        WHERE pc.user_id = ${input.userId}
+          AND pc.character_instance_id = ${input.intent.actorId}
+          AND pc.world_id = ${DEFAULT_WORLD_ID}
+        FOR UPDATE OF actor
+      `;
+      if (!authorizedActor.length) {
+        throw new ActionStoreError("forbidden", "Legacy actions cannot modify an isolated world.");
+      }
       const intentId = randomUUID();
       const resolutionId = randomUUID();
       const eventId = randomUUID();
@@ -366,10 +385,10 @@ export function createActionStore(database: ReturnType<typeof createDatabase>) {
       };
       await sql`
         INSERT INTO game.event_ledger (
-          event_id, idempotency_key, world_time, event_type,
+          event_id, idempotency_key, world_id, shard_id, world_time, event_type,
           involved_entity_ids, payload, source_intent_id
         ) VALUES (
-          ${eventId}, ${input.idempotencyKey}, ${createdAt}, 'action_resolved',
+          ${eventId}, ${input.idempotencyKey}, ${DEFAULT_WORLD_ID}, ${DEFAULT_SHARD_ID}, ${createdAt}, 'action_resolved',
           ${json([input.intent.actorId, input.methodInstanceId, input.targetLocationId])},
           ${json(eventPayload)}, ${intentId}
         )

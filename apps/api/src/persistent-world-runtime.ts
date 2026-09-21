@@ -19,6 +19,7 @@ import {
   type WorldScope,
   type createDatabase,
 } from "@nocturne/database";
+import { createCommittedEventNarrator } from "./committed-event-narrator.js";
 import { createGameplayTelemetryWriter } from "./gameplay-telemetry.js";
 import {
   instrumentAiClient,
@@ -122,6 +123,56 @@ export async function registerPersistentWorldRuntime(
   const steps = instrumentStepStore(createWorldActionStepStore(dependencies.database), telemetry);
   const materialization = createMaterializationStore(dependencies.database, executor);
   const narrativeMemory = createNarrativeMemoryStore(dependencies.database);
+  const narrateCommittedEvents = createCommittedEventNarrator({
+    client,
+    readEvidence: async ({ scope, actorId, eventIds }) => {
+      const rows = await dependencies.database.client<
+        {
+          event_id: string;
+          event_type: string;
+          world_id: string;
+          shard_id: string;
+          actor_id: string;
+          player_visible_facts: unknown;
+        }[]
+      >`
+        SELECT receipt.event_id, event.event_type,
+               receipt.world_id, receipt.shard_id, receipt.actor_id,
+               receipt.player_visible_facts
+        FROM game.mutation_receipts receipt
+        JOIN game.event_ledger event
+          ON event.event_id = receipt.event_id
+         AND event.world_id = receipt.world_id
+         AND event.shard_id = receipt.shard_id
+        WHERE receipt.event_id = ANY(${dependencies.database.client.array(eventIds, 2950)})
+          AND receipt.world_id = ${scope.worldId}
+          AND receipt.shard_id = ${scope.shardId}
+          AND receipt.actor_id = ${actorId}
+        ORDER BY event.world_time, event.event_id
+      `;
+      return rows.map((row) => ({
+        eventId: row.event_id,
+        eventType: row.event_type,
+        worldId: row.world_id,
+        shardId: row.shard_id,
+        actorId: row.actor_id,
+        playerVisibleFacts: Array.isArray(row.player_visible_facts)
+          ? row.player_visible_facts.filter(
+              (fact): fact is string => typeof fact === "string" && Boolean(fact.trim()),
+            )
+          : [],
+      }));
+    },
+    onFailure: (error, eventIds) => {
+      app.log.error(
+        {
+          errorCode: error instanceof Error ? error.name : "narration_failed",
+          eventCount: eventIds.length,
+        },
+        "committed_event_narration_unavailable",
+      );
+    },
+  });
   const search = createSearchDiscoveryService({
     client,
     decisionClient,
@@ -150,6 +201,7 @@ export async function registerPersistentWorldRuntime(
     steps,
     handlers,
     compileNarrativeContext: narrativeMemory.compile,
+    narrateCommittedEvents,
     recordCompletedTurn: narrativeMemory.recordCompletedTurn,
     simulateReferencedEntity: dependencies.simulateReferencedEntity,
   });
