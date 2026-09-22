@@ -22,6 +22,16 @@ BEGIN
   END LOOP;
 END $$;
 
+-- Preserve pre-existing long-lived runs only when their world is explicitly
+-- an isolated certification world; never grant this lifetime to public worlds.
+UPDATE game.certification_runs AS cert
+SET persistent_campaign = true
+FROM game.worlds AS world
+WHERE world.world_id = cert.world_id
+  AND world.metadata->>'isolatedCertification' = 'true'
+  AND cert.expires_at > cert.created_at + interval '2 hours'
+  AND cert.expires_at <= cert.created_at + interval '365 days';
+
 ALTER TABLE game.certification_runs
   ADD CONSTRAINT certification_runs_lifetime_policy CHECK (
     (NOT persistent_campaign AND expires_at <= created_at + interval '2 hours')
