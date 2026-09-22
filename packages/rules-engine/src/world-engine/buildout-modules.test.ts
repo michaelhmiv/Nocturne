@@ -41,7 +41,9 @@ function intent(partial: Partial<EngineIntent> & Pick<EngineIntent, "primitive" 
 
 describe("build-out 2 starter loop", () => {
   it("perceives without mutating", async () => {
-    const engine = createWorldEngine(createMemoryPorts({ actors: [actor], known: [], sources: [] }));
+    const engine = createWorldEngine(
+      createMemoryPorts({ actors: [actor], known: [], sources: [] }),
+    );
     const decision = await engine.decide(
       intent({ primitive: "perceive", category: "body.self", rawText: "look at myself" }),
     );
@@ -77,7 +79,9 @@ describe("build-out 2 starter loop", () => {
   });
 
   it("eats from a possessed item", async () => {
-    const engine = createWorldEngine(createMemoryPorts({ actors: [actor], known: [], sources: [] }));
+    const engine = createWorldEngine(
+      createMemoryPorts({ actors: [actor], known: [], sources: [] }),
+    );
     const decision = await engine.decide(
       intent({
         primitive: "consume",
@@ -86,7 +90,10 @@ describe("build-out 2 starter loop", () => {
         rawText: "eat the sandwich",
       }),
     );
-    expect(decision.operations[0]).toMatchObject({ type: "adjust_resource", resource: "nutrition" });
+    expect(decision.operations[0]).toMatchObject({
+      type: "adjust_resource",
+      resource: "nutrition",
+    });
   });
 
   it("talks to a clerk without transferring stock", async () => {
@@ -114,9 +121,15 @@ describe("build-out 2 starter loop", () => {
   });
 
   it("waits on the wall clock", async () => {
-    const engine = createWorldEngine(createMemoryPorts({ actors: [actor], known: [], sources: [] }));
+    const engine = createWorldEngine(
+      createMemoryPorts({ actors: [actor], known: [], sources: [] }),
+    );
     const decision = await engine.decide(
-      intent({ primitive: "wait", rawText: "wait two minutes", constraints: { durationSeconds: 120 } }),
+      intent({
+        primitive: "wait",
+        rawText: "wait two minutes",
+        constraints: { durationSeconds: 120 },
+      }),
     );
     expect(decision.operations[0]).toMatchObject({
       type: "schedule_timed_work",
@@ -176,7 +189,9 @@ describe("build-out 3A vehicle", () => {
 describe("build-out 3B weapons", () => {
   it("refuses a pistol the actor does not hold", async () => {
     const empty = { ...actor, possessedIds: [] };
-    const engine = createWorldEngine(createMemoryPorts({ actors: [empty], known: [], sources: [] }));
+    const engine = createWorldEngine(
+      createMemoryPorts({ actors: [empty], known: [], sources: [] }),
+    );
     const missing = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
     const decision = await engine.decide(
       intent({
@@ -192,7 +207,9 @@ describe("build-out 3B weapons", () => {
   });
 
   it("fires a possessed weapon by spending ammo", async () => {
-    const engine = createWorldEngine(createMemoryPorts({ actors: [actor], known: [], sources: [] }));
+    const engine = createWorldEngine(
+      createMemoryPorts({ actors: [actor], known: [], sources: [] }),
+    );
     const decision = await engine.decide(
       intent({
         primitive: "operate",
