@@ -22,9 +22,7 @@ const HARDWARE: StockSlot[] = [
   { sku: "flashlight", family: "item.tool", label: "flashlight" },
 ];
 
-const WEAPONS: StockSlot[] = [
-  { sku: "ammo-9mm", family: "item.weapon", label: "9mm ammunition" },
-];
+const WEAPONS: StockSlot[] = [{ sku: "ammo-9mm", family: "item.weapon", label: "9mm ammunition" }];
 
 export const FAMILY_STOCK: Partial<Record<CategoryFamily, readonly StockSlot[]>> = {
   "place.retail.food": FOOD,
