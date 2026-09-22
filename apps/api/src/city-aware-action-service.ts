@@ -230,8 +230,9 @@ async function submitPerceive(
       contextCompilationId: context.compilationId,
     });
     currentStatus = "resolving_references";
-    const locationId = context.entities.find((entity) => entity.entityId === input.actorId)
-      ?.locationId;
+    const locationId = context.entities.find(
+      (entity) => entity.entityId === input.actorId,
+    )?.locationId;
     const packet =
       (await dependencies.compileLiveScene?.({
         scope: input.scope,
