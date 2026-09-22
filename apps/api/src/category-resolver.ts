@@ -35,9 +35,9 @@ function withSeededRetail(candidates: CategoryCandidate[]) {
     {
       entityId: STARTER_FOUNDRY_ROW_PLACES.bodegaId,
       name: "Row Bodega",
-      definitionType: "retail",
+      definitionType: "location",
       definitionId: "WORLD-FOUNDRY-ROW-BODEGA",
-      locationId: STARTER_FOUNDRY_ROW_PLACES.rowId,
+      locationId: STARTER_FOUNDRY_ROW_PLACES.sidewalkId,
       known: true,
       indoor: false,
       categories: ["place.retail.food"],
@@ -80,6 +80,5 @@ export function resolveCommandDestination(input: {
 export function destinationIdFromResolution(result: CategoryResolveResult): string | null {
   if (result.status === "bound") return result.entityId;
   if (result.status === "need_traverse") return result.viaLocationId;
-  if (result.status === "discoverable") return result.areaId;
   return null;
 }
