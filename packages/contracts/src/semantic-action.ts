@@ -37,6 +37,8 @@ export const SemanticReferenceResolutionSchema = z.enum([
   "resolved_intrinsic",
   "unresolved",
   "ambiguous",
+  "category",
+  "not_found",
 ]);
 export type SemanticReferenceResolution = z.infer<typeof SemanticReferenceResolutionSchema>;
 
@@ -51,6 +53,8 @@ export const SemanticEntityReferenceSchema = z
     resolution: SemanticReferenceResolutionSchema,
     resolvedEntityId: UuidSchema.optional(),
     candidateEntityIds: z.array(UuidSchema).max(32).default([]),
+    category: z.string().trim().min(1).max(80).optional(),
+    selector: z.enum(["this", "nearest", "any", "named"]).optional(),
     allowClarification: z.boolean().default(true),
   })
   .strict()
