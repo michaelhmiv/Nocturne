@@ -40,9 +40,15 @@ import {
 import { registerOperatorDashboardRoutes } from "./operator-dashboard-routes.js";
 import { registerPlayerDashboardRoutes } from "./player-dashboard-routes.js";
 import { registerPlayerEffectRoutes } from "./player-effect-routes.js";
+import { matchCityTake } from "./category-take.js";
 import { createCityAwareWorldActionService } from "./city-aware-action-service.js";
+import { compileLiveCityScene } from "./compile-live-city-scene.js";
 import { ensureCityDestination } from "./ensure-city-destination.js";
-import { resolveCityDestinationFromFeatures } from "./resolve-city-destination.js";
+import { ensureCityStock } from "./ensure-city-stock.js";
+import {
+  resolveCityDestinationFromFeatures,
+  resolveNearestCityFamily,
+} from "./resolve-city-destination.js";
 import { registerPersistentWorldRoutes } from "./persistent-world-routes.js";
 import { createRoutineActionService } from "./routine-action-service.js";
 import { createSearchDiscoveryService } from "./search-discovery-service.js";
@@ -260,6 +266,40 @@ export async function registerPersistentWorldRuntime(
         actorLocationId: locationId,
       });
       return destination;
+    },
+    compileLiveScene: async ({ scope, locationId }) =>
+      compileLiveCityScene({
+        database: dependencies.database,
+        scope,
+        locationId,
+      }),
+    takeCityStock: async ({ command, locationId, scope, actorId }) => {
+      const match = matchCityTake(command);
+      if (!match) return null;
+      const place = resolveNearestCityFamily({
+        family: match.placeFamily,
+        lon: OSM_STARTER_POINT.lon,
+        lat: OSM_STARTER_POINT.lat,
+        worldId: scope.worldId,
+      });
+      if (!place) return null;
+      await ensureCityDestination({
+        database: dependencies.database,
+        scope,
+        destination: place,
+        actorLocationId: locationId,
+      });
+      await ensureCityStock({
+        database: dependencies.database,
+        scope,
+        actorId,
+        place,
+        slot: match.slot,
+      });
+      return {
+        hereName: place.name,
+        facts: [`You grab a ${match.slot.label} from ${place.name}.`],
+      };
     },
   });
 
