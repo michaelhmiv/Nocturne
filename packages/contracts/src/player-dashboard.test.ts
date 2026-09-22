@@ -25,7 +25,8 @@ describe("player dashboard contract", () => {
         status: "active",
         resources: [{ key: "nutrition", label: "Nutrition", value: 12 }],
         activeConditions: [],
-        skills: { investigation: 2 },
+        skills: { investigation: 40 },
+        skillProgress: { investigation: { xp: 40, level: 2, currentLevelXp: 40, nextLevelXp: 90 } },
         factionStanding: {},
         inventory: [],
       },
@@ -70,6 +71,7 @@ describe("player dashboard contract", () => {
     });
 
     expect(dashboard.character.resources[0]).toMatchObject({ key: "nutrition", value: 12 });
+    expect(dashboard.character.skillProgress.investigation).toMatchObject({ xp: 40, level: 2, nextLevelXp: 90 });
     expect(dashboard.resourceHistory[0]?.points[0]?.delta).toBe(3);
   });
 });
