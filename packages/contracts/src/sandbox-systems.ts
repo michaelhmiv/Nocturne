@@ -229,9 +229,74 @@ export const SANDBOX_NOUN_LEXICON: ReadonlyArray<{
     domain: "population",
     defaultPrimitive: "communicate",
   },
+  {
+    phrases: ["restaurant", "diner", "fast food"],
+    family: "place.service.restaurant",
+    domain: "commerce",
+    defaultPrimitive: "travel",
+  },
+  {
+    phrases: ["bar", "pub", "tavern"],
+    family: "place.service.bar",
+    domain: "commerce",
+    defaultPrimitive: "travel",
+  },
+  {
+    phrases: ["liquor store", "package store", "wine shop"],
+    family: "place.retail.liquor",
+    domain: "commerce",
+    defaultPrimitive: "travel",
+  },
+  {
+    phrases: ["hardware store"],
+    family: "place.retail.hardware",
+    domain: "commerce",
+    defaultPrimitive: "travel",
+  },
+  {
+    phrases: ["gun store", "gun shop"],
+    family: "place.retail.weapons",
+    domain: "weapons_combat",
+    defaultPrimitive: "travel",
+  },
+  {
+    phrases: ["clinic"],
+    family: "place.service.clinic",
+    domain: "emergency",
+    defaultPrimitive: "travel",
+  },
+  {
+    phrases: ["firehouse", "fire station"],
+    family: "place.civic.firehouse",
+    domain: "emergency",
+    defaultPrimitive: "travel",
+  },
+  {
+    phrases: ["post office"],
+    family: "place.civic.post",
+    domain: "communication",
+    defaultPrimitive: "travel",
+  },
+  {
+    phrases: ["hotel", "motel"],
+    family: "place.service.hotel",
+    domain: "property",
+    defaultPrimitive: "travel",
+  },
+  {
+    phrases: ["gym", "fitness"],
+    family: "place.service.gym",
+    domain: "body",
+    defaultPrimitive: "travel",
+  },
 ];
 
 export const REQUIRED_SANDBOX_DOMAINS: readonly SandboxDomain[] = SandboxDomainSchema.options;
+
+function phraseMatches(haystack: string, phrase: string) {
+  const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|[^a-z0-9])${escaped}(?:[^a-z0-9]|$)`).test(haystack);
+}
 
 export function lookupNoun(utterance: string): (typeof SANDBOX_NOUN_LEXICON)[number] | null {
   const haystack = utterance.toLowerCase();
@@ -239,7 +304,7 @@ export function lookupNoun(utterance: string): (typeof SANDBOX_NOUN_LEXICON)[num
   let bestLength = 0;
   for (const entry of SANDBOX_NOUN_LEXICON) {
     for (const phrase of entry.phrases) {
-      if (haystack.includes(phrase) && phrase.length > bestLength) {
+      if (phraseMatches(haystack, phrase) && phrase.length > bestLength) {
         best = entry;
         bestLength = phrase.length;
       }
@@ -294,7 +359,7 @@ export function frameFromUtterance(rawText: string): IntentFrame | null {
   const noun = lookupNoun(rawText);
   if (!noun) return null;
   const lowered = rawText.toLowerCase();
-  const travelIntent = /\b(go|walk|run|drive|head|take me|find)\b/.test(lowered);
+  const travelIntent = /\b(go|walk|run|drive|head|take me|find|visit)\b/.test(lowered);
   const primitive = travelIntent ? "travel" : noun.defaultPrimitive;
   const travelMode: TravelMode | undefined = /\bdrive\b/.test(lowered)
     ? "drive"
