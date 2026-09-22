@@ -29,6 +29,7 @@ jobs:
       NOCTURNE_SMOKE_AGENT_TOKEN: ${{ secrets.NOCTURNE_SMOKE_AGENT_TOKEN }}
       NOCTURNE_SMOKE_CHARACTER_ID: ${{ vars.NOCTURNE_SMOKE_CHARACTER_ID }}
       NOCTURNE_SMOKE_GUEST_MODE: ${{ vars.NOCTURNE_SMOKE_GUEST_MODE || 'true' }}
+      NOCTURNE_SMOKE_SELF_PROVISION: ${{ vars.NOCTURNE_SMOKE_SELF_PROVISION || 'true' }}
       EXPECTED_COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
