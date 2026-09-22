@@ -21,6 +21,13 @@ describe("category travel command gate", () => {
     expect(isCategoryTravelCommand("eat the sandwich")).toBe(false);
   });
 
+  it("does not steal transfer commands that mention a mechanic", () => {
+    expect(
+      isCategoryTravelCommand("Give the Certification Wrench to the Certification Mechanic."),
+    ).toBe(false);
+    expect(isCategoryTravelCommand("hand the wrench to the mechanic")).toBe(false);
+  });
+
   it("fails closed with a city-source message instead of asking which grocery", () => {
     const frame = categoryTravelFrame("go to the nearest grocery store");
     expect(missingCityDestinationPrompt(frame!)).toMatch(/loaded city source/);

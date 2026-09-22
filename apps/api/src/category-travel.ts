@@ -1,6 +1,11 @@
-import { frameFromUtterance, type IntentFrame } from "@nocturne/contracts";
+import {
+  frameFromUtterance,
+  hasExplicitTravelVerb,
+  type IntentFrame,
+} from "@nocturne/contracts";
 
 export function categoryTravelFrame(command: string): IntentFrame | null {
+  if (!hasExplicitTravelVerb(command)) return null;
   const frame = frameFromUtterance(command);
   if (!frame || frame.primitive !== "travel" || !frame.category) return null;
   return frame;
