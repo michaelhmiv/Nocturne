@@ -28,10 +28,14 @@ const dbAddress = new URL(databaseUrl);
 const apiAddress = new URL(apiUrl);
 const modelAddress = new URL(decisionUrl);
 assert.equal(process.env.NOCTURNE_LIVE_STORY_SANDBOX, "1", "Live sandbox opt-in required.");
-assert.ok(!["127.0.0.1", "localhost"].includes(dbAddress.hostname), "Remote Testing database required.");
+assert.ok(
+  !["127.0.0.1", "localhost"].includes(dbAddress.hostname),
+  "Remote Testing database required.",
+);
 const tcpFingerprint = createHash("sha256")
   .update(dbAddress.hostname.toLowerCase() + ":" + dbAddress.port)
-  .digest("hex").slice(0, 16);
+  .digest("hex")
+  .slice(0, 16);
 assert.equal(
   tcpFingerprint,
   "545485b0dba3929f",
@@ -383,38 +387,53 @@ try {
     shardId = existing.shard_id;
     const [scope] = await query(
       "SELECT cert.status,cert.expires_at,cert.persistent_campaign,world.metadata " +
-      "FROM game.certification_runs cert JOIN game.worlds world ON world.world_id=cert.world_id " +
-      "WHERE cert.run_id=$1 AND cert.world_id=$2 AND cert.shard_id=$3",
+        "FROM game.certification_runs cert JOIN game.worlds world ON world.world_id=cert.world_id " +
+        "WHERE cert.run_id=$1 AND cert.world_id=$2 AND cert.shard_id=$3",
       [runId, worldId, shardId],
     );
     assert.equal(scope?.status, "active", "Persistent campaign run was revoked or ended.");
     assert.equal(scope?.persistent_campaign, true, "Run is not a persistent certification run.");
-    assert.ok(new Date(scope.expires_at).getTime() > Date.now()+7200000, "Certification run is near expiry; do not silently reset world.");
-    assert.equal(scope.metadata?.isolatedCertification, true, "Campaign world lost isolation flag.");
+    assert.ok(
+      new Date(scope.expires_at).getTime() > Date.now() + 7200000,
+      "Certification run is near expiry; do not silently reset world.",
+    );
+    assert.equal(
+      scope.metadata?.isolatedCertification,
+      true,
+      "Campaign world lost isolation flag.",
+    );
     const [count] = await query(
       "SELECT count(*)::int AS total, max(sequence)::int AS last_sequence " +
-      "FROM system.persistent_campaign_beats WHERE campaign_key=$1",
+        "FROM system.persistent_campaign_beats WHERE campaign_key=$1",
       [campaignKey],
     );
     previousBeats = count?.total || 0;
-    assert.equal(count?.last_sequence ?? -1, previousBeats - 1, "Campaign checkpoint gap detected.");
+    assert.equal(
+      count?.last_sequence ?? -1,
+      previousBeats - 1,
+      "Campaign checkpoint gap detected.",
+    );
   } else {
     await query(
       "INSERT INTO game.worlds(world_id,slug,name,metadata) VALUES ($1,$2,'Persistent real-model story district',$3::jsonb)",
-      [worldId, campaignKey, JSON.stringify({ isolatedCertification: true, persistentCampaign: campaignKey })],
+      [
+        worldId,
+        campaignKey,
+        JSON.stringify({ isolatedCertification: true, persistentCampaign: campaignKey }),
+      ],
     );
     await query(
       "INSERT INTO game.world_shards(shard_id,world_id,slug,name) VALUES ($1,$2,'primary','Primary')",
-      [shardId,worldId],
+      [shardId, worldId],
     );
     await query(
       "INSERT INTO game.certification_runs(run_id,world_id,shard_id,expires_at,persistent_campaign) " +
-      "VALUES ($1,$2,$3,now()+interval '364 days',true)",
-      [runId,worldId,shardId],
+        "VALUES ($1,$2,$3,now()+interval '364 days',true)",
+      [runId, worldId, shardId],
     );
     await query(
       "INSERT INTO system.persistent_campaigns(campaign_key,run_id,world_id,shard_id) VALUES ($1,$2,$3,$4)",
-      [campaignKey,runId,worldId,shardId],
+      [campaignKey, runId, worldId, shardId],
     );
   }
   assert.notEqual(worldId, DEFAULT_WORLD_ID, "Persistent campaign must never use public world.");
@@ -428,13 +447,13 @@ try {
     player.token = minted.token; // Fresh credential each run; NEVER persist/log.
     await query(
       "INSERT INTO game.certification_players(run_id,user_id,world_id,shard_id) " +
-      "VALUES ($1,$2,$3,$4) ON CONFLICT (user_id) DO NOTHING",
-      [runId,player.userId,worldId,shardId],
+        "VALUES ($1,$2,$3,$4) ON CONFLICT (user_id) DO NOTHING",
+      [runId, player.userId, worldId, shardId],
     );
     await query(
       "INSERT INTO game.world_memberships(world_id,user_id,role,status) " +
-      "VALUES ($1,$2,'player','active') ON CONFLICT DO NOTHING",
-      [worldId,player.userId],
+        "VALUES ($1,$2,'player','active') ON CONFLICT DO NOTHING",
+      [worldId, player.userId],
     );
   }
   const [districtResult] = await query(
@@ -442,25 +461,25 @@ try {
     [runId],
   );
   const district = districtResult.district;
-  assert.equal(district.worldId,worldId,"District world does not match persistent campaign.");
+  assert.equal(district.worldId, worldId, "District world does not match persistent campaign.");
   for (const player of players) {
     const [allocation] = await query(
       "SELECT * FROM game.provision_certification_player($1,$2,$3)",
-      [runId,player.userId,player.name],
+      [runId, player.userId, player.name],
     );
     assert.ok(allocation?.actor_id && allocation.residence_id);
     player.actorId = allocation.actor_id;
     player.residenceId = allocation.residence_id;
     const dashboard = await send(player, "/v1/persistent-world/dashboard");
-    assert.equal(dashboard.status,200,"Persistent player cannot access own dashboard.");
+    assert.equal(dashboard.status, 200, "Persistent player cannot access own dashboard.");
     assert.equal(
       (dashboard.data.dashboard || dashboard.data).character.characterId,
       player.actorId,
       "Persistent player dashboard selected wrong character.",
     );
   }
-  assert.equal(new Set(players.map(p=>p.actorId)).size,3);
-  assert.equal(new Set(players.map(p=>p.residenceId)).size,3);
+  assert.equal(new Set(players.map((p) => p.actorId)).size, 3);
+  assert.equal(new Set(players.map((p) => p.residenceId)).size, 3);
   assert.equal(
     previousBeats <= allBeats.length,
     true,
@@ -468,22 +487,28 @@ try {
   );
   const history = await query(
     "SELECT beat_id,result FROM system.persistent_campaign_beats " +
-    "WHERE campaign_key=$1 ORDER BY sequence",
+      "WHERE campaign_key=$1 ORDER BY sequence",
     [campaignKey],
   );
   for (const previous of history) {
     firstByBeatId.set(previous.beat_id, previous.result);
   }
-  beats = allBeats.slice(previousBeats,previousBeats+limit);
-  console.log(JSON.stringify({
-    event:"persistent_campaign_resume",
-    campaignKey,
-    previousBeats,
-    selectedBeats:beats.length,
-    totalAuthoredBeats:allBeats.length,
-    worldId,
-    players:players.map(p=>({alias:p.alias,actorId:p.actorId,residenceId:p.residenceId})),
-  }));
+  beats = allBeats.slice(previousBeats, previousBeats + limit);
+  console.log(
+    JSON.stringify({
+      event: "persistent_campaign_resume",
+      campaignKey,
+      previousBeats,
+      selectedBeats: beats.length,
+      totalAuthoredBeats: allBeats.length,
+      worldId,
+      players: players.map((p) => ({
+        alias: p.alias,
+        actorId: p.actorId,
+        residenceId: p.residenceId,
+      })),
+    }),
+  );
   let scheduledWorkerReady = false;
   for (let attempt = 0; attempt < 30; attempt += 1) {
     const [heartbeat] = await query(
@@ -534,10 +559,17 @@ try {
       const result = await runBeat(beat, previousBeats + i);
       await query(
         "INSERT INTO system.persistent_campaign_beats(campaign_key,sequence,beat_id,actor_alias,verdict,result) " +
-        "VALUES ($1,$2,$3,$4,$5,$6::jsonb) ON CONFLICT (campaign_key,sequence) DO NOTHING",
-        [campaignKey,previousBeats+i,beat.id,beat.actor,result.verdict,JSON.stringify(result)],
+          "VALUES ($1,$2,$3,$4,$5,$6::jsonb) ON CONFLICT (campaign_key,sequence) DO NOTHING",
+        [
+          campaignKey,
+          previousBeats + i,
+          beat.id,
+          beat.actor,
+          result.verdict,
+          JSON.stringify(result),
+        ],
       );
-      firstByBeatId.set(beat.id,result);
+      firstByBeatId.set(beat.id, result);
       turns.push(result);
       console.log(
         JSON.stringify({
@@ -562,8 +594,15 @@ try {
       };
       await query(
         "INSERT INTO system.persistent_campaign_beats(campaign_key,sequence,beat_id,actor_alias,verdict,result) " +
-        "VALUES ($1,$2,$3,$4,$5,$6::jsonb) ON CONFLICT (campaign_key,sequence) DO NOTHING",
-        [campaignKey,previousBeats+i,beat.id,beat.actor,failure.verdict,JSON.stringify(failure)],
+          "VALUES ($1,$2,$3,$4,$5,$6::jsonb) ON CONFLICT (campaign_key,sequence) DO NOTHING",
+        [
+          campaignKey,
+          previousBeats + i,
+          beat.id,
+          beat.actor,
+          failure.verdict,
+          JSON.stringify(failure),
+        ],
       );
       turns.push(failure);
       console.log(JSON.stringify(failure));
