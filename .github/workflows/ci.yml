@@ -92,6 +92,8 @@ jobs:
           mkdir -p artifacts
           set -o pipefail
           pnpm test 2>&1 | tee artifacts/unit.log
+      - name: Refuse false-green real-player outcomes
+        run: pnpm exec vitest run scripts/ci/gameplay-verdict.test.ts
       - name: Run capability contracts
         run: |
           set -o pipefail
