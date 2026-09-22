@@ -1,0 +1,130 @@
+import type { CitySourceFeature } from "./city-source.js";
+
+/** Bounded Union Square stand-in extract. Replace with a real .osm.pbf import. */
+export const OSM_MANHATTAN_FIXTURE: readonly CitySourceFeature[] = [
+  {
+    sourceKey: "osm:way:starter-building",
+    name: "East 14th walk-up",
+    lon: -73.99,
+    lat: 40.735,
+    properties: { building: "apartments" },
+  },
+  {
+    sourceKey: "osm:node:14th-convenience",
+    name: "14th Street Convenience",
+    lon: -73.9892,
+    lat: 40.7354,
+    properties: { shop: "convenience", name: "14th Street Convenience" },
+  },
+  {
+    sourceKey: "osm:node:uptown-supermarket",
+    name: "Uptown Market",
+    lon: -73.96,
+    lat: 40.8,
+    properties: { shop: "supermarket" },
+  },
+  {
+    sourceKey: "osm:node:midtown-fuel",
+    name: "Third Avenue Fuel",
+    lon: -73.9885,
+    lat: 40.736,
+    properties: { amenity: "fuel" },
+  },
+  {
+    sourceKey: "osm:node:14th-garage",
+    name: "14th Street Auto",
+    lon: -73.991,
+    lat: 40.7345,
+    properties: { shop: "car_repair" },
+  },
+  {
+    sourceKey: "osm:node:9th-precinct",
+    name: "9th Precinct",
+    lon: -73.983,
+    lat: 40.726,
+    properties: { amenity: "police" },
+  },
+  {
+    sourceKey: "osm:node:beth-israel",
+    name: "Mount Sinai Beth Israel",
+    lon: -73.982,
+    lat: 40.733,
+    properties: { amenity: "hospital" },
+  },
+  {
+    sourceKey: "osm:node:14th-pharmacy",
+    name: "14th Street Pharmacy",
+    lon: -73.9898,
+    lat: 40.7352,
+    properties: { amenity: "pharmacy" },
+  },
+  {
+    sourceKey: "osm:node:union-laundry",
+    name: "Union Square Laundry",
+    lon: -73.9904,
+    lat: 40.7351,
+    properties: { shop: "laundry" },
+  },
+  {
+    sourceKey: "osm:node:14th-diner",
+    name: "14th Street Diner",
+    lon: -73.9888,
+    lat: 40.7348,
+    properties: { amenity: "restaurant" },
+  },
+  {
+    sourceKey: "osm:node:old-town-bar",
+    name: "Old Town Bar",
+    lon: -73.9879,
+    lat: 40.7362,
+    properties: { amenity: "bar" },
+  },
+  {
+    sourceKey: "osm:node:chase-union",
+    name: "Chase Union Square",
+    lon: -73.9908,
+    lat: 40.7356,
+    properties: { amenity: "bank" },
+  },
+  {
+    sourceKey: "osm:node:union-liquor",
+    name: "Union Square Liquors",
+    lon: -73.988,
+    lat: 40.7342,
+    properties: { shop: "alcohol" },
+  },
+  {
+    sourceKey: "osm:node:14th-hardware",
+    name: "14th Street Hardware",
+    lon: -73.9915,
+    lat: 40.7358,
+    properties: { shop: "hardware" },
+  },
+  {
+    sourceKey: "osm:node:union-subway",
+    name: "Union Square Station",
+    lon: -73.9903,
+    lat: 40.7359,
+    properties: { station: "subway", public_transport: "station" },
+  },
+  {
+    sourceKey: "osm:node:engine-5",
+    name: "Engine 5",
+    lon: -73.9835,
+    lat: 40.731,
+    properties: { amenity: "fire_station" },
+  },
+  {
+    sourceKey: "osm:node:union-post",
+    name: "Cooper Station Post Office",
+    lon: -73.9918,
+    lat: 40.7338,
+    properties: { amenity: "post_office" },
+  },
+];
+
+export const OSM_STARTER_POINT = {
+  sourceKey: "osm:way:starter-building",
+  lon: -73.99,
+  lat: 40.735,
+} as const;
