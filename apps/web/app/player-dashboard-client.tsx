@@ -152,11 +152,10 @@ export default function PlayerDashboardClient() {
       <nav className="player-dashboard__tabs" aria-label="Dashboard sections">
         {tabs.map((item) => (
           <button
-            aria-selected={tab === item.key}
+            aria-current={tab === item.key ? "page" : undefined}
             className={tab === item.key ? "is-active" : undefined}
             key={item.key}
             onClick={() => setTab(item.key)}
-            role="tab"
             type="button"
           >
             {item.label}
