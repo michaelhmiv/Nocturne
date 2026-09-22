@@ -10,6 +10,12 @@ export function isCategoryTravelCommand(command: string) {
   return Boolean(categoryTravelFrame(command));
 }
 
+export function isScenePerceiveCommand(command: string) {
+  return /\b(look around|what'?s around|what is around|where am i|what is this place|what do i see|survey the (street|block|area)|look here)\b/i.test(
+    command,
+  );
+}
+
 export function missingCityDestinationPrompt(frame: IntentFrame) {
   return `No matching ${frame.category} exists in the loaded city source near you.`;
 }
