@@ -13,7 +13,10 @@ import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { STORY_CERTIFICATION_CASES } from "./story-certification-corpus.mjs";
-import { generateSignalGardenCampaign, auditSignalGardenCampaign } from "./signal-garden-campaign.js";
+import {
+  generateSignalGardenCampaign,
+  auditSignalGardenCampaign,
+} from "./signal-garden-campaign.js";
 import {
   createAgentStore,
   createDatabase,
@@ -29,10 +32,19 @@ const dbAddress = new URL(databaseUrl);
 const apiAddress = new URL(apiUrl);
 const modelAddress = new URL(decisionUrl);
 assert.equal(process.env.NOCTURNE_LIVE_STORY_SANDBOX, "1", "Live sandbox opt-in required.");
-assert.ok(!["127.0.0.1", "localhost"].includes(dbAddress.hostname), "Require pinned public Testing database.");
-assert.ok(!dbAddress.hostname.endsWith(".railway.internal"), "Private Railway URL forbidden in GitHub Actions.");
+assert.ok(
+  !["127.0.0.1", "localhost"].includes(dbAddress.hostname),
+  "Require pinned public Testing database.",
+);
+assert.ok(
+  !dbAddress.hostname.endsWith(".railway.internal"),
+  "Private Railway URL forbidden in GitHub Actions.",
+);
 assert.equal(
-  createHash("sha256").update(dbAddress.hostname + ":" + dbAddress.port).digest("hex").slice(0, 16),
+  createHash("sha256")
+    .update(dbAddress.hostname + ":" + dbAddress.port)
+    .digest("hex")
+    .slice(0, 16),
   "545485b0dba3929f",
   "Refusing to mutate a database other than the user-attested Railway Testing endpoint.",
 );
@@ -68,21 +80,37 @@ const allBeats = STORY_CERTIFICATION_CASES.flatMap((story) =>
 );
 const garden = generateSignalGardenCampaign({ turns: 5000 - allBeats.length });
 const gardenAudit = auditSignalGardenCampaign(garden);
-assert.deepEqual(gardenAudit.errors, [], "The generated campaign must use distinct commands across all 25 action types and all three players.");
-allBeats.push(...garden.map((turn) => ({
-  id: "signal-garden-" + String(turn.sequence + 1).padStart(4, "0"),
-  actor: turn.playerAlias,
-  text: turn.command,
-  storyId: "signal-garden",
-  storyTitle: "Signal Garden / real-provider endurance",
-  actId: "chapter-" + turn.chapter,
-  sceneSetup: "Continue the established persistent city from prior actions, with packet " + turn.packetId + ".",
-  checks: [turn.actionType, turn.expectedWorldKind],
-  clock: null,
-})));
-assert.equal(allBeats.length, 5000, "The enduring campaign must have 5000 authored or distinct generated commands.");
+assert.deepEqual(
+  gardenAudit.errors,
+  [],
+  "The generated campaign must use distinct commands across all 25 action types and all three players.",
+);
+allBeats.push(
+  ...garden.map((turn) => ({
+    id: "signal-garden-" + String(turn.sequence + 1).padStart(4, "0"),
+    actor: turn.playerAlias,
+    text: turn.command,
+    storyId: "signal-garden",
+    storyTitle: "Signal Garden / real-provider endurance",
+    actId: "chapter-" + turn.chapter,
+    sceneSetup:
+      "Continue the established persistent city from prior actions, with packet " +
+      turn.packetId +
+      ".",
+    checks: [turn.actionType, turn.expectedWorldKind],
+    clock: null,
+  })),
+);
+assert.equal(
+  allBeats.length,
+  5000,
+  "The enduring campaign must have 5000 authored or distinct generated commands.",
+);
 const limit = Number(process.env.PERSISTENT_STORY_BATCH || "72");
-assert.ok(Number.isInteger(limit) && limit >= 1 && limit <= 250, "Batch must be 1–250 real-provider turns.");
+assert.ok(
+  Number.isInteger(limit) && limit >= 1 && limit <= 250,
+  "Batch must be 1–250 real-provider turns.",
+);
 let beats = [];
 const players = [
   { alias: "mara", name: "Mara Velez" },
@@ -393,7 +421,11 @@ try {
     [campaignSlug],
   );
   if (existing) {
-    assert.equal(existing.metadata?.isolatedCertification, true, "Persistent campaign lost isolation marker.");
+    assert.equal(
+      existing.metadata?.isolatedCertification,
+      true,
+      "Persistent campaign lost isolation marker.",
+    );
     const [prior] = await query(
       "SELECT run_id,shard_id,status FROM game.certification_runs WHERE world_id=$1 LIMIT 1",
       [existing.world_id],
@@ -404,7 +436,10 @@ try {
     shardId = prior.shard_id;
     cursor = Number(existing.metadata?.persistentCampaign?.nextTurn);
     previousFailures = Number(existing.metadata?.persistentCampaign?.failures || 0);
-    assert.ok(Number.isInteger(cursor) && cursor >= 0 && cursor <= allBeats.length, "Corrupt persistent cursor.");
+    assert.ok(
+      Number.isInteger(cursor) && cursor >= 0 && cursor <= allBeats.length,
+      "Corrupt persistent cursor.",
+    );
     await query(
       "UPDATE game.certification_runs SET expires_at=now()+interval '90 days' WHERE run_id=$1 AND status='active'",
       [runId],
@@ -412,7 +447,14 @@ try {
   } else {
     await query(
       "INSERT INTO game.worlds(world_id,slug,name,metadata) VALUES ($1,$2,'Persistent real-model certification district',$3::jsonb)",
-      [worldId, campaignSlug, JSON.stringify({ isolatedCertification: true, persistentCampaign: { version: 1, nextTurn: 0, failures: 0, target: 5000 } })],
+      [
+        worldId,
+        campaignSlug,
+        JSON.stringify({
+          isolatedCertification: true,
+          persistentCampaign: { version: 1, nextTurn: 0, failures: 0, target: 5000 },
+        }),
+      ],
     );
     await query(
       "INSERT INTO game.world_shards(shard_id,world_id,slug,name) VALUES ($1,$2,'primary','Primary')",
@@ -424,7 +466,10 @@ try {
     );
   }
   beats = allBeats.slice(cursor, cursor + limit);
-  assert.ok(beats.length, "The 5000-turn persistent campaign is already complete. No new work is required.");
+  assert.ok(
+    beats.length,
+    "The 5000-turn persistent campaign is already complete. No new work is required.",
+  );
   for (const player of players) {
     player.userId = "live-story:" + runId + ":" + player.alias;
     const minted = await agents.createToken({
@@ -524,7 +569,12 @@ try {
       // makes an interrupted turn safe to replay on the next run.
       await query(
         "UPDATE game.worlds SET metadata=jsonb_set(jsonb_set(metadata,'{persistentCampaign,nextTurn}',to_jsonb($2::int),true),'{persistentCampaign,failures}',to_jsonb($3::int),true) WHERE world_id=$1 AND slug=$4",
-        [worldId, cursor + i + 1, previousFailures + turns.filter((t) => t.verdict === "observed_failure").length, campaignSlug],
+        [
+          worldId,
+          cursor + i + 1,
+          previousFailures + turns.filter((t) => t.verdict === "observed_failure").length,
+          campaignSlug,
+        ],
       );
       console.log(
         JSON.stringify({
@@ -549,7 +599,8 @@ try {
       };
       turns.push(failure);
       console.log(JSON.stringify(failure));
-      infrastructureError ||= "A beat failed before its durable checkpoint; rerun will replay the same idempotency key.";
+      infrastructureError ||=
+        "A beat failed before its durable checkpoint; rerun will replay the same idempotency key.";
       break;
     }
   }
@@ -613,7 +664,8 @@ try {
     nextCursor: cursor + turns.filter((t) => t.verdict !== "harness_failure").length,
     campaignTarget: allBeats.length,
     previousFailures,
-    accumulatedFailures: previousFailures + turns.filter((t) => t.verdict === "observed_failure").length,
+    accumulatedFailures:
+      previousFailures + turns.filter((t) => t.verdict === "observed_failure").length,
     liveModel: providerEvidence.jevDecisionCalls > 0 && providerEvidence.lagunaNarrationCalls > 0,
     providerEvidence,
     production: false,
