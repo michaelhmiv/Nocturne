@@ -3,6 +3,7 @@ import {
   type WorldActionPlayerSafeResult,
 } from "@nocturne/contracts";
 import { buildCityTravelPlan } from "@nocturne/ai-gm";
+import { compileCityScene, OSM_STARTER_POINT } from "@nocturne/rules-engine";
 import type { WorldScope } from "@nocturne/database";
 import {
   categoryTravelFrame,
@@ -229,17 +230,18 @@ async function submitPerceive(
       contextCompilationId: context.compilationId,
     });
     currentStatus = "resolving_references";
-    const locationId = context.entities.find(
-      (entity) => entity.entityId === input.actorId,
-    )?.locationId;
-    const packet = (await dependencies.compileLiveScene?.({
-      scope: input.scope,
-      actorId: input.actorId,
-      locationId,
-    })) || {
-      facts: ["The loaded city extract has no visible storefronts."],
-      hereName: "the street",
-    };
+    const locationId = context.entities.find((entity) => entity.entityId === input.actorId)
+      ?.locationId;
+    const packet =
+      (await dependencies.compileLiveScene?.({
+        scope: input.scope,
+        actorId: input.actorId,
+        locationId,
+      })) ||
+      compileCityScene({
+        lon: OSM_STARTER_POINT.lon,
+        lat: OSM_STARTER_POINT.lat,
+      });
     await dependencies.requests.transition({
       scope: input.scope,
       requestId: reservation.requestId,
