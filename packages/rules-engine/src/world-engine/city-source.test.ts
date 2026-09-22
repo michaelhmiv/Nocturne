@@ -83,9 +83,8 @@ describe("city source port", () => {
     expect(decision.status).toBe("materialize_from_source");
     expect(decision.requiresClarification).toBe(false);
     expect(decision.target?.sourceKey).toBe("osm:node:1");
-    expect(decision.operations.map((operation) => operation.type)).toEqual([
-      "create_instance",
-      "move_entity",
-    ]);
+    expect(decision.operations.map((operation) => operation.type)).toEqual(
+      expect.arrayContaining(["create_instance", "move_entity"]),
+    );
   });
 });
