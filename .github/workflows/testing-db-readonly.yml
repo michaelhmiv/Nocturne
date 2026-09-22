@@ -3,13 +3,14 @@ on:
   pull_request:
     paths:
       - .github/workflows/testing-db-readonly.yml
-      - scripts/ci/testing-db-readonly.ts
+      - packages/database/src/testing-db-readonly.ts
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   verify:
     runs-on: ubuntu-latest
+    environment: Testing
     timeout-minutes: 10
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -24,4 +25,4 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Verify external testing PostgreSQL read-only
-        run: pnpm --filter @nocturne/database exec tsx ../../scripts/ci/testing-db-readonly.ts
+        run: pnpm --filter @nocturne/database exec tsx src/testing-db-readonly.ts
