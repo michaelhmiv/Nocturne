@@ -1,10 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { STARTER_FOUNDRY_ROW_PLACES } from "@nocturne/contracts";
-import {
-  destinationIdFromResolution,
-  resolveCommandDestination,
-} from "./category-resolver.js";
+import { destinationIdFromResolution, resolveCommandDestination } from "./category-resolver.js";
 
 describe("command destination resolver", () => {
   it("binds the seeded bodega for grocery language", () => {
