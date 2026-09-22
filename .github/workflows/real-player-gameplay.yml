@@ -7,7 +7,6 @@ on:
     paths:
       - "scripts/ci/live-story-campaign.ts"
       - "scripts/ci/gameplay-verdict.ts"
-      - "scripts/ci/gameplay-verdict.ts"
       - "scripts/ci/story-certification-corpus.mjs"
       - ".github/workflows/real-player-gameplay.yml"
   push:
@@ -64,7 +63,7 @@ jobs:
       AI_AUTHORITATIVE_MODEL: qwen/qwen3.7-flash
       AI_CREATIVE_MODEL: qwen/qwen3.7-flash
       AI_NARRATION_MODEL: poolside/laguna-xs-2.1
-      AI_DECISION_MODEL: ~typesafe/jev-latest
+      AI_DECISION_MODEL: "~typesafe/jev-latest"
       AI_DECISION_ENDPOINT: https://openrouter.ai/api/alpha/decisions
       AI_DECISION_TIMEOUT_MS: "15000"
       AI_TIMEOUT_MS: "65000"
