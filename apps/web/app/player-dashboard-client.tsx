@@ -161,11 +161,10 @@ export default function PlayerDashboardClient() {
       <nav className="player-dashboard__tabs" aria-label="Dashboard sections">
         {tabs.map((item) => (
           <button
-            aria-selected={tab === item.key}
+            aria-current={tab === item.key ? "page" : undefined}
             className={tab === item.key ? "is-active" : undefined}
             key={item.key}
             onClick={() => setTab(item.key)}
-            role="tab"
             type="button"
           >
             {item.label}
@@ -321,32 +320,53 @@ export default function PlayerDashboardClient() {
             <p className="player-dashboard__eyebrow">IDENTITY</p>
             <h2>{character.name}</h2>
             <p>{character.conceptSummary}</p>
-            <dl className="dashboard-stat-list dashboard-stat-list--columns">
-              <div>
-                <dt>Entity version</dt>
-                <dd>{character.version}</dd>
-              </div>
-              <div>
-                <dt>Simulation version</dt>
-                <dd>{character.simulationVersion}</dd>
-              </div>
-              <div>
-                <dt>Definition</dt>
-                <dd>{character.definitionId}</dd>
-              </div>
-              <div>
-                <dt>Character ID</dt>
-                <dd>{character.characterId}</dd>
-              </div>
-            </dl>
+            <details className="dashboard-diagnostics">
+              <summary>Technical details</summary>
+              <dl className="dashboard-stat-list dashboard-stat-list--columns">
+                <div>
+                  <dt>Entity version</dt>
+                  <dd>{character.version}</dd>
+                </div>
+                <div>
+                  <dt>Simulation version</dt>
+                  <dd>{character.simulationVersion}</dd>
+                </div>
+                <div>
+                  <dt>Definition</dt>
+                  <dd>{character.definitionId}</dd>
+                </div>
+                <div>
+                  <dt>Character ID</dt>
+                  <dd>{character.characterId}</dd>
+                </div>
+              </dl>
+            </details>
           </section>
           <section className="player-dashboard__card">
             <p className="player-dashboard__eyebrow">SKILLS</p>
-            {Object.keys(character.skills).length ? (
-              Object.entries(character.skills).map(([skill, value]) => (
-                <div className="dashboard-value-row" key={skill}>
-                  <span>{label(skill)}</span>
-                  <strong>{value}</strong>
+            {Object.keys(character.skillProgress).length ? (
+              Object.entries(character.skillProgress).map(([skill, progress]) => (
+                <div className="dashboard-skill" key={skill}>
+                  <div className="dashboard-value-row">
+                    <span>{label(skill)}</span>
+                    <strong>Level {progress.level}</strong>
+                  </div>
+                  <progress
+                    aria-label={`${label(skill)} skill progress`}
+                    max={
+                      progress.nextLevelXp === null
+                        ? 1
+                        : progress.nextLevelXp - progress.currentLevelXp
+                    }
+                    value={
+                      progress.nextLevelXp === null ? 1 : progress.xp - progress.currentLevelXp
+                    }
+                  />
+                  <small>
+                    {progress.nextLevelXp === null
+                      ? `Mastered · ${progress.xp} XP`
+                      : `${progress.xp} / ${progress.nextLevelXp} XP to level ${progress.level + 1}`}
+                  </small>
                 </div>
               ))
             ) : (

@@ -607,3 +607,23 @@
     display: grid;
   }
 }
+
+/* A mastered skill has a completed track and no impossible next-level target. */
+.dashboard-skill {
+  display: grid;
+  gap: 5px;
+  padding: 10px 0;
+}
+.dashboard-skill progress {
+  width: 100%;
+  accent-color: #b6d3a6;
+}
+.dashboard-skill small {
+  color: #b4bbc9;
+}
+.dashboard-diagnostics {
+  margin-top: 18px;
+}
+.dashboard-diagnostics summary {
+  cursor: pointer;
+}

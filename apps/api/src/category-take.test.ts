@@ -17,6 +17,9 @@ describe("city take command gate", () => {
       false,
     );
     expect(isCityTakeCommand("look around")).toBe(false);
+    expect(isCityTakeCommand("Pick up the Certification Wrench.")).toBe(false);
+    expect(isCityTakeCommand("Grab the wrench.")).toBe(false);
+    expect(matchCityTake("Grab wrench from mechanic")).toMatchObject({ slot: { sku: "wrench" } });
     expect(isCityTakeCommand("take me to the garage")).toBe(false);
   });
 });

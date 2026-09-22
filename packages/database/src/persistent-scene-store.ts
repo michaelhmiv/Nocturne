@@ -8,6 +8,11 @@ import type { createDatabase } from "./index.js";
 import { toIsoTimestamp, toNullableIsoTimestamp } from "./timestamp.js";
 import type { WorldScope } from "./world-store.js";
 import { playerVisibleLocation } from "./scene-privacy.js";
+import {
+  projectDiscoverablePlaces,
+  validWorldPoint,
+  type PublicPlaceRow,
+} from "./discoverable-place-projection.js";
 
 export class PersistentSceneStoreError extends Error {
   constructor(
@@ -312,6 +317,36 @@ export function createPersistentSceneStore(database: ReturnType<typeof createDat
       : [];
     const entityRows = await buildEntityRows(input.scope, input.actorId, actor.location_id);
     const entities = entityRows.map(mapEntity);
+    // The player's point is grounded in the actual scoped location instance.
+    // Never substitute the Union Square fixture for a character without coordinates.
+    const locationRows = actor.location_id
+      ? await database.client<{ state: Record<string, unknown> }[]>`
+          SELECT state FROM game.entity_instances
+          WHERE world_id = ${input.scope.worldId}
+            AND shard_id = ${input.scope.shardId}
+            AND instance_id = ${actor.location_id}
+          LIMIT 1
+        `
+      : [];
+    const point = validWorldPoint(locationRows[0]?.state);
+    const placeRows: PublicPlaceRow[] = point
+      ? await database.client<PublicPlaceRow[]>`
+          SELECT dataset.dataset_key, feature.provider_feature_id,
+                 feature.properties->>'name' AS name,
+                 feature.properties, feature.centroid_longitude,
+                 feature.centroid_latitude
+          FROM source_geo.features feature
+          JOIN source_geo.datasets dataset ON dataset.dataset_id = feature.dataset_id
+          WHERE dataset.active = true AND feature.active = true
+            AND feature.feature_kind = 'poi'
+            AND feature.centroid_longitude BETWEEN ${point.longitude - 0.03}
+                                              AND ${point.longitude + 0.03}
+            AND feature.centroid_latitude BETWEEN ${point.latitude - 0.02}
+                                             AND ${point.latitude + 0.02}
+          ORDER BY feature.dataset_id, feature.provider_feature_id
+          LIMIT 500
+        `
+      : [];
     const activePlan = await readPlan(input.scope, input.actorId);
     const scheduled = await database.client<
       {
@@ -364,6 +399,7 @@ export function createPersistentSceneStore(database: ReturnType<typeof createDat
       location: {
         locationId: actor.location_id,
         name: hierarchy.at(-1)?.name || actor.name,
+        coordinates: point,
         hierarchy: hierarchy.map((location) => ({
           locationId: location.location_id,
           name: location.name,
@@ -374,6 +410,7 @@ export function createPersistentSceneStore(database: ReturnType<typeof createDat
         ["accompanying", "carried"].includes(presence),
       ),
       knownEntities: entities.filter(({ presence }) => presence === "known_elsewhere"),
+      discoverablePlaces: projectDiscoverablePlaces(point, placeRows),
       activePlan,
       scheduledWork: scheduled.map((work) => ({
         scheduleId: work.schedule_id,

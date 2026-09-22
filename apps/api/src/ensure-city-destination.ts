@@ -37,6 +37,8 @@ export async function ensureCityDestination(input: {
         sourceKey: input.destination.sourceKey,
         name: input.destination.name,
         family: input.destination.family,
+        lon: input.destination.lon,
+        lat: input.destination.lat,
       })}::jsonb,
       0,
       'active',
@@ -46,9 +48,10 @@ export async function ensureCityDestination(input: {
       })}::jsonb
     )
     ON CONFLICT (instance_id) DO UPDATE
-    SET world_id = EXCLUDED.world_id,
-        shard_id = EXCLUDED.shard_id,
+    SET state = game.entity_instances.state || (EXCLUDED.state - 'name' - 'family'),
         updated_at = now()
+    WHERE game.entity_instances.world_id = EXCLUDED.world_id
+      AND game.entity_instances.shard_id = EXCLUDED.shard_id
   `;
   if (input.actorLocationId && input.actorLocationId !== input.destination.entityId) {
     await sql`

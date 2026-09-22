@@ -1,3 +1,5 @@
+import { skillLevelForXp, skillXpForLevel } from "@nocturne/contracts";
+
 // ponytail: skills live in entity_instances.state.skills JSONB.
 // Skill level = floor(sqrt(xp / 10)), clamped to [0, 100].
 // XP per action = action difficulty (1-10), determined by AI.
@@ -21,20 +23,15 @@ export const SKILL_NAMES = [
 export type SkillName = (typeof SKILL_NAMES)[number];
 
 export const MAX_SKILL_LEVEL = 100;
-const XP_PER_LEVEL_MULTIPLIER = 10;
 
 /** Total XP needed to reach exactly `level` (0-100). */
 export function xpForLevel(level: number): number {
-  if (level < 0 || level > MAX_SKILL_LEVEL) throw new Error("Level out of range.");
-  return level * level * XP_PER_LEVEL_MULTIPLIER;
+  return skillXpForLevel(level);
 }
 
 /** Current skill level derived from total accumulated XP. */
 export function levelFromXp(xp: number): number {
-  return Math.min(
-    MAX_SKILL_LEVEL,
-    Math.max(0, Math.floor(Math.sqrt(Math.max(0, xp) / XP_PER_LEVEL_MULTIPLIER))),
-  );
+  return skillLevelForXp(xp);
 }
 
 /** Read a character's skill level from their entity state. */

@@ -44,6 +44,15 @@ test("onboards a character, resolves every supported action, and loads the dashb
     timeout: 20_000,
   });
 
+  // An unsent natural-language action is not lost when a player reloads the tab.
+  await page.getByPlaceholder("What do you do?").fill("Inspect the street before leaving.");
+  await page.reload();
+  await expect(page.getByPlaceholder("What do you do?")).toHaveValue(
+    "Inspect the street before leaving.",
+    { timeout: 20_000 },
+  );
+  await page.getByPlaceholder("What do you do?").fill("");
+
   for (const action of actions) {
     const composer = page.getByPlaceholder("What do you do?");
     await composer.fill(action.prompt);
@@ -68,6 +77,14 @@ test("onboards a character, resolves every supported action, and loads the dashb
     timeout: 20_000,
   });
   await expect(page.locator("main")).not.toContainText(/internal error|dashboard is unavailable/i);
+
+  await page.getByRole("link", { name: "Map" }).click();
+  await expect(page).toHaveURL(/\/map$/);
+  await expect(page.getByRole("heading", { name: "Local map" })).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.locator("main")).toContainText(/Location is not yet mapped|Nearby places/);
+  await expect(page.locator("main")).not.toContainText(/internal error|map could not be loaded/i);
 
   expect(
     legacyRequests,
