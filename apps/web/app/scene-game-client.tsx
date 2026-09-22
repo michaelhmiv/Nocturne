@@ -814,7 +814,7 @@ export default function SceneGameClient() {
               } catch {
                 // Unsent text remains in memory until the tab closes.
               }
-            }
+            }}
             placeholder="What do you do?"
           />
           <div className="scene-composer-footer">
