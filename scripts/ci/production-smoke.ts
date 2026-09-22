@@ -250,15 +250,21 @@ for (const [label, command] of [
   }
 }
 
-console.log(JSON.stringify({
-  status: failures.length ? "failed" : "passed",
-  deployment,
-  provider,
-  authentication: token ? "agent_token" : sessionMode ? "disposable_session" : "guest_mode",
-  actorId: selectedActorId,
-  results,
-  failures,
-}, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      status: failures.length ? "failed" : "passed",
+      deployment,
+      provider,
+      authentication: token ? "agent_token" : sessionMode ? "disposable_session" : "guest_mode",
+      actorId: selectedActorId,
+      results,
+      failures,
+    },
+    null,
+    2,
+  ),
+);
 if (failures.length) {
   throw new Error(`Production gameplay certification failed: ${failures.length} / 2 objectives.`);
 }

@@ -37,11 +37,16 @@ export function gameplayOutcomeDefects(
   );
   if (ids.length === 0) defects.push("missing_committed_event");
   const plan = record(result.plan);
-  if (array(plan.steps).some((step) => {
-    const s = record(step);
-    return ["failed", "cancelled"].includes(String(s.status)) ||
-      ["failure", "no_effect"].includes(String(s.outcomeGrade));
-  })) defects.push("step_did_not_succeed");
+  if (
+    array(plan.steps).some((step) => {
+      const s = record(step);
+      return (
+        ["failed", "cancelled"].includes(String(s.status)) ||
+        ["failure", "no_effect"].includes(String(s.outcomeGrade))
+      );
+    })
+  )
+    defects.push("step_did_not_succeed");
 
   const effects = record(dashboard.effects);
   const events = array(effects.events).map(record);
@@ -49,14 +54,21 @@ export function gameplayOutcomeDefects(
   if (ids.length > 0 && linked.length !== ids.length) {
     defects.push("committed_event_missing_from_player_history");
   }
-  if (expectation === "consumption" && !linked.some((event) =>
-    array(event.effects).some((effect) => {
-      const e = record(effect);
-      return (e.type === "quantity_changed" &&
-        e.change === "consumed" && typeof e.delta === "number" && e.delta < 0) ||
-        (e.type === "resource_changed" &&
-          typeof e.delta === "number" && e.delta !== 0);
-    }),
-  )) defects.push("consumption_has_no_verified_effect");
+  if (
+    expectation === "consumption" &&
+    !linked.some((event) =>
+      array(event.effects).some((effect) => {
+        const e = record(effect);
+        return (
+          (e.type === "quantity_changed" &&
+            e.change === "consumed" &&
+            typeof e.delta === "number" &&
+            e.delta < 0) ||
+          (e.type === "resource_changed" && typeof e.delta === "number" && e.delta !== 0)
+        );
+      }),
+    )
+  )
+    defects.push("consumption_has_no_verified_effect");
   return defects;
 }

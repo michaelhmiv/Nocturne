@@ -253,7 +253,9 @@ async function runBeat(beat, index) {
     if (!record || record.status !== "completed") {
       observedDefects.push("positive_objective_not_completed");
     }
-    if (/\\b(?:do not accomplish|did not accomplish|no matching source|no effect)\\b/i.test(narration)) {
+    if (
+      /\\b(?:do not accomplish|did not accomplish|no matching source|no effect)\\b/i.test(narration)
+    ) {
       observedDefects.push("positive_objective_failed_in_narration");
     }
     if (evidence.events.length === 0) observedDefects.push("positive_objective_has_no_event");
