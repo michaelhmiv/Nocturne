@@ -9,6 +9,7 @@ export * from "./npc.js";
 export * from "./probability.js";
 export * from "./score-derivation.js";
 export * from "./skills.js";
+export * from "./world-engine/index.js";
 
 import {
   ResolutionModifierSchema,
