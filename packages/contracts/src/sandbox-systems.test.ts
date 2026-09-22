@@ -41,6 +41,9 @@ describe("sandbox constitution", () => {
     expect(lookupNoun("shoot the pistol")?.family).toBe("item.weapon");
     expect(lookupNoun("go to the hospital")?.family).toBe("place.service.hospital");
     expect(lookupNoun("walk to the precinct")?.family).toBe("place.civic.precinct");
+    expect(lookupNoun("go to the nearest pharmacy")?.family).toBe("place.retail.pharmacy");
+    expect(lookupNoun("go to the nearest restaurant")?.family).toBe("place.service.restaurant");
+    expect(lookupNoun("go to the gun shop")?.family).toBe("place.retail.weapons");
   });
 
   it("turns nearest-grocery language into travel + food retail + nearest", () => {
