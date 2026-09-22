@@ -229,17 +229,17 @@ async function submitPerceive(
       contextCompilationId: context.compilationId,
     });
     currentStatus = "resolving_references";
-    const locationId = context.entities.find((entity) => entity.entityId === input.actorId)
-      ?.locationId;
-    const packet =
-      (await dependencies.compileLiveScene?.({
-        scope: input.scope,
-        actorId: input.actorId,
-        locationId,
-      })) || {
-        facts: ["The loaded city extract has no visible storefronts."],
-        hereName: "the street",
-      };
+    const locationId = context.entities.find(
+      (entity) => entity.entityId === input.actorId,
+    )?.locationId;
+    const packet = (await dependencies.compileLiveScene?.({
+      scope: input.scope,
+      actorId: input.actorId,
+      locationId,
+    })) || {
+      facts: ["The loaded city extract has no visible storefronts."],
+      hereName: "the street",
+    };
     await dependencies.requests.transition({
       scope: input.scope,
       requestId: reservation.requestId,
