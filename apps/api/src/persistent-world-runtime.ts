@@ -8,6 +8,7 @@ import {
   type WorldActionPlayerSafeResult,
 } from "@nocturne/contracts";
 import type { AiDecisionClient, AiProviderClient } from "@nocturne/ai-gm";
+import { OSM_STARTER_POINT } from "@nocturne/rules-engine";
 import {
   createMaterializationStore,
   createNarrativeMemoryStore,
@@ -40,6 +41,7 @@ import { registerOperatorDashboardRoutes } from "./operator-dashboard-routes.js"
 import { registerPlayerDashboardRoutes } from "./player-dashboard-routes.js";
 import { registerPlayerEffectRoutes } from "./player-effect-routes.js";
 import { createPersistentWorldActionService } from "./persistent-world-action-service.js";
+import { resolveCityDestinationFromFeatures } from "./resolve-city-destination.js";
 import { registerPersistentWorldRoutes } from "./persistent-world-routes.js";
 import { createRoutineActionService } from "./routine-action-service.js";
 import { createSearchDiscoveryService } from "./search-discovery-service.js";
@@ -79,7 +81,6 @@ export async function registerPersistentWorldRuntime(
     decisionClient: Pick<AiDecisionClient, "decide">;
     rollSecret: string | Buffer;
     resolveScope(request: FastifyRequest): Promise<WorldScope>;
-    /** Compatibility input retained while narrative history moves into the database projection. */
     listRecentPlayerSafeText?(input: { scope: WorldScope; limit: number }): Promise<string[]>;
     loadReusableDefinitions(input: {
       scope: Pick<WorldScope, "worldId">;
@@ -243,15 +244,14 @@ export async function registerPersistentWorldRuntime(
     narrateCommittedEvents,
     recordCompletedTurn: narrativeMemory.recordCompletedTurn,
     simulateReferencedEntity: dependencies.simulateReferencedEntity,
+    resolveCityDestination: async ({ command }) =>
+      resolveCityDestinationFromFeatures({
+        command,
+        lon: OSM_STARTER_POINT.lon,
+        lat: OSM_STARTER_POINT.lat,
+      }),
   });
 
-  /**
-   * Scheduled work commits its authoritative event before it can re-enter the
-   * normal persistent-action continuation loop. Keep that boundary explicit:
-   * the worker never invents a second execution path, and a retry can safely
-   * call this function again because completed requests return their durable
-   * player-safe result.
-   */
   const scheduledContinuation: ScheduledPersistentActionContinuation = {
     resume: async (input) => {
       const rows = await dependencies.database.client<
