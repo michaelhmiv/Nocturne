@@ -77,7 +77,9 @@ describe("world engine kernel", () => {
       known: false,
       playable: false,
     };
-    const engine = createWorldEngine(createMemoryPorts({ actors: [actor], known: [], sources: [source] }));
+    const engine = createWorldEngine(
+      createMemoryPorts({ actors: [actor], known: [], sources: [source] }),
+    );
     const decision = await engine.decide(intentFrom("go to the nearest grocery store"));
     expect(decision.status).toBe("materialize_from_source");
     expect(decision.requiresClarification).toBe(false);
@@ -90,7 +92,9 @@ describe("world engine kernel", () => {
   });
 
   it("does not invent a grocery when the city source is empty", async () => {
-    const engine = createWorldEngine(createMemoryPorts({ actors: [actor], known: [], sources: [] }));
+    const engine = createWorldEngine(
+      createMemoryPorts({ actors: [actor], known: [], sources: [] }),
+    );
     const decision = await engine.decide(intentFrom("go to the nearest grocery store"));
     expect(decision.status).toBe("need_source");
     expect(decision.operations).toEqual([]);
@@ -128,7 +132,9 @@ describe("world engine kernel", () => {
     expect(nearest.target?.entityId).toBe(GROCERY_A);
     expect(nearest.operations[0]?.type).toBe("move_entity");
 
-    const ambiguous = await engine.decide(intentFrom("go to the grocery store", { selector: "named" }));
+    const ambiguous = await engine.decide(
+      intentFrom("go to the grocery store", { selector: "named" }),
+    );
     expect(ambiguous.status).toBe("clarify_known_conflict");
     expect(ambiguous.requiresClarification).toBe(true);
     expect(ambiguous.operations).toEqual([]);
@@ -163,7 +169,9 @@ describe("world engine kernel", () => {
   });
 
   it("refuses to fire a pistol that is not possessed", async () => {
-    const engine = createWorldEngine(createMemoryPorts({ actors: [actor], known: [], sources: [] }));
+    const engine = createWorldEngine(
+      createMemoryPorts({ actors: [actor], known: [], sources: [] }),
+    );
     const decision = await engine.decide(
       intentFrom("shoot the pistol", {
         primitive: "operate",

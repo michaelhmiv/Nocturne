@@ -26,7 +26,11 @@ export type WorldCandidate = {
 };
 
 export type WorldQueryPort = {
-  readActor(input: { worldId: string; shardId: string; actorId: string }): Promise<ActorSnapshot | null>;
+  readActor(input: {
+    worldId: string;
+    shardId: string;
+    actorId: string;
+  }): Promise<ActorSnapshot | null>;
   listKnown(input: {
     worldId: string;
     shardId: string;

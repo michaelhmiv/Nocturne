@@ -25,7 +25,11 @@ export async function bindIntent(
     return { status: "impossible", actor: null, conflictNames: [] };
   }
   if (!actor.conscious || actor.restrained) {
-    if (intent.primitive === "travel" || intent.primitive === "occupy" || intent.primitive === "operate") {
+    if (
+      intent.primitive === "travel" ||
+      intent.primitive === "occupy" ||
+      intent.primitive === "operate"
+    ) {
       return { status: "impossible", actor, conflictNames: [] };
     }
   }
@@ -115,7 +119,9 @@ function shouldClarify(intent: EngineIntent, pool: WorldCandidate[]) {
     return false;
   }
   const places = new Set(
-    pool.map((candidate) => `${candidate.lon ?? "?"}:${candidate.lat ?? "?"}:${candidate.entityId}`),
+    pool.map(
+      (candidate) => `${candidate.lon ?? "?"}:${candidate.lat ?? "?"}:${candidate.entityId}`,
+    ),
   );
   return places.size >= 2;
 }

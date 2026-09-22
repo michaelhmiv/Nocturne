@@ -11,10 +11,12 @@ describe("engine intent constitution", () => {
   });
 
   it("treats mutations on unresolved binds as invented success", () => {
-    expect(inventedSuccess({ status: "need_source", operations: [{ type: "move_entity" } as never] })).toBe(
-      true,
-    );
+    expect(
+      inventedSuccess({ status: "need_source", operations: [{ type: "move_entity" } as never] }),
+    ).toBe(true);
     expect(inventedSuccess({ status: "need_source", operations: [] })).toBe(false);
-    expect(inventedSuccess({ status: "bound", operations: [{ type: "move_entity" } as never] })).toBe(false);
+    expect(
+      inventedSuccess({ status: "bound", operations: [{ type: "move_entity" } as never] }),
+    ).toBe(false);
   });
 });

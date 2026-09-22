@@ -108,12 +108,10 @@ export function rationale(intent: EngineIntent, bind: BindResult): string {
   return `primitive=${intent.primitive} status=${bind.status} selector=${intent.selector}`;
 }
 
-export function withClarification(
-  decision: {
-    status: BindResult["status"];
-    conflictNames: string[];
-  },
-): Pick<EngineDecision, "requiresClarification" | "clarificationPrompt"> {
+export function withClarification(decision: {
+  status: BindResult["status"];
+  conflictNames: string[];
+}): Pick<EngineDecision, "requiresClarification" | "clarificationPrompt"> {
   if (decision.status !== "clarify_known_conflict") {
     return { requiresClarification: false };
   }

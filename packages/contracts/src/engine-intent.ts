@@ -7,10 +7,7 @@ import {
   type SandboxPrimitive,
 } from "./sandbox-systems.js";
 import { WorldActionKindSchema, type WorldActionKind } from "./world-action.js";
-import {
-  UniversalWorldOperationSchema,
-  type UniversalWorldOperation,
-} from "./world-operations.js";
+import { UniversalWorldOperationSchema, type UniversalWorldOperation } from "./world-operations.js";
 
 const UuidSchema = z.string().uuid();
 const TextSchema = z.string().trim().min(1).max(4_000);

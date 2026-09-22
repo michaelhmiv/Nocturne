@@ -6,7 +6,10 @@ export type MemoryWorld = {
   sources: WorldCandidate[];
 };
 
-export function createMemoryPorts(world: MemoryWorld): { query: WorldQueryPort; source: SourcePort } {
+export function createMemoryPorts(world: MemoryWorld): {
+  query: WorldQueryPort;
+  source: SourcePort;
+} {
   const query: WorldQueryPort = {
     async readActor({ actorId, worldId, shardId }) {
       return (
