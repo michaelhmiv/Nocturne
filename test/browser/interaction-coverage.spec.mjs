@@ -30,9 +30,9 @@ test("audits navigation, character drawer, refresh, and responsive gameplay cont
   await expect(page.getByPlaceholder("What do you do?")).toBeVisible({ timeout: 30_000 });
 
   await page.getByRole("link", { name: "Dashboard" }).click();
-  await expect(page).toHaveURL(/\\/dashboard$/);
+  await expect(page).toHaveURL(/\/dashboard$/);
   await page.getByRole("link", { name: "Play" }).click();
-  await expect(page).toHaveURL(/\\/$/);
+  await expect(page).toHaveURL(/\/$/);
   await expect(page.getByPlaceholder("What do you do?")).toBeVisible({ timeout: 30_000 });
 
   await page.getByRole("button", { name: /Open character panel|Character/ }).click();
@@ -49,7 +49,7 @@ test("audits navigation, character drawer, refresh, and responsive gameplay cont
   await expect(page.getByPlaceholder("What do you do?")).toBeVisible();
 
   await page.getByRole("link", { name: "Account" }).click();
-  await expect(page).toHaveURL(/\\/account$/);
+  await expect(page).toHaveURL(/\/account$/);
   await expect(page.getByText(/Sign in required|Welcome back|Enter Calder City/)).toBeVisible();
   await page.getByRole("link", { name: "Play" }).click();
 
