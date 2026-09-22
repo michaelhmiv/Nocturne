@@ -454,6 +454,7 @@ jobs:
       - name: Run all actions through the real composer
         run: >-
           pnpm exec playwright test test/browser/gameplay.spec.mjs test/browser/interaction-coverage.spec.mjs
+          --workers=1
           --reporter=line,html
           --output=artifacts/playwright-results
       - if: always()
