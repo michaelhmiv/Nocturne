@@ -54,9 +54,9 @@ describe("player-scoped geography projection", () => {
       provider_feature_id: `node:market-${index}`,
     }));
     expect(projectDiscoverablePlaces(origin, dense)).toHaveLength(16);
-    expect(projectDiscoverablePlaces(origin, [
-      { ...food, centroid_latitude: Number.NaN },
-    ])).toEqual([]);
+    expect(projectDiscoverablePlaces(origin, [{ ...food, centroid_latitude: Number.NaN }])).toEqual(
+      [],
+    );
   });
 
   it("changes neighborhood evidence when the actor moves", () => {
