@@ -178,7 +178,7 @@ Three modules. Same kernel. Ship in this order. Each has its own exit. Do not br
 
 ### 3A. One car
 
-**Instance, not a parking amenity.** `amenity=parking` may *hint* a spawn cell. The car is `vehicle.automobile` with a stable id.
+**Instance, not a parking amenity.** `amenity=parking` may _hint_ a spawn cell. The car is `vehicle.automobile` with a stable id.
 
 - `occupy` seat (here, accessible, not already occupied).
 - `operate` ignition: keys in inventory or a mechanic check. Missing keys fail-closed.
@@ -265,13 +265,13 @@ A second account sees the first body in the cell. A stolen car in world A is inv
 
 ## Mapping to tickets
 
-| Ticket | Lives in |
-| --- | --- |
-| Action core + NYC foundation (#113) | Build-out 1 |
-| Isolation #152 | 1 (travel) and 2 (consume) |
-| No-op success #153 | 2 |
-| Timed stretch #154 | 2 |
-| Live runner #142 | after 2 |
-| Revival geography #139 | 1, extract in 4 |
-| Vehicles / weapons / heat | 3A / 3B / 3C |
-| Multiplayer / property | 4 |
+| Ticket                              | Lives in                   |
+| ----------------------------------- | -------------------------- |
+| Action core + NYC foundation (#113) | Build-out 1                |
+| Isolation #152                      | 1 (travel) and 2 (consume) |
+| No-op success #153                  | 2                          |
+| Timed stretch #154                  | 2                          |
+| Live runner #142                    | after 2                    |
+| Revival geography #139              | 1, extract in 4            |
+| Vehicles / weapons / heat           | 3A / 3B / 3C               |
+| Multiplayer / property              | 4                          |
