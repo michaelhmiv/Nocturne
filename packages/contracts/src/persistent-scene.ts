@@ -53,6 +53,19 @@ export const PersistentWorldSceneSchema = z
     knownEntities: z.array(PersistentSceneEntitySchema).max(96),
     activePlan: PersistentActionPlanSchema.nullable(),
     scheduledWork: z.array(PersistentScheduledWorkSchema).max(64),
+    discoverablePlaces: z
+      .array(
+        z
+          .object({
+            sourceKey: z.string().trim().min(1).max(160),
+            name: z.string().trim().min(1).max(240),
+            family: z.string().trim().min(1).max(80),
+            distanceMeters: z.number().nonnegative(),
+          })
+          .strict(),
+      )
+      .max(16)
+      .default([]),
     recentEvents: z
       .array(
         z
