@@ -101,15 +101,7 @@ function shortSeed(seed: string) {
 }
 
 export function expectedWorldKind(actionType: ActionType): SignalGardenTurn["expectedWorldKind"] {
-  if ((["detect", "search", "observe"] as readonly string[]).includes(actionType)) return "search";
-  if ((["move", "drive"] as readonly string[]).includes(actionType)) return "move";
-  if (actionType === "consume") return "consume";
-  if ((["bribe", "persuade", "threaten"] as readonly string[]).includes(actionType))
-    return "relationship";
-  if ((["attack", "arrest"] as readonly string[]).includes(actionType)) return "combat";
-  if ((["steal", "buy", "sell"] as readonly string[]).includes(actionType)) return "transfer";
-  if (actionType === "talk") return "dialogue";
-  return "interact";
+  return ACTION_CAPABILITIES[actionType].worldKind;
 }
 
 export function createSignalGardenTurn(
