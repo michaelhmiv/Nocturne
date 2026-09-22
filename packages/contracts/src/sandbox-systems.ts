@@ -285,7 +285,9 @@ export function mayClarify(status: ResolutionStatus): boolean {
 }
 
 export function isInventedSuccess(status: ResolutionStatus, mutated: boolean): boolean {
-  return mutated && (status === "unsupported" || status === "need_source" || status === "impossible");
+  return (
+    mutated && (status === "unsupported" || status === "need_source" || status === "impossible")
+  );
 }
 
 export function frameFromUtterance(rawText: string): IntentFrame | null {

@@ -9,8 +9,7 @@ import {
   mayClarify,
 } from "./sandbox-systems.js";
 
-describe("sandbox constitution",
- () => {
+describe("sandbox constitution", () => {
   it("names every GTA-style domain so none can be skipped off-page", () => {
     expect(REQUIRED_SANDBOX_DOMAINS).toEqual([
       "geography",
@@ -81,7 +80,14 @@ describe("sandbox constitution",
 
   it("covers vehicles, weapons, stores, law, and body in the lexicon", () => {
     const domains = new Set(SANDBOX_NOUN_LEXICON.map((entry) => entry.domain));
-    for (const required of ["vehicles", "weapons_combat", "commerce", "legal", "emergency", "economy"] as const) {
+    for (const required of [
+      "vehicles",
+      "weapons_combat",
+      "commerce",
+      "legal",
+      "emergency",
+      "economy",
+    ] as const) {
       expect(domains.has(required)).toBe(true);
     }
   });

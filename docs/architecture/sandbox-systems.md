@@ -48,22 +48,22 @@ Every sandbox noun is exactly one of:
 
 Every player sentence collapses to one primitive, then maybe a compound of primitives:
 
-| Primitive | Meaning | GTA examples |
-| --- | --- | --- |
-| `travel` | change the body's place, with a mode | walk, run, drive, ride subway, climb fire escape |
-| `perceive` | read what is already visible or known | look around, check wallet, read sign |
-| `search` | spend time to reveal hidden / unmaterialized | pat down, trunk, alley, pockets |
-| `operate` | use an instance as a tool or control | unlock, start engine, fire, wear, pump gas |
-| `transfer` | change possession or location of an object | buy, steal, drop, load trunk, hand over |
-| `consume` | spend a resource or destroy a portion | eat, drink, burn fuel, spend ammo, take pill |
-| `damage` | reduce condition of body, object, or place | punch, crash, smash window, shoot |
-| `repair` | restore condition using time, skill, parts | bandage, body shop, locksmith |
-| `restrain` | deny movement or use | cuff, lock in, arrest, tie |
-| `release` | undo restraint | unlock, post bail, drop weapon |
-| `communicate` | send a claim through a channel | talk, call, text, radio, gesture |
-| `wait` | let the clock run | hide, loiter, ride out a timer |
-| `work` | reserved timed labor with an employer or task | shift, unload truck, watch a door |
-| `occupy` | enter a container or seat | get in car, sit at counter, lie in hospital bed |
+| Primitive     | Meaning                                       | GTA examples                                     |
+| ------------- | --------------------------------------------- | ------------------------------------------------ |
+| `travel`      | change the body's place, with a mode          | walk, run, drive, ride subway, climb fire escape |
+| `perceive`    | read what is already visible or known         | look around, check wallet, read sign             |
+| `search`      | spend time to reveal hidden / unmaterialized  | pat down, trunk, alley, pockets                  |
+| `operate`     | use an instance as a tool or control          | unlock, start engine, fire, wear, pump gas       |
+| `transfer`    | change possession or location of an object    | buy, steal, drop, load trunk, hand over          |
+| `consume`     | spend a resource or destroy a portion         | eat, drink, burn fuel, spend ammo, take pill     |
+| `damage`      | reduce condition of body, object, or place    | punch, crash, smash window, shoot                |
+| `repair`      | restore condition using time, skill, parts    | bandage, body shop, locksmith                    |
+| `restrain`    | deny movement or use                          | cuff, lock in, arrest, tie                       |
+| `release`     | undo restraint                                | unlock, post bail, drop weapon                   |
+| `communicate` | send a claim through a channel                | talk, call, text, radio, gesture                 |
+| `wait`        | let the clock run                             | hide, loiter, ride out a timer                   |
+| `work`        | reserved timed labor with an employer or task | shift, unload truck, watch a door                |
+| `occupy`      | enter a container or seat                     | get in car, sit at counter, lie in hospital bed  |
 
 Travel modes are data on `travel`, not new verbs: `walk`, `run`, `sneak`, `drive`, `ride`, `transit`, `taxi`, `swim`, `climb`.
 
@@ -105,7 +105,7 @@ Wanted heat attaches to the plate and the actor separately.
 
 ### 4. Commerce and services
 
-A store is a place with a category family, hours, and an inventory *source*, not a SKU list.
+A store is a place with a category family, hours, and an inventory _source_, not a SKU list.
 
 Families include food retail, liquor, pharmacy, hardware, electronics, clothing, pawn, gun dealer, garage, gas, dealership, bank, clinic, hospital, barber, laundromat, gym, hotel, restaurant, bar, locksmith, post, precinct, firehouse, courthouse, transit station.
 
