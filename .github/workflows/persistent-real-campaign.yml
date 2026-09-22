@@ -36,16 +36,6 @@ jobs:
     environment: Testing
     timeout-minutes: 115
     env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: nocturne_live_story
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U postgres -d nocturne_live_story"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
-    env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       NOCTURNE_LIVE_STORY_SANDBOX: "1"
       NOCTURNE_API_URL: http://127.0.0.1:3101
