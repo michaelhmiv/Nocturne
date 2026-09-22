@@ -11,7 +11,7 @@ The revival plan is correct about layers: Jev interprets, the engine commits, La
 
 Scribe-class IF engines fail the same way: the world is a graph of authored passages. Evennia, Quilltale, TaleWeaver, and TADS succeed where they keep a typed world and treat prose as a view. Nocturne already has the view split. It does not yet have one engine that answers categories against the city.
 
-This plan builds that engine first, then turns systems on against it. Vehicles, weapons, jobs, heat, and property are later *modules of the same kernel*, not later products.
+This plan builds that engine first, then turns systems on against it. Vehicles, weapons, jobs, heat, and property are later _modules of the same kernel_, not later products.
 
 ## 1. Doctrine
 
@@ -130,13 +130,13 @@ Build:
 
 Category → source class (extend, do not fork):
 
-| family | source hint |
-| --- | --- |
-| `place.retail.food` | OSM `shop=convenience\|supermarket\|greengrocer\|deli` + NYC retail land use |
-| `place.service.fuel` | `amenity=fuel` |
-| `place.service.hospital` | `amenity=hospital` |
-| `place.civic.precinct` | `amenity=police` |
-| `place.transit` | `station=subway` / `public_transport=station` |
+| family                   | source hint                                                                  |
+| ------------------------ | ---------------------------------------------------------------------------- |
+| `place.retail.food`      | OSM `shop=convenience\|supermarket\|greengrocer\|deli` + NYC retail land use |
+| `place.service.fuel`     | `amenity=fuel`                                                               |
+| `place.service.hospital` | `amenity=hospital`                                                           |
+| `place.civic.precinct`   | `amenity=police`                                                             |
+| `place.transit`          | `station=subway` / `public_transport=station`                                |
 
 Exit (live site, one activation cell):
 
@@ -154,15 +154,15 @@ This is the only slice that unblocks the product. Protect it.
 
 Once a place can be bound, the eight launch verbs share it.
 
-| verb | primitive | commit |
-| --- | --- | --- |
-| look / check money | perceive | knowledge asset or projection only |
-| pick up | transfer | possession if present |
-| buy | transfer | money + stock or fail insufficient |
-| eat | consume | existing consumption path, scoped world |
-| talk | communicate | claim + NPC memory, no ownership |
-| wait / stretch | wait | wall-clock schedule that the worker completes (#154) |
-| walk | travel | Wave B |
+| verb               | primitive   | commit                                               |
+| ------------------ | ----------- | ---------------------------------------------------- |
+| look / check money | perceive    | knowledge asset or projection only                   |
+| pick up            | transfer    | possession if present                                |
+| buy                | transfer    | money + stock or fail insufficient                   |
+| eat                | consume     | existing consumption path, scoped world              |
+| talk               | communicate | claim + NPC memory, no ownership                     |
+| wait / stretch     | wait        | wall-clock schedule that the worker completes (#154) |
+| walk               | travel      | Wave B                                               |
 
 Kill #153: if operations.length === 0 and the primitive is mutating, result is failure, never "You accomplish your objective."
 
@@ -242,16 +242,16 @@ A wave that cannot run grocery-class travel against GIS is not allowed to add co
 
 ## 7. Mapping to existing tickets
 
-| Ticket | Fate |
-| --- | --- |
-| #113 waves 1–4 | Wave A+B *are* the authoritative action core + NYC foundation, collapsed so geography is not optional |
-| #152 isolation | Wave B kernel emits scoped operations only |
-| #153 no-op success | Wave C kernel refuses empty mutating commits |
-| #154 timed stretch | Wave C clock port + worker |
-| #142 live runner | After Wave C; do not certify a story on no-ops |
-| revival #136–#138 | Keep Jev packet work, but packet must include category+selector, not only entity IDs |
-| revival #139 | Pulled forward into Wave B |
-| revival #140+ | After the loop is real; UI cannot fix a missing city |
+| Ticket             | Fate                                                                                                  |
+| ------------------ | ----------------------------------------------------------------------------------------------------- |
+| #113 waves 1–4     | Wave A+B _are_ the authoritative action core + NYC foundation, collapsed so geography is not optional |
+| #152 isolation     | Wave B kernel emits scoped operations only                                                            |
+| #153 no-op success | Wave C kernel refuses empty mutating commits                                                          |
+| #154 timed stretch | Wave C clock port + worker                                                                            |
+| #142 live runner   | After Wave C; do not certify a story on no-ops                                                        |
+| revival #136–#138  | Keep Jev packet work, but packet must include category+selector, not only entity IDs                  |
+| revival #139       | Pulled forward into Wave B                                                                            |
+| revival #140+      | After the loop is real; UI cannot fix a missing city                                                  |
 
 ## 8. Stop rules
 
