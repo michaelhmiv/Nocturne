@@ -73,6 +73,14 @@ export function createCityAwareWorldActionService(
         viewpointId: input.actorId,
         command: input.command,
       });
+      await dependencies.requests.transition({
+        scope: input.scope,
+        requestId: reservation.requestId,
+        expectedStatus: currentStatus,
+        status: "resolving_references",
+        contextCompilationId: context.compilationId,
+      });
+      currentStatus = "resolving_references";
       const destination = await dependencies.resolveCityDestination?.({
         scope: input.scope,
         actorId: input.actorId,
