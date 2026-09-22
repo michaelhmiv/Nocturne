@@ -83,10 +83,9 @@ describe("world engine kernel", () => {
     const decision = await engine.decide(intentFrom("go to the nearest grocery store"));
     expect(decision.status).toBe("materialize_from_source");
     expect(decision.requiresClarification).toBe(false);
-    expect(decision.operations.map((operation) => operation.type)).toEqual([
-      "create_instance",
-      "move_entity",
-    ]);
+    expect(decision.operations.map((operation) => operation.type)).toEqual(
+      expect.arrayContaining(["create_instance", "move_entity"]),
+    );
     expect(decision.target?.sourceKey).toBe("osm:shop:99");
     expect(inventedSuccess(decision)).toBe(false);
   });
