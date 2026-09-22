@@ -7,6 +7,7 @@ import { PersistentActionPlanSchema } from "../../contracts/src/action-plans.js"
 import type { createDatabase } from "./index.js";
 import { toIsoTimestamp, toNullableIsoTimestamp } from "./timestamp.js";
 import type { WorldScope } from "./world-store.js";
+import { playerVisibleLocation } from "./scene-privacy.js";
 
 export class PersistentSceneStoreError extends Error {
   constructor(
@@ -196,10 +197,12 @@ export function createPersistentSceneStore(database: ReturnType<typeof createDat
       name: row.name,
       definitionType: row.definition_type,
       lifecycleStatus: row.lifecycle_status,
-      // A last-known entity must not expose its live location from entity_instances.
-      // Memory of an observed place needs its own provenance, not this current row.
-      locationId: row.presence === "known_elsewhere" ? null : row.location_id,
-      locationName: row.presence === "known_elsewhere" ? null : row.location_name,
+      // A remembered entity is not a live GPS tracker.
+      ...playerVisibleLocation({
+        presence: row.presence,
+        locationId: row.location_id,
+        locationName: row.location_name,
+      }),
       relationshipLabels: row.relation_types || [],
       aliases: row.aliases?.length ? row.aliases : [row.name],
       statusSummary: null,
