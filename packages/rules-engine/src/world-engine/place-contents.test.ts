@@ -56,7 +56,14 @@ describe("build-out 2 place contents", () => {
       .filter((op) => op.type === "create_instance")
       .map((op) => ("symbol" in op ? op.symbol : ""));
     expect(symbols).toEqual(
-      expect.arrayContaining(["destination", "front", "counter", "street_door", "stock_0", "clerk"]),
+      expect.arrayContaining([
+        "destination",
+        "front",
+        "counter",
+        "street_door",
+        "stock_0",
+        "clerk",
+      ]),
     );
     expect(decision.operations.some((op) => op.type === "move_entity")).toBe(true);
   });
