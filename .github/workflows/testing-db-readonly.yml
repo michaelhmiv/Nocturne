@@ -23,6 +23,17 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - name: Diagnose Actions secret versus variable scope without revealing values
+        env:
+          HAS_SECRET: ${{ secrets.DATABASE_URL != '' }}
+          HAS_VARIABLE: ${{ vars.DATABASE_URL != '' }}
+        run: |
+          echo "DATABASE_URL secret present: $HAS_SECRET"
+          echo "DATABASE_URL Actions variable present: $HAS_VARIABLE"
+          if [ "$HAS_SECRET" != "true" ]; then
+            echo "::error::The Testing job cannot access a DATABASE_URL Actions secret. Check repository/environment scope and secret vs variable."
+            exit 1
+          fi
       - run: pnpm install --frozen-lockfile
       - name: Verify external testing PostgreSQL read-only
         run: pnpm --filter @nocturne/database exec tsx src/testing-db-readonly.ts
