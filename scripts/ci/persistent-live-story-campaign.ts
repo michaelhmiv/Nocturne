@@ -524,7 +524,11 @@ try {
       "SELECT player.run_id,player.world_id,player.shard_id,member.role,member.status FROM game.certification_players player JOIN game.world_memberships member ON member.world_id=player.world_id AND member.user_id=player.user_id WHERE player.user_id=$1",
       [player.userId],
     );
-    assert.equal(binding?.run_id, runId, "Existing user is bound to a different certification run.");
+    assert.equal(
+      binding?.run_id,
+      runId,
+      "Existing user is bound to a different certification run.",
+    );
     assert.equal(binding?.world_id, worldId);
     assert.equal(binding?.shard_id, shardId);
     assert.equal(binding?.role, "player");
