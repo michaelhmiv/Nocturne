@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/testing-db-migrate.yml"
       - "packages/database/src/testing-db-readonly.ts"
+      - "packages/database/migrations/**"
 permissions:
   contents: read
 concurrency:
