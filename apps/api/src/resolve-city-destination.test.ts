@@ -16,6 +16,8 @@ describe("OSM city destination resolver", () => {
     });
     expect(resolved?.entityId).toBe(stableEntityId("osm:node:14th-convenience"));
     expect(resolved?.distanceMeters).toBeLessThan(200);
+    expect(resolved?.lon).toBe(-73.9892);
+    expect(resolved?.lat).toBe(40.7354);
   });
 
   it("does not treat a gas station as a grocery", () => {
