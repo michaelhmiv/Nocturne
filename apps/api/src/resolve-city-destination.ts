@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { CategoryFamily } from "@nocturne/contracts";
 import { categoryTravelFrame } from "./category-travel.js";
 import {
   OSM_MANHATTAN_FIXTURE,
@@ -20,17 +21,15 @@ export function stableEntityId(sourceKey: string, worldId?: string) {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
-export function resolveCityDestinationFromFeatures(input: {
-  command: string;
+export function resolveNearestCityFamily(input: {
+  family: CategoryFamily;
   lon: number;
   lat: number;
   worldId?: string;
   features?: readonly CitySourceFeature[];
 }): ResolvedCityDestination | null {
-  const frame = categoryTravelFrame(input.command);
-  if (!frame?.category) return null;
   const nearest = pickNearestFeature(input.features ?? OSM_MANHATTAN_FIXTURE, {
-    family: frame.category,
+    family: input.family,
     lon: input.lon,
     lat: input.lat,
   });
@@ -42,4 +41,22 @@ export function resolveCityDestinationFromFeatures(input: {
     family: nearest.family,
     distanceMeters: nearest.distanceMeters,
   };
+}
+
+export function resolveCityDestinationFromFeatures(input: {
+  command: string;
+  lon: number;
+  lat: number;
+  worldId?: string;
+  features?: readonly CitySourceFeature[];
+}): ResolvedCityDestination | null {
+  const frame = categoryTravelFrame(input.command);
+  if (!frame?.category) return null;
+  return resolveNearestCityFamily({
+    family: frame.category,
+    lon: input.lon,
+    lat: input.lat,
+    worldId: input.worldId,
+    features: input.features,
+  });
 }
