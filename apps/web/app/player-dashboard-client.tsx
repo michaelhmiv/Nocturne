@@ -7,6 +7,7 @@ import type {
 } from "../../../packages/contracts/src/index.js";
 import { authClient } from "../lib/auth-client";
 import { gameFetch } from "./game-fetch";
+import { activityRemaining } from "./activity-display";
 
 type DashboardTab = "overview" | "character" | "inventory" | "world" | "history";
 
@@ -66,6 +67,8 @@ export default function PlayerDashboardClient() {
   const [tab, setTab] = useState<DashboardTab>("overview");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [clock, setClock] = useState(() => Date.now());
+  const [dashboardReceivedAt, setDashboardReceivedAt] = useState(() => Date.now());
   const [error, setError] = useState("");
 
   async function load(background = false) {
@@ -74,6 +77,7 @@ export default function PlayerDashboardClient() {
     try {
       const next = await gameFetch<PlayerDashboard>("persistent-world/dashboard?historyLimit=150");
       setDashboard(next);
+      setDashboardReceivedAt(Date.now());
       setError("");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to load the dashboard.");
@@ -89,6 +93,11 @@ export default function PlayerDashboardClient() {
     const timer = window.setInterval(() => void load(true), 15_000);
     return () => window.clearInterval(timer);
   }, [isPending, session?.user.id]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const recentChanges = useMemo(
     () => dashboard?.effects.events.filter((event) => event.effects.length > 0).slice(0, 6) || [],
@@ -263,6 +272,16 @@ export default function PlayerDashboardClient() {
                   <strong>{work.description}</strong>
                   <span>{label(work.status)}</span>
                   <time dateTime={work.resolvesAt}>{when(work.resolvesAt)}</time>
+                  <span aria-live="off">
+                    {
+                      activityRemaining(
+                        work.resolvesAt,
+                        dashboard.generatedAt,
+                        dashboardReceivedAt,
+                        clock,
+                      ).label
+                    }
+                  </span>
                 </article>
               ))
             ) : (
@@ -481,7 +500,7 @@ export default function PlayerDashboardClient() {
               scene.knownEntities.map((entity) => (
                 <article className="dashboard-entity-row" key={entity.entityId}>
                   <strong>{entity.name}</strong>
-                  <span>{entity.locationName || "Location unknown"}</span>
+                  <span>Current location unverified</span>
                   <small>
                     Last observed {entity.lastObservedAt ? when(entity.lastObservedAt) : "unknown"}
                   </small>
