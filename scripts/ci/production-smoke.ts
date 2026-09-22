@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
 
 const apiUrl = (
-  process.env.NOCTURNE_API_URL || "https://nocturneapi-production.up.railway.app"
+  process.env.NOCTURNE_API_URL ||
+  "https://nocturneapi-production.up.railway.app"
 ).replace(/\/$/, "");
 const webUrl = (
-  process.env.NOCTURNE_WEB_URL || "https://nocturneweb-production.up.railway.app"
+  process.env.NOCTURNE_WEB_URL ||
+  "https://nocturneweb-production.up.railway.app"
 ).replace(/\/$/, "");
 const token = process.env.NOCTURNE_SMOKE_AGENT_TOKEN?.trim();
 let actorId = process.env.NOCTURNE_SMOKE_CHARACTER_ID?.trim();
@@ -15,7 +17,8 @@ const selfProvision =
 let sessionMode = false;
 const cookies = new Map<string, Map<string, string>>();
 
-const sleep = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+const sleep = (milliseconds: number) =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 function cookieHeader(origin: string) {
   const values = cookies.get(origin);
@@ -70,8 +73,12 @@ async function waitForDeployment() {
     try {
       const health = await jsonRequest(`${apiUrl}/health`);
       const build = await jsonRequest(`${apiUrl}/v1/system/build`);
-      const commitSha = typeof build.commitSha === "string" ? build.commitSha : null;
-      if (health.status === "ok" && (!expectedCommit || commitSha === expectedCommit)) {
+      const commitSha =
+        typeof build.commitSha === "string" ? build.commitSha : null;
+      if (
+        health.status === "ok" &&
+        (!expectedCommit || commitSha === expectedCommit)
+      ) {
         return { health, build };
       }
       last = { health, build, expectedCommit };
@@ -80,7 +87,9 @@ async function waitForDeployment() {
     }
     await sleep(15_000);
   }
-  throw new Error(`Timed out waiting for deployed commit: ${JSON.stringify(last)}`);
+  throw new Error(
+    `Timed out waiting for deployed commit: ${JSON.stringify(last)}`,
+  );
 }
 
 async function provisionPlayer() {
@@ -108,7 +117,8 @@ async function provisionPlayer() {
     }),
     body: JSON.stringify({
       name: characterName,
-      conceptSummary: "A disposable character used by the production deployment smoke test.",
+      conceptSummary:
+        "A disposable character used by the production deployment smoke test.",
     }),
   });
   const nestedCharacter =
@@ -122,7 +132,9 @@ async function provisionPlayer() {
         ? nestedCharacter.characterId
         : null;
   if (!createdActorId) {
-    throw new Error(`Production smoke could not create a character: ${JSON.stringify(created)}`);
+    throw new Error(
+      `Production smoke could not create a character: ${JSON.stringify(created)}`,
+    );
   }
   actorId = createdActorId;
 
@@ -152,7 +164,8 @@ async function resolveActorId() {
         ? (payload.characters as Array<Record<string, unknown>>)
         : [];
       const selected =
-        characters.find((character) => character.selected === true) || characters[0];
+        characters.find((character) => character.selected === true) ||
+        characters[0];
       const resolved = selected?.characterId;
       if (typeof resolved === "string" && resolved) {
         actorId = resolved;
@@ -172,7 +185,9 @@ async function resolveActorId() {
   const characters = Array.isArray(payload.characters)
     ? (payload.characters as Array<Record<string, unknown>>)
     : [];
-  const selected = characters.find((character) => character.selected === true) || characters[0];
+  const selected =
+    characters.find((character) => character.selected === true) ||
+    characters[0];
   const resolved = selected?.characterId;
   if (typeof resolved !== "string" || !resolved) {
     throw new Error(
@@ -187,17 +202,25 @@ async function submit(command: string, label: string) {
   const selectedActorId = await resolveActorId();
   const idempotencyKey = `production-smoke:${label}:${randomUUID()}`;
   const traceId = `production-smoke-${label}-${randomUUID()}`;
-  const payload = await jsonRequest(`${webUrl}/api/game/persistent-world/actions`, {
-    method: "POST",
-    headers: requestHeaders({
-      "content-type": "application/json",
-      "idempotency-key": idempotencyKey,
-      "x-nocturne-trace-id": traceId,
-    }),
-    body: JSON.stringify({ actorId: selectedActorId, command }),
-  });
-  if (payload.error === "internal_error" || payload.error === "request_failed") {
-    throw new Error(`${label} returned an infrastructure failure: ${JSON.stringify(payload)}`);
+  const payload = await jsonRequest(
+    `${webUrl}/api/game/persistent-world/actions`,
+    {
+      method: "POST",
+      headers: requestHeaders({
+        "content-type": "application/json",
+        "idempotency-key": idempotencyKey,
+        "x-nocturne-trace-id": traceId,
+      }),
+      body: JSON.stringify({ actorId: selectedActorId, command }),
+    },
+  );
+  if (
+    payload.error === "internal_error" ||
+    payload.error === "request_failed"
+  ) {
+    throw new Error(
+      `${label} returned an infrastructure failure: ${JSON.stringify(payload)}`,
+    );
   }
   if (!["completed", "waiting"].includes(String(payload.state))) {
     throw new Error(
@@ -205,14 +228,19 @@ async function submit(command: string, label: string) {
     );
   }
   if (typeof payload.requestId !== "string") {
-    throw new Error(`${label} did not return requestId: ${JSON.stringify(payload)}`);
+    throw new Error(
+      `${label} did not return requestId: ${JSON.stringify(payload)}`,
+    );
   }
   return {
     label,
     traceId,
     requestId: payload.requestId,
     state: payload.state,
-    narration: typeof payload.narration === "string" ? payload.narration.slice(0, 500) : null,
+    narration:
+      typeof payload.narration === "string"
+        ? payload.narration.slice(0, 500)
+        : null,
   };
 }
 
@@ -220,13 +248,21 @@ const deployment = await waitForDeployment();
 await jsonRequest(`${apiUrl}/ready`);
 const provider = await jsonRequest(`${apiUrl}/v1/system/ai-provider`);
 if (provider.configured !== true) {
-  throw new Error(`Production provider is not configured: ${JSON.stringify(provider)}`);
+  throw new Error(
+    `Production provider is not configured: ${JSON.stringify(provider)}`,
+  );
 }
 
 const selectedActorId = await resolveActorId();
 const results = [
-  await submit("I look around the room and take in my surroundings.", "observe"),
-  await submit("I drink a glass of water from the ordinary kitchen provisions.", "consume"),
+  await submit(
+    "I look around the room and take in my surroundings.",
+    "observe",
+  ),
+  await submit(
+    "I drink a glass of water from the ordinary kitchen provisions.",
+    "consume",
+  ),
 ];
 
 console.log(
