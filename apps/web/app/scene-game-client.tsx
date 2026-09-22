@@ -772,7 +772,7 @@ export default function SceneGameClient() {
                 <p className="scene-kicker">SKILLS</p>
                 {Object.entries(selected.skills).map(([skill, value]) => (
                   <p key={skill}>
-                    {skill} · {value}
+                    {skill} · {value} XP
                   </p>
                 ))}
               </section>
