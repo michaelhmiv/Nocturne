@@ -10,13 +10,16 @@ export async function compileLiveCityScene(input: {
   scope?: Pick<WorldScope, "worldId" | "shardId">;
   locationId?: string | null;
 }) {
-  let here: { name?: string | null; family?: string | null; sourceKey?: string | null } | null = null;
+  let here: { name?: string | null; family?: string | null; sourceKey?: string | null } | null =
+    null;
   let point: { longitude: number; latitude: number } | null = null;
   if (input.database && input.scope && input.locationId) {
-    const rows = await input.database.client<{
-      name: string | null;
-      state: Record<string, unknown>;
-    }[]>`
+    const rows = await input.database.client<
+      {
+        name: string | null;
+        state: Record<string, unknown>;
+      }[]
+    >`
       SELECT COALESCE(instance.state->>'name', definition.name) AS name,
              instance.state
       FROM game.entity_instances instance
@@ -49,8 +52,7 @@ export async function compileLiveCityScene(input: {
     };
   }
   const features = OSM_MANHATTAN_FIXTURE.filter(
-    (feature) =>
-      haversineMeters(point.longitude, point.latitude, feature.lon, feature.lat) <= 1600,
+    (feature) => haversineMeters(point.longitude, point.latitude, feature.lon, feature.lat) <= 1600,
   );
   return compileCityScene({
     lon: point.longitude,

@@ -330,13 +330,16 @@ async function submitPerceive(
     idempotencyKey: string;
   },
 ): Promise<WorldActionPlayerSafeResult> {
-  const context = await dependencies.context.compile({
-    scope: input.scope,
-    viewpointId: input.actorId,
-    command: input.command,
-  }).catch(() => null);
-  const locationId = context?.entities.find((entity) => entity.entityId === input.actorId)
-    ?.locationId;
+  const context = await dependencies.context
+    .compile({
+      scope: input.scope,
+      viewpointId: input.actorId,
+      command: input.command,
+    })
+    .catch(() => null);
+  const locationId = context?.entities.find(
+    (entity) => entity.entityId === input.actorId,
+  )?.locationId;
   const packet =
     (await dependencies.compileLiveScene?.({
       scope: input.scope,
@@ -360,13 +363,16 @@ async function submitTake(
   },
 ): Promise<WorldActionPlayerSafeResult> {
   const match = matchCityTake(input.command);
-  const context = await dependencies.context.compile({
-    scope: input.scope,
-    viewpointId: input.actorId,
-    command: input.command,
-  }).catch(() => null);
-  const locationId = context?.entities.find((entity) => entity.entityId === input.actorId)
-    ?.locationId;
+  const context = await dependencies.context
+    .compile({
+      scope: input.scope,
+      viewpointId: input.actorId,
+      command: input.command,
+    })
+    .catch(() => null);
+  const locationId = context?.entities.find(
+    (entity) => entity.entityId === input.actorId,
+  )?.locationId;
   const taken =
     (await dependencies.takeCityStock?.({
       scope: input.scope,
@@ -380,8 +386,6 @@ async function submitTake(
   const label = match?.slot.label || "that item";
   return completeFactAction(dependencies, input, {
     hereName: "the street",
-    facts: [
-      `No loaded city place stocks a ${label} you can take from here.`,
-    ],
+    facts: [`No loaded city place stocks a ${label} you can take from here.`],
   });
 }

@@ -63,8 +63,8 @@ export default function MapClient() {
         <section className="nocturne-map-empty">
           <h2>Location is not yet mapped</h2>
           <p>
-            This character's current place has no verified coordinates. Nocturne will not place
-            you at an unrelated starter location or invent nearby streets.
+            This character's current place has no verified coordinates. Nocturne will not place you
+            at an unrelated starter location or invent nearby streets.
           </p>
         </section>
       ) : (
@@ -80,15 +80,23 @@ export default function MapClient() {
               <circle cx="400" cy="300" r="90" fill="none" stroke="currentColor" opacity="0.3" />
               <line x1="400" y1="112" x2="400" y2="488" stroke="currentColor" opacity="0.2" />
               <line x1="212" y1="300" x2="588" y2="300" stroke="currentColor" opacity="0.2" />
-              <text x="405" y="108" fill="currentColor">N</text>
+              <text x="405" y="108" fill="currentColor">
+                N
+              </text>
               {places.map((place) => {
                 const x = 400 + metresEast(place.longitude) * SCALE;
                 const y = 300 - metresNorth(place.latitude) * SCALE;
                 return (
                   <g key={place.sourceKey}>
-                    <circle cx={x} cy={y} r={place.sourceKey === selectedKey ? 9 : 6}
-                      fill={place.sourceKey === selectedKey ? "#f0c777" : "#b6d3a6"}>
-                      <title>{place.name} · {place.distanceMeters} m</title>
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r={place.sourceKey === selectedKey ? 9 : 6}
+                      fill={place.sourceKey === selectedKey ? "#f0c777" : "#b6d3a6"}
+                    >
+                      <title>
+                        {place.name} · {place.distanceMeters} m
+                      </title>
                     </circle>
                   </g>
                 );
@@ -96,8 +104,12 @@ export default function MapClient() {
               <circle cx="400" cy="300" r="9" fill="#8dd3ed" stroke="#0a1019" strokeWidth="3">
                 <title>Your character</title>
               </circle>
-              <text x="416" y="290" fill="currentColor">You</text>
-              <text x="218" y="511" fill="currentColor">1.6 km radius · geographic points, not street routes</text>
+              <text x="416" y="290" fill="currentColor">
+                You
+              </text>
+              <text x="218" y="511" fill="currentColor">
+                1.6 km radius · geographic points, not street routes
+              </text>
             </svg>
             <p>
               This view plots verified coordinates and public imported points only. It does not
@@ -116,14 +128,18 @@ export default function MapClient() {
                 type="button"
               >
                 <strong>{place.name}</strong>
-                <span>{place.family.replaceAll(".", " ")} · {place.distanceMeters} m</span>
+                <span>
+                  {place.family.replaceAll(".", " ")} · {place.distanceMeters} m
+                </span>
               </button>
             ))}
             {selected && (
               <section className="nocturne-map-detail">
                 <h3>{selected.name}</h3>
                 <p>{selected.distanceMeters} metres from your current point.</p>
-                <p>Choosing a marker is informational; travel must be validated by the world engine.</p>
+                <p>
+                  Choosing a marker is informational; travel must be validated by the world engine.
+                </p>
               </section>
             )}
           </aside>

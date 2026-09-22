@@ -7,7 +7,11 @@ import { PersistentActionPlanSchema } from "../../contracts/src/action-plans.js"
 import type { createDatabase } from "./index.js";
 import { toIsoTimestamp, toNullableIsoTimestamp } from "./timestamp.js";
 import type { WorldScope } from "./world-store.js";
-import { projectDiscoverablePlaces, validWorldPoint, type PublicPlaceRow } from "./discoverable-place-projection.js";
+import {
+  projectDiscoverablePlaces,
+  validWorldPoint,
+  type PublicPlaceRow,
+} from "./discoverable-place-projection.js";
 
 export class PersistentSceneStoreError extends Error {
   constructor(
