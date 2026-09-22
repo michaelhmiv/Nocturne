@@ -12,10 +12,12 @@ export function isCategoryTravelCommand(command: string) {
   return Boolean(categoryTravelFrame(command));
 }
 
+const SCENE_PERCEIVE =
+  /^\s*(please\s+)?(look around|what'?s around(?: me)?|what is around(?: me)?|where am i|what is this place|what do i see|survey the (?:street|block|area)|look here)\s*[.?!]*\s*$/i;
+
 export function isScenePerceiveCommand(command: string) {
-  return /\b(look around|what'?s around|what is around|where am i|what is this place|what do i see|survey the (street|block|area)|look here)\b/i.test(
-    command,
-  );
+  if (/\[fake:/i.test(command)) return false;
+  return SCENE_PERCEIVE.test(command);
 }
 
 export function missingCityDestinationPrompt(frame: IntentFrame) {

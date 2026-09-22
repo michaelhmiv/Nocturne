@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   categoryTravelFrame,
   isCategoryTravelCommand,
+  isScenePerceiveCommand,
   missingCityDestinationPrompt,
 } from "./category-travel.js";
 
@@ -32,5 +33,18 @@ describe("category travel command gate", () => {
     const frame = categoryTravelFrame("go to the nearest grocery store");
     expect(missingCityDestinationPrompt(frame!)).toMatch(/loaded city source/);
     expect(missingCityDestinationPrompt(frame!)).not.toMatch(/which/i);
+  });
+});
+
+describe("scene perceive command gate", () => {
+  it("accepts the player look-around paraphrases", () => {
+    expect(isScenePerceiveCommand("look around")).toBe(true);
+    expect(isScenePerceiveCommand("what is around me")).toBe(true);
+    expect(isScenePerceiveCommand("where am I?")).toBe(true);
+  });
+
+  it("does not swallow the provider-failure certification prompt", () => {
+    expect(isScenePerceiveCommand("[fake:500] I look around the room.")).toBe(false);
+    expect(isScenePerceiveCommand("I look around the room.")).toBe(false);
   });
 });
