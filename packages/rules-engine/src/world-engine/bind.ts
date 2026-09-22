@@ -46,6 +46,15 @@ export async function bindIntent(
     };
   }
 
+  if (intent.primitive === "wait" || intent.primitive === "work") {
+    return {
+      status: "bound",
+      actor,
+      target: { known: true, playable: true, family: intent.category },
+      conflictNames: [],
+    };
+  }
+
   if (!intent.category && intent.explicitEntityIds.length === 0) {
     return { status: "unsupported", actor, conflictNames: [] };
   }
@@ -58,6 +67,36 @@ export async function bindIntent(
     if (intent.explicitEntityIds.length > 0 && held.length === 0) {
       return { status: "impossible", actor, conflictNames: [] };
     }
+    const weaponId = held[0] || actor.possessedIds[0];
+    return {
+      status: "bound",
+      actor,
+      target: {
+        entityId: weaponId,
+        family: "item.weapon",
+        known: true,
+        playable: true,
+      },
+      conflictNames: [],
+    };
+  }
+
+  if (intent.primitive === "consume") {
+    const itemId = intent.explicitEntityIds[0] || actor.possessedIds[0];
+    if (!itemId) {
+      return { status: "impossible", actor, conflictNames: [] };
+    }
+    return {
+      status: "bound",
+      actor,
+      target: {
+        entityId: itemId,
+        family: intent.category,
+        known: true,
+        playable: true,
+      },
+      conflictNames: [],
+    };
   }
 
   const known = intent.category
