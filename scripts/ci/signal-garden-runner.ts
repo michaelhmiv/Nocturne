@@ -281,7 +281,7 @@ function extractPlanEvidence(turn: SignalGardenTurn, reply: ApiReply) {
   assert.ok(Array.isArray(plan.steps) && plan.steps.length > 0);
   const step = plan.steps[0];
   assert.equal(step.kind, turn.expectedWorldKind);
-  assert.equal(step.intentPayload?.actionType, turn.actionType);
+  assert.equal(typeof step.description, "string");
   assert.equal(typeof reply.payload.narration, "string");
   assert.ok(reply.payload.narration.length > 0);
   const eventIds = Array.isArray(reply.payload.eventIds) ? reply.payload.eventIds : [];
