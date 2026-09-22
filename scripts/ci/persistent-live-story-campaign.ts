@@ -320,7 +320,9 @@ async function runBeat(beat, index) {
         observedDefects.push("generated_action_type_mismatch");
       }
       if (
-        /\\b(?:do not accomplish|did not accomplish|no matching source|no effect)\\b/i.test(narration)
+        /\\b(?:do not accomplish|did not accomplish|no matching source|no effect)\\b/i.test(
+          narration,
+        )
       ) {
         observedDefects.push("completed_action_failed_in_narration");
       }
