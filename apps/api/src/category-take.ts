@@ -1,7 +1,8 @@
 import { findStockSlot, type CategoryFamily, type StockSlot } from "@nocturne/contracts";
 
 const TAKE_VERB = /\b(grab|take|pick up|pick-up)\b/i;
-const CITY_STOCK_SOURCE = /\bfrom\s+(?:the\s+|a\s+|an\s+)?(?:mechanic|garage|hardware(?:\s+store)?|store|shop|supermarket|grocery|bodega|pharmacy|restaurant|bar)\b/i;
+const CITY_STOCK_SOURCE =
+  /\bfrom\s+(?:the\s+|a\s+|an\s+)?(?:mechanic|garage|hardware(?:\s+store)?|store|shop|supermarket|grocery|bodega|pharmacy|restaurant|bar)\b/i;
 
 export type CityTakeMatch = {
   slot: StockSlot;
