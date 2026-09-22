@@ -134,6 +134,8 @@ export class PersistentWorldActionServiceError extends Error {
 }
 
 const impossibleMovementPattern = /\b(?:walk|phase|pass)\b.*\bthrough\b.*\b(?:solid )?wall\b/i;
+const ambiguousMovementPattern =
+  /^\s*(?:(?:please|could you)\s+)?(?:go|walk|move|travel|head|run|drive|ride|return|come)\s+(?:there|here|over there|that way)\s*[.!?]?\s*$/i;
 const movementCommandPattern = /\b(?:go|walk|move|travel|head|run|drive|ride|return|come)\b/i;
 const locationClarificationPattern =
   /\b(?:hall(?:way)?|corridor|room|apartment|unit|building|home|place|area|lobby|office|floor|street|station|outside|inside)\b/i;
@@ -142,6 +144,10 @@ const locationDefinitionPattern =
 
 function isImpossibleMovementCommand(command: string) {
   return impossibleMovementPattern.test(command);
+}
+
+function isAmbiguousMovementCommand(command: string) {
+  return ambiguousMovementPattern.test(command);
 }
 
 function isMovementCommand(command: string) {
@@ -601,12 +607,13 @@ export function createPersistentWorldActionService(dependencies: {
         );
       }
       const interpretation = fastDecision.interpretation;
-      const impossibleMovement =
-        (fastDecision.actionType === "move" || fastDecision.kind === "move") &&
-        isImpossibleMovementCommand(command);
-      const clarification = dependencies.references.clarification(interpretation);
-      // An explicitly impossible movement is a deterministic world failure even
-      // when Jev is uncertain about the low-level action type.
+      // These commands have deterministic world semantics and must not depend on
+      // Jev selecting the corresponding low-level action type.
+      const impossibleMovement = isImpossibleMovementCommand(command);
+      const ambiguousMovement = !pendingClarification && isAmbiguousMovementCommand(command);
+      const clarification = ambiguousMovement
+        ? "Where should I go?"
+        : dependencies.references.clarification(interpretation);
       const forceImpossibleMovement = impossibleMovement;
       const continuationMovement = Boolean(
         pendingClarification &&
