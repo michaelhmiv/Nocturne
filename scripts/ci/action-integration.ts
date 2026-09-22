@@ -295,6 +295,9 @@ async function certifyNeutralTransfers(actorId: string) {
 
   const pickupKey = `certification:pickup:${randomUUID()}`;
   const pickup = await runTransferCommand(actorId, "Pick up the Certification Wrench.", pickupKey);
+  if (!Array.isArray(pickup.eventIds) || pickup.eventIds.length === 0) {
+    throw new Error("Pickup claimed completion without a committed world event.");
+  }
   if (JSON.stringify(await possession(itemId)) !== JSON.stringify([actorId])) {
     throw new Error("Pickup did not make the actor the sole possessor.");
   }
