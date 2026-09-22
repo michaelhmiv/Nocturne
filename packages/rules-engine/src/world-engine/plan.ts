@@ -2,8 +2,10 @@ import {
   type EngineDecision,
   type EngineIntent,
   isMutatingPrimitive,
+  stockForFamily,
   type UniversalWorldOperation,
 } from "@nocturne/contracts";
+import { interiorForSource } from "./interiors.js";
 import type { BindResult } from "./bind.js";
 
 export function planOperations(intent: EngineIntent, bind: BindResult): UniversalWorldOperation[] {
@@ -186,6 +188,7 @@ function planTravel(intent: EngineIntent, bind: BindResult): UniversalWorldOpera
       expectedVersion: bind.actor?.version,
       preconditionFactIds: [],
     });
+    operations.push(...planPlaceContents(bind.target.sourceKey, bind.target.family));
     return operations;
   }
 
@@ -195,6 +198,65 @@ function planTravel(intent: EngineIntent, bind: BindResult): UniversalWorldOpera
       entityRef: { kind: "existing", entityId: intent.actorId },
       locationRef: { kind: "existing", entityId: bind.target.entityId },
       expectedVersion: bind.actor?.version,
+      preconditionFactIds: [],
+    });
+  }
+  return operations;
+}
+
+function planPlaceContents(
+  sourceKey: string,
+  family: string | undefined,
+): UniversalWorldOperation[] {
+  const operations: UniversalWorldOperation[] = [];
+  const graph = interiorForSource(sourceKey);
+  for (const room of graph.rooms) {
+    const symbol = room.roomKey.split("#")[1]?.replace(/[^a-z0-9_]/g, "_") || "room";
+    operations.push({
+      type: "create_instance",
+      symbol,
+      definitionRef: { kind: "existing", definitionId: "place.interior" },
+      locationRef: { kind: "symbol", symbol: "destination" },
+      condition: 100,
+      state: { roomKey: room.roomKey, label: room.label, sourceKey },
+      provenance: {
+        sourceType: "ai_materialization",
+        sourceId: room.roomKey,
+        payload: { kind: "interior" },
+      },
+      preconditionFactIds: [],
+    });
+  }
+  const slots = family ? stockForFamily(family as never) : [];
+  slots.forEach((slot, index) => {
+    operations.push({
+      type: "create_instance",
+      symbol: `stock_${index}`,
+      definitionRef: { kind: "existing", definitionId: slot.family },
+      locationRef: { kind: "symbol", symbol: "destination" },
+      condition: 100,
+      state: { sku: slot.sku, label: slot.label },
+      provenance: {
+        sourceType: "ai_materialization",
+        sourceId: `${sourceKey}:${slot.sku}`,
+        payload: { kind: "stock" },
+      },
+      preconditionFactIds: [],
+    });
+  });
+  if (slots.length > 0) {
+    operations.push({
+      type: "create_instance",
+      symbol: "clerk",
+      definitionRef: { kind: "existing", definitionId: "actor.clerk" },
+      locationRef: { kind: "symbol", symbol: "destination" },
+      condition: 100,
+      state: { role: "clerk", sourceKey },
+      provenance: {
+        sourceType: "ai_materialization",
+        sourceId: `${sourceKey}:clerk`,
+        payload: { kind: "clerk" },
+      },
       preconditionFactIds: [],
     });
   }
