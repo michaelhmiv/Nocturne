@@ -56,6 +56,12 @@ export const PlayerDashboardCharacterSchema = z
     resources: z.array(PlayerDashboardResourceSchema).max(64),
     activeConditions: z.array(PlayerDashboardConditionSchema).max(64),
     skills: z.record(z.string(), z.number()),
+    skillProgress: z.record(z.string(), z.object({
+      xp: z.number().int().nonnegative(),
+      level: z.number().int().min(0).max(100),
+      currentLevelXp: z.number().int().nonnegative(),
+      nextLevelXp: z.number().int().nonnegative().nullable(),
+    }).strict()).default({}),
     factionStanding: z.record(z.string(), z.number()),
     inventory: z.array(PlayerDashboardInventoryItemSchema).max(256),
   })
