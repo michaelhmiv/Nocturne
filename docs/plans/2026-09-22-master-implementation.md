@@ -88,18 +88,18 @@ playable interior / stock / clerk when bound
 
 Activity checklist is the OSM tag table, not LandUse 01–11:
 
-| family | OSM match |
-| --- | --- |
-| `place.retail.food` | `shop=convenience\|supermarket\|greengrocer\|deli` |
-| `place.retail.pharmacy` | `amenity=pharmacy` |
-| `place.service.fuel` | `amenity=fuel` |
-| `place.service.garage` | `shop=car_repair` |
-| `place.service.hospital` | `amenity=hospital` |
-| `place.civic.precinct` | `amenity=police` |
-| `place.transit` | `station=subway` / `public_transport=station` |
-| `place.service.laundry` | `shop=laundry` |
-| `place.building` | `building=*` |
-| `place.street` | `highway=*` |
+| family                   | OSM match                                          |
+| ------------------------ | -------------------------------------------------- |
+| `place.retail.food`      | `shop=convenience\|supermarket\|greengrocer\|deli` |
+| `place.retail.pharmacy`  | `amenity=pharmacy`                                 |
+| `place.service.fuel`     | `amenity=fuel`                                     |
+| `place.service.garage`   | `shop=car_repair`                                  |
+| `place.service.hospital` | `amenity=hospital`                                 |
+| `place.civic.precinct`   | `amenity=police`                                   |
+| `place.transit`          | `station=subway` / `public_transport=station`      |
+| `place.service.laundry`  | `shop=laundry`                                     |
+| `place.building`         | `building=*`                                       |
+| `place.street`           | `highway=*`                                        |
 
 LandUse / BldgClass / RetailArea stay documented for Wave G. They do not decide travel.
 
@@ -173,13 +173,13 @@ A wave that cannot run grocery travel against an OSM feature index may not add c
 
 ## 8. Tickets
 
-| Ticket | Fate |
-| --- | --- |
-| #113 | Wave A+B are the action core + city foundation |
-| #152 / #153 / #154 | B isolation, C no-ops, C clocks |
-| #142 live runner | After Wave C |
-| revival #139 | OSM extract + bind, not MapPLUTO-first |
-| revival #140+ | After the loop is real |
+| Ticket             | Fate                                           |
+| ------------------ | ---------------------------------------------- |
+| #113               | Wave A+B are the action core + city foundation |
+| #152 / #153 / #154 | B isolation, C no-ops, C clocks                |
+| #142 live runner   | After Wave C                                   |
+| revival #139       | OSM extract + bind, not MapPLUTO-first         |
+| revival #140+      | After the loop is real                         |
 
 ## 9. Stop rules
 
