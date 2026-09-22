@@ -3,6 +3,7 @@ export * from "./action-planner.js";
 export * from "./affordance-adjudicator.js";
 export * from "./affordance-shadow.js";
 export * from "./ai-provider.js";
+export * from "./city-destination-plan.js";
 export * from "./consumable-analyzer.js";
 export * from "./consumable-decision.js";
 export * from "./content-normalizer.js";
