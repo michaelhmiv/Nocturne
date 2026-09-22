@@ -90,7 +90,7 @@ function safeError(err) {
   return text
     .replace(/noct_agt_[A-Za-z0-9_-]+/g, "[REDACTED-AGENT]")
     .replace(/sk-[A-Za-z0-9_-]{12,}/g, "[REDACTED-KEY]")
-    .replace(/postgres(?:ql)?:\\/\\/[^\\s]+/gi, "[REDACTED-DB-URL]")
+    .replace(/postgres(?:ql)?:\/\/\S+/gi, "[REDACTED-DB-URL]")
     .slice(0, 900);
 }
 async function send(player, path, method = "GET", body, key) {
