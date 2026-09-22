@@ -6,7 +6,6 @@ export function buildCityTravelPlan(input: {
   destinationId: string;
   destinationName?: string;
 }): PersistentActionPlanProposal {
-  const destinationLabel = input.destinationName || input.destinationId;
   return {
     originalCommand: input.command,
     exclusivePhysical: true,
@@ -20,7 +19,6 @@ export function buildCityTravelPlan(input: {
           actionType: "move",
           locationId: input.destinationId,
           destinationId: input.destinationId,
-          destinationName: destinationLabel,
         },
         referencedEntities: [
           { entityId: input.actorId, role: "actor" },
