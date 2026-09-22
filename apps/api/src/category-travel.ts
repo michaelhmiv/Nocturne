@@ -1,5 +1,6 @@
 import { frameFromUtterance, hasExplicitTravelVerb, type IntentFrame } from "@nocturne/contracts";
 
+/** City travel intercepts only explicit go/walk/drive verbs, never give/hand. */
 export function categoryTravelFrame(command: string): IntentFrame | null {
   if (!hasExplicitTravelVerb(command)) return null;
   const frame = frameFromUtterance(command);
