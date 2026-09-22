@@ -58,8 +58,7 @@ const databaseUrl = process.env.DATABASE_URL || "postgres://invalid:invalid@inva
 const apiUrl = (process.env.NOCTURNE_API_URL || "http://127.0.0.1:3101").replace(/\/$/, "");
 const turnsRequested = Number(process.env.SIGNAL_GARDEN_TURNS || "5000");
 const seed = process.env.SIGNAL_GARDEN_SEED || SIGNAL_GARDEN_DEFAULT_SEED;
-const resultPath =
-  process.env.SIGNAL_GARDEN_RESULTS || "artifacts/signal-garden-5000.json";
+const resultPath = process.env.SIGNAL_GARDEN_RESULTS || "artifacts/signal-garden-5000.json";
 
 function requireSandbox() {
   assert.equal(
@@ -188,10 +187,9 @@ async function setupPlayer(
 
   const actorRows = await database.client.unsafe<
     { world_id: string; shard_id: string; location_id: string | null }[]
-  >(
-    "SELECT world_id, shard_id, location_id FROM game.entity_instances WHERE instance_id = $1",
-    [player.actorId],
-  );
+  >("SELECT world_id, shard_id, location_id FROM game.entity_instances WHERE instance_id = $1", [
+    player.actorId,
+  ]);
   assert.equal(actorRows.length, 1);
   assert.equal(actorRows[0]?.world_id, DEFAULT_WORLD_ID);
   assert.equal(actorRows[0]?.shard_id, DEFAULT_SHARD_ID);
@@ -258,9 +256,7 @@ async function verifyDurability(
     assert.ok(step.result_event_id, "Completed turn has no event.");
   }
 
-  const scheduleRows = await database.client.unsafe<
-    { schedule_id: string }[]
-  >(
+  const scheduleRows = await database.client.unsafe<{ schedule_id: string }[]>(
     "SELECT schedule_id FROM game.scheduled_actions WHERE plan_id = $1 ORDER BY created_at",
     [request.plan_id],
   );
@@ -340,9 +336,7 @@ async function assertAggregateDurability(
   requestIds: string[],
   eventIds: string[],
 ) {
-  const requestCounts = await database.client.unsafe<
-    { requests: number; non_failed: number }[]
-  >(
+  const requestCounts = await database.client.unsafe<{ requests: number; non_failed: number }[]>(
     "SELECT count(*)::int AS requests, " +
       "count(*) FILTER (WHERE status <> 'failed')::int AS non_failed " +
       "FROM game.world_action_requests WHERE request_id = ANY($1::uuid[])",
@@ -414,9 +408,7 @@ async function main() {
           first.text.slice(0, 1_500),
       );
       assert.ok(
-        ["completed", "waiting", "waiting_for_clarification"].includes(
-          String(first.payload.state),
-        ),
+        ["completed", "waiting", "waiting_for_clarification"].includes(String(first.payload.state)),
         "Turn returned an unexpected state: " + first.text.slice(0, 1_500),
       );
 
@@ -443,9 +435,7 @@ async function main() {
       }
 
       const actualState = String(first.payload.state) as
-        | "completed"
-        | "waiting"
-        | "waiting_for_clarification";
+        "completed" | "waiting" | "waiting_for_clarification";
       if (actualState === "completed") completed += 1;
       else if (actualState === "waiting") waiting += 1;
       else clarification += 1;

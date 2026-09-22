@@ -25,13 +25,7 @@ const PUBLIC_TRAILS = [
   "a route-board checksum",
   "a signed maintenance ticket",
 ] as const;
-const PHASES = [
-  "seed",
-  "trace",
-  "relay",
-  "counter-signal",
-  "public-record",
-] as const;
+const PHASES = ["seed", "trace", "relay", "counter-signal", "public-record"] as const;
 
 export type SignalGardenPhase = (typeof PHASES)[number];
 export type SignalGardenPlayer = (typeof PLAYERS)[number];
@@ -99,7 +93,10 @@ function pick<T>(values: readonly T[], seed: string, sequence: number, salt: str
 }
 
 function shortSeed(seed: string) {
-  const value = seed.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const value = seed
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
   return (value || "campaign").slice(0, 24);
 }
 
@@ -107,7 +104,8 @@ export function expectedWorldKind(actionType: ActionType): SignalGardenTurn["exp
   if ((["detect", "search", "observe"] as readonly string[]).includes(actionType)) return "search";
   if ((["move", "drive"] as readonly string[]).includes(actionType)) return "move";
   if (actionType === "consume") return "consume";
-  if ((["bribe", "persuade", "threaten"] as readonly string[]).includes(actionType)) return "relationship";
+  if ((["bribe", "persuade", "threaten"] as readonly string[]).includes(actionType))
+    return "relationship";
   if ((["attack", "arrest"] as readonly string[]).includes(actionType)) return "combat";
   if ((["steal", "buy", "sell"] as readonly string[]).includes(actionType)) return "transfer";
   if (actionType === "talk") return "dialogue";
@@ -133,7 +131,9 @@ export function createSignalGardenTurn(
     String(chapter).padStart(3, "0") +
     "-" +
     String(beat).padStart(2, "0");
-  const checksum = hashSeed(seed + ":checksum:" + packetId).toString(16).padStart(8, "0");
+  const checksum = hashSeed(seed + ":checksum:" + packetId)
+    .toString(16)
+    .padStart(8, "0");
   const witness = pick(WITNESSES, seed, sequence, "witness");
   const publicTrail = pick(PUBLIC_TRAILS, seed, sequence, "trail");
   const playerAlias = PLAYERS[(sequence + hashSeed(seed)) % PLAYERS.length]!;
@@ -190,9 +190,7 @@ export function generateSignalGardenCampaign(input?: {
     throw new Error("Signal Garden turn count must be between 1 and 100000.");
   }
   if (!seed.trim()) throw new Error("Signal Garden seed must not be empty.");
-  return Array.from({ length: turns }, (_, sequence) =>
-    createSignalGardenTurn(sequence, seed),
-  );
+  return Array.from({ length: turns }, (_, sequence) => createSignalGardenTurn(sequence, seed));
 }
 
 export function createInitialSignalGardenState(): SignalGardenState {

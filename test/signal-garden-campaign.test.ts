@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  ACTION_TYPES,
-  type ActionType,
-} from "../packages/rules-engine/src/actions.js";
+import { ACTION_TYPES, type ActionType } from "../packages/rules-engine/src/actions.js";
 import {
   auditSignalGardenCampaign,
   createInitialSignalGardenState,
