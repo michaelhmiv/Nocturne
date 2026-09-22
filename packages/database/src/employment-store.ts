@@ -107,16 +107,16 @@ export function createEmploymentStore(database: ReturnType<typeof createDatabase
         [input.offerId, input.actorId],
       );
       if (prior[0]) {
-        if (prior[0].status !== "active") {
+        if (prior[0]!.status !== "active") {
           throw new EmploymentStoreError("invalid_state", "Position has ended.");
         }
-        return { positionId: String(prior[0].position_id), replay: true };
+        return { positionId: String(prior[0]!.position_id), replay: true };
       }
       const count = await sql.unsafe(
         "SELECT count(*)::integer AS total FROM game.employment_positions WHERE offer_id=$1 AND status='active'",
         [input.offerId],
       );
-      if (Number(count[0].total) >= Number(offer.capacity)) {
+      if (Number(count[0]!.total) >= Number(offer.capacity)) {
         throw new EmploymentStoreError("capacity_full", "No positions remain.");
       }
       const positionId = randomUUID();
@@ -150,7 +150,7 @@ export function createEmploymentStore(database: ReturnType<typeof createDatabase
         [input.positionId],
       );
       if (current[0]) {
-        return { shiftId: String(current[0].shift_id), replay: true };
+        return { shiftId: String(current[0]!.shift_id), replay: true };
       }
       const shiftId = randomUUID();
       const rows = await sql.unsafe(
@@ -163,7 +163,7 @@ export function createEmploymentStore(database: ReturnType<typeof createDatabase
           position.duration_seconds,
         ],
       );
-      return { shiftId, finishesAt: new Date(rows[0].finishes_at).toISOString(), replay: false };
+      return { shiftId, finishesAt: new Date(rows[0]!.finishes_at).toISOString(), replay: false };
     });
   }
 
@@ -188,8 +188,8 @@ export function createEmploymentStore(database: ReturnType<typeof createDatabase
       if (prior[0]) {
         return {
           shiftId: shift.shift_id,
-          eventId: String(prior[0].event_id),
-          wageCents: Number(prior[0].amount_cents),
+          eventId: String(prior[0]!.event_id),
+          wageCents: Number(prior[0]!.amount_cents),
           replay: true,
         };
       }
@@ -198,7 +198,7 @@ export function createEmploymentStore(database: ReturnType<typeof createDatabase
       }
       // Clock is authoritative DB time, not a client- or model-supplied elapsed duration.
       const due = await sql.unsafe("SELECT now() >= $1::timestamptz AS due", [shift.finishes_at]);
-      if (!due[0].due) throw new EmploymentStoreError("too_early", "Shift is still in progress.");
+      if (!due[0]!.due) throw new EmploymentStoreError("too_early", "Shift is still in progress.");
       // One transactional lock order for concurrent payroll settlements.
       const accounts = await sql.unsafe(
         "SELECT instance_id,state FROM game.entity_instances WHERE instance_id=ANY($1::uuid[]) AND world_id=$2 AND shard_id=$3 ORDER BY instance_id FOR UPDATE",
