@@ -67,6 +67,15 @@ describe("sandbox constitution", () => {
     });
   });
 
+  it("keeps give-to-mechanic as transfer, not travel to a garage", () => {
+    expect(
+      frameFromUtterance("Give the Certification Wrench to the Certification Mechanic."),
+    ).toMatchObject({
+      primitive: "transfer",
+      category: "place.service.garage",
+    });
+  });
+
   it("forbids clarification except known-instance conflict", () => {
     expect(mayClarify("bound")).toBe(false);
     expect(mayClarify("materialize_from_source")).toBe(false);

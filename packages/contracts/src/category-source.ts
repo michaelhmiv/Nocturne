@@ -79,6 +79,17 @@ export function sourceClassesFor(family: CategoryFamily): readonly SourceClassMa
   return CATEGORY_SOURCE_CLASSES[CategoryFamilySchema.parse(family)];
 }
 
+export function familyFromProperties(
+  properties: Record<string, unknown>,
+): CategoryFamily | undefined {
+  for (const family of Object.keys(CATEGORY_SOURCE_CLASSES) as CategoryFamily[]) {
+    if (family.startsWith("place.") && featureMatchesFamily(properties, family)) {
+      return family;
+    }
+  }
+  return undefined;
+}
+
 export function featureMatchesFamily(
   properties: Record<string, unknown>,
   family: CategoryFamily,

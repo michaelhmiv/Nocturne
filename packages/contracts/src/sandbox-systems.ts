@@ -355,17 +355,25 @@ export function isInventedSuccess(status: ResolutionStatus, mutated: boolean): b
   );
 }
 
+const TRAVEL_VERB = /\b(go|walk|run|drive|head|take me|find|visit|travel|head over|come with)\b/;
+const TRANSFER_VERB = /\b(give|hand|pass|trade|drop)\b/;
+
+export function hasExplicitTravelVerb(rawText: string) {
+  return TRAVEL_VERB.test(rawText.toLowerCase());
+}
+
 export function frameFromUtterance(rawText: string): IntentFrame | null {
   const noun = lookupNoun(rawText);
   if (!noun) return null;
   const lowered = rawText.toLowerCase();
-  const travelIntent = /\b(go|walk|run|drive|head|take me|find|visit)\b/.test(lowered);
-  const primitive = travelIntent ? "travel" : noun.defaultPrimitive;
+  const travelIntent = hasExplicitTravelVerb(lowered);
+  const transferIntent = TRANSFER_VERB.test(lowered);
+  const primitive = travelIntent ? "travel" : transferIntent ? "transfer" : noun.defaultPrimitive;
   const travelMode: TravelMode | undefined = /\bdrive\b/.test(lowered)
     ? "drive"
     : /\brun\b/.test(lowered)
       ? "run"
-      : primitive === "travel"
+      : primitive === "travel" && travelIntent
         ? "walk"
         : undefined;
   const selector: SandboxSelector = /\bnearest|closest|nearby\b/.test(lowered)

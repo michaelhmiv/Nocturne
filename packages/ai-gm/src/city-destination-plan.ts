@@ -4,6 +4,7 @@ export function buildCityTravelPlan(input: {
   command: string;
   actorId: string;
   destinationId: string;
+  destinationName?: string;
 }): PersistentActionPlanProposal {
   return {
     originalCommand: input.command,
@@ -12,7 +13,7 @@ export function buildCityTravelPlan(input: {
       {
         order: 1,
         kind: "move",
-        description: input.command,
+        description: input.destinationName ? `Walk to ${input.destinationName}` : input.command,
         intentPayload: {
           rawText: input.command,
           actionType: "move",
