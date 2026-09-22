@@ -1,4 +1,4 @@
-import type { CategoryFamily } from "./sandbox-systems.js";
+import { lookupNoun, type CategoryFamily } from "./sandbox-systems.js";
 
 export type StockSlot = {
   sku: string;
@@ -20,6 +20,12 @@ const PHARMACY: StockSlot[] = [
 const HARDWARE: StockSlot[] = [
   { sku: "crowbar", family: "item.tool", label: "crowbar" },
   { sku: "flashlight", family: "item.tool", label: "flashlight" },
+  { sku: "wrench", family: "item.tool", label: "wrench" },
+];
+
+const GARAGE: StockSlot[] = [
+  { sku: "wrench", family: "item.tool", label: "wrench" },
+  { sku: "crowbar", family: "item.tool", label: "crowbar" },
 ];
 
 const WEAPONS: StockSlot[] = [{ sku: "ammo-9mm", family: "item.weapon", label: "9mm ammunition" }];
@@ -35,10 +41,40 @@ export const FAMILY_STOCK: Partial<Record<CategoryFamily, readonly StockSlot[]>>
   "place.retail.pharmacy": PHARMACY,
   "place.service.clinic": PHARMACY,
   "place.retail.hardware": HARDWARE,
+  "place.service.garage": GARAGE,
   "place.retail.weapons": WEAPONS,
   "place.service.fuel": [{ sku: "fuel-can", family: "item.tool", label: "fuel can" }],
 };
 
 export function stockForFamily(family: CategoryFamily): readonly StockSlot[] {
   return FAMILY_STOCK[family] ?? [];
+}
+
+function labelMatches(haystack: string, label: string) {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|[^a-z0-9])${escaped}(?:[^a-z0-9]|$)`).test(haystack);
+}
+
+export function findStockSlot(utterance: string): {
+  slot: StockSlot;
+  placeFamily: CategoryFamily;
+} | null {
+  const haystack = utterance.toLowerCase();
+  const place = lookupNoun(utterance);
+  if (place && FAMILY_STOCK[place.family]) {
+    const slot = stockForFamily(place.family).find((entry) => labelMatches(haystack, entry.label));
+    if (slot) return { slot, placeFamily: place.family };
+  }
+  let best: { slot: StockSlot; placeFamily: CategoryFamily; length: number } | null = null;
+  for (const [family, slots] of Object.entries(FAMILY_STOCK) as Array<
+    [CategoryFamily, readonly StockSlot[]]
+  >) {
+    for (const slot of slots) {
+      if (!labelMatches(haystack, slot.label)) continue;
+      if (!best || slot.label.length > best.length) {
+        best = { slot, placeFamily: family, length: slot.label.length };
+      }
+    }
+  }
+  return best ? { slot: best.slot, placeFamily: best.placeFamily } : null;
 }
