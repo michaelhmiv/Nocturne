@@ -1,0 +1,27 @@
+name: Testing Database Read-only Connection
+on:
+  pull_request:
+    paths:
+      - .github/workflows/testing-db-readonly.yml
+      - scripts/ci/testing-db-readonly.ts
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Verify external testing PostgreSQL read-only
+        run: pnpm --filter @nocturne/database exec tsx ../../scripts/ci/testing-db-readonly.ts
