@@ -18,7 +18,8 @@ export function activityRemaining(
   if (remaining <= 0) {
     return { seconds: 0, overdue: true, label: "Due — awaiting world confirmation" };
   }
-  if (remaining < 60) return { seconds: remaining, overdue: false, label: `${remaining}s remaining` };
+  if (remaining < 60)
+    return { seconds: remaining, overdue: false, label: `${remaining}s remaining` };
   const minutes = Math.floor(remaining / 60);
   const seconds = remaining % 60;
   return {

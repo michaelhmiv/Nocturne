@@ -274,7 +274,14 @@ export default function PlayerDashboardClient() {
                   <span>{label(work.status)}</span>
                   <time dateTime={work.resolvesAt}>{when(work.resolvesAt)}</time>
                   <span aria-live="off">
-                    {activityRemaining(work.resolvesAt, dashboard.generatedAt, dashboardReceivedAt, clock).label}
+                    {
+                      activityRemaining(
+                        work.resolvesAt,
+                        dashboard.generatedAt,
+                        dashboardReceivedAt,
+                        clock,
+                      ).label
+                    }
                   </span>
                 </article>
               ))
