@@ -39,7 +39,7 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       NOCTURNE_LIVE_STORY_SANDBOX: "1"
       NOCTURNE_API_URL: http://127.0.0.1:3101
-      PERSISTENT_STORY_BATCH: "72"
+      PERSISTENT_STORY_BATCH: "250"
       BETTER_AUTH_SECRET: live-story-certification-secret-at-least-thirty-two-characters
       BETTER_AUTH_URL: http://127.0.0.1:3000
       BETTER_AUTH_TRUSTED_ORIGINS: http://127.0.0.1:3000,http://127.0.0.1:3101
