@@ -34,12 +34,6 @@ export type CityAwareActionDependencies = InnerDeps & {
     actorId: string;
     locationId?: string | null;
   }) => Promise<{ facts: string[]; hereName: string }>;
-  takeCityStock?: (input: {
-    scope: WorldScope;
-    actorId: string;
-    command: string;
-    locationId?: string | null;
-  }) => Promise<{ facts: string[]; hereName: string; itemId?: string } | null>;
 };
 
 export function createCityAwareWorldActionService(
@@ -362,30 +356,16 @@ async function submitTake(
     idempotencyKey: string;
   },
 ): Promise<WorldActionPlayerSafeResult> {
-  const match = matchCityTake(input.command);
-  const context = await dependencies.context
-    .compile({
-      scope: input.scope,
-      viewpointId: input.actorId,
-      command: input.command,
-    })
-    .catch(() => null);
-  const locationId = context?.entities.find(
-    (entity) => entity.entityId === input.actorId,
-  )?.locationId;
-  const taken =
-    (await dependencies.takeCityStock?.({
-      scope: input.scope,
-      actorId: input.actorId,
-      command: input.command,
-      locationId,
-    })) || null;
-  if (taken?.facts.length) {
-    return completeFactAction(dependencies, input, taken);
-  }
-  const label = match?.slot.label || "that item";
+  // A stock match is NOT a verified item or a world operation. The earlier
+  // shortcut inserted possession directly, then returned a question receipt
+  // with zero committed events and a false acquisition narrative.
+  // Until commerce has a scoped atomic stock/price/possession transaction,
+  // fail closed without calling the materialization or possession stores.
+  const label = matchCityTake(input.command)?.slot.label || "that item";
   return completeFactAction(dependencies, input, {
-    hereName: "the street",
-    facts: [`No loaded city place stocks a ${label} you can take from here.`],
+    hereName: "the city",
+    facts: [
+      `No ${label} was acquired. City stock cannot be transferred without a verified reachable item and an authoritative committed transaction.`,
+    ],
   });
 }
