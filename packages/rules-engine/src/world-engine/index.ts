@@ -8,6 +8,7 @@ export {
   walkingBbox,
 } from "./city-source.js";
 export type { CitySourceFeature } from "./city-source.js";
+export { OSM_MANHATTAN_FIXTURE, OSM_STARTER_POINT } from "./osm-manhattan-fixture.js";
 export { planOperations } from "./plan.js";
 export type {
   ActorSnapshot,
