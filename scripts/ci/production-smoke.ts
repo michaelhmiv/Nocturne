@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { gameplayOutcomeDefects, type GameplayExpectation } from "./gameplay-verdict.js";
 
 const apiUrl = (
   process.env.NOCTURNE_API_URL || "https://nocturneapi-production.up.railway.app"
@@ -186,7 +187,7 @@ async function resolveActorId() {
   return resolved;
 }
 
-async function submit(command: string, label: string) {
+async function submit(command: string, label: GameplayExpectation) {
   const selectedActorId = await resolveActorId();
   const idempotencyKey = `production-smoke:${label}:${randomUUID()}`;
   const traceId = `production-smoke-${label}-${randomUUID()}`;
@@ -199,22 +200,29 @@ async function submit(command: string, label: string) {
     }),
     body: JSON.stringify({ actorId: selectedActorId, command }),
   });
-  if (payload.error === "internal_error" || payload.error === "request_failed") {
-    throw new Error(`${label} returned an infrastructure failure: ${JSON.stringify(payload)}`);
-  }
-  if (!["completed", "waiting"].includes(String(payload.state))) {
-    throw new Error(
-      `${label} did not produce an executable player result: ${JSON.stringify(payload)}`,
-    );
-  }
-  if (typeof payload.requestId !== "string") {
-    throw new Error(`${label} did not return requestId: ${JSON.stringify(payload)}`);
+  const dashboard = await jsonRequest(
+    `${webUrl}/api/game/persistent-world/dashboard?historyLimit=200`,
+    { headers: requestHeaders() },
+  );
+  const defects = gameplayOutcomeDefects(payload, dashboard, label);
+  if (defects.length) {
+    const evidence = {
+      label,
+      traceId,
+      requestId: typeof payload.requestId === "string" ? payload.requestId : null,
+      state: payload.state,
+      eventIds: payload.eventIds,
+      narration: typeof payload.narration === "string" ? payload.narration.slice(0, 500) : null,
+      defects,
+    };
+    throw new Error(`REAL_GAMEPLAY_FAILURE ${JSON.stringify(evidence)}`);
   }
   return {
     label,
     traceId,
     requestId: payload.requestId,
     state: payload.state,
+    eventIds: payload.eventIds,
     narration: typeof payload.narration === "string" ? payload.narration.slice(0, 500) : null,
   };
 }
@@ -227,22 +235,30 @@ if (provider.configured !== true) {
 }
 
 const selectedActorId = await resolveActorId();
-const results = [
-  await submit("I look around the room and take in my surroundings.", "observe"),
-  await submit("I drink a glass of water from the ordinary kitchen provisions.", "consume"),
-];
+const results: Array<Record<string, unknown>> = [];
+const failures: Array<{ label: string; reason: string }> = [];
+for (const [label, command] of [
+  ["observation", "I look around the room and take in my surroundings."],
+  ["consumption", "I drink a glass of water from the ordinary kitchen provisions."],
+] as const) {
+  try {
+    results.push(await submit(command, label));
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    failures.push({ label, reason });
+    console.error(JSON.stringify({ event: "real_gameplay_failure", label, reason }));
+  }
+}
 
-console.log(
-  JSON.stringify(
-    {
-      status: "passed",
-      deployment,
-      provider,
-      authentication: token ? "agent_token" : "guest_mode",
-      actorId: selectedActorId,
-      results,
-    },
-    null,
-    2,
-  ),
-);
+console.log(JSON.stringify({
+  status: failures.length ? "failed" : "passed",
+  deployment,
+  provider,
+  authentication: token ? "agent_token" : sessionMode ? "disposable_session" : "guest_mode",
+  actorId: selectedActorId,
+  results,
+  failures,
+}, null, 2));
+if (failures.length) {
+  throw new Error(`Production gameplay certification failed: ${failures.length} / 2 objectives.`);
+}
