@@ -129,7 +129,7 @@ describe("city-aware submit", () => {
     }
   });
 
-  it("grabs a wrench from garage stock without inventing a mechanic NPC", async () => {
+  it("never claims or writes an unverified source-stock pickup", async () => {
     const takeCityStock = vi.fn(async () => ({
       hereName: "14th Street Auto",
       facts: ["You grab a wrench from 14th Street Auto."],
@@ -143,11 +143,12 @@ describe("city-aware submit", () => {
       command: "Grab wrench from mechanic",
       idempotencyKey: "wrench-1",
     });
-    expect(bag.decisionClient.decide).not.toHaveBeenCalled();
-    expect(takeCityStock).toHaveBeenCalled();
+    expect(takeCityStock).not.toHaveBeenCalled();
     expect(result.state).toBe("completed");
     if (result.state === "completed") {
-      expect(result.narration).toMatch(/wrench from 14th Street Auto/);
+      expect(result.eventIds).toEqual([]);
+      expect(result.narration).toMatch(/No wrench was acquired/);
+      expect(result.narration).not.toMatch(/You grab a wrench/);
     }
   });
 });
