@@ -2,11 +2,7 @@ import { randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import {
-  createDatabase,
-  createEmploymentStore,
-  type WorldScope,
-} from "../src/index.js";
+import { createDatabase, createEmploymentStore, type WorldScope } from "../src/index.js";
 
 const execFileAsync = promisify(execFile);
 const databaseUrl = process.env.DATABASE_URL;
@@ -31,11 +27,15 @@ describePostgres("authoritative employment foundation", () => {
   let offer = "";
   let position = "";
   const scope: WorldScope = {
-    worldId: world, shardId: shard, userId: user,
-    role: "player", selectedCharacterId: null,
+    worldId: world,
+    shardId: shard,
+    userId: user,
+    role: "player",
+    selectedCharacterId: null,
   };
   const competingScope: WorldScope = {
-    ...scope, userId: competingUser,
+    ...scope,
+    userId: competingUser,
   };
   const operator: WorldScope = { ...scope, role: "operator" };
 
@@ -106,8 +106,12 @@ describePostgres("authoritative employment foundation", () => {
       [actor],
     );
     const created = await employment.postOffer({
-      scope: operator, employerId: employer, title: "Market closing shift",
-      wageCents: 700, durationSeconds: 1, capacity: 1,
+      scope: operator,
+      employerId: employer,
+      title: "Market closing shift",
+      wageCents: 700,
+      durationSeconds: 1,
+      capacity: 1,
     });
     offer = created.offerId;
   });
@@ -117,30 +121,52 @@ describePostgres("authoritative employment foundation", () => {
   it("offers are scoped; player cannot provision or accept fictitious jobs", async () => {
     const visible = await employment.listOffers(scope);
     expect(visible.map((row) => row.offer_id)).toContain(offer);
-    expect(await employment.listOffers({ ...scope, worldId: foreignWorld, shardId: foreignShard }))
-      .toHaveLength(0);
-    await expect(employment.postOffer({
-      scope, employerId: employer, title: "Unapproved job", wageCents: 1,
-      durationSeconds: 1, capacity: 1,
-    })).rejects.toMatchObject({ code: "forbidden" });
-    await expect(employment.acceptOffer({
-      scope, actorId: actor, offerId: randomUUID(),
-    })).rejects.toMatchObject({ code: "not_found" });
-    await expect(employment.postOffer({
-      scope: { ...operator, worldId: foreignWorld, shardId: foreignShard },
-      employerId: employer, title: "Cross world job", wageCents: 100,
-      durationSeconds: 1, capacity: 1,
-    })).rejects.toMatchObject({ code: "23514" });
-    await expect(employment.acceptOffer({
-      scope, actorId: foreignActor, offerId: offer,
-    })).rejects.toMatchObject({ code: "forbidden" });
+    expect(
+      await employment.listOffers({ ...scope, worldId: foreignWorld, shardId: foreignShard }),
+    ).toHaveLength(0);
+    await expect(
+      employment.postOffer({
+        scope,
+        employerId: employer,
+        title: "Unapproved job",
+        wageCents: 1,
+        durationSeconds: 1,
+        capacity: 1,
+      }),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    await expect(
+      employment.acceptOffer({
+        scope,
+        actorId: actor,
+        offerId: randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "not_found" });
+    await expect(
+      employment.postOffer({
+        scope: { ...operator, worldId: foreignWorld, shardId: foreignShard },
+        employerId: employer,
+        title: "Cross world job",
+        wageCents: 100,
+        durationSeconds: 1,
+        capacity: 1,
+      }),
+    ).rejects.toMatchObject({ code: "23514" });
+    await expect(
+      employment.acceptOffer({
+        scope,
+        actorId: foreignActor,
+        offerId: offer,
+      }),
+    ).rejects.toMatchObject({ code: "forbidden" });
   });
 
   it("locks offer capacity under competing applicants and preserves replay identity", async () => {
     const results = await Promise.allSettled([
       employment.acceptOffer({ scope, actorId: actor, offerId: offer }),
       employment.acceptOffer({
-        scope: competingScope, actorId: competitor, offerId: offer,
+        scope: competingScope,
+        actorId: competitor,
+        offerId: offer,
       }),
     ]);
     expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
@@ -158,7 +184,9 @@ describePostgres("authoritative employment foundation", () => {
     const hiredScope = hired[0].worker_id === actor ? scope : competingScope;
     const hiredActor = String(hired[0].worker_id);
     const replay = await employment.acceptOffer({
-      scope: hiredScope, actorId: hiredActor, offerId: offer,
+      scope: hiredScope,
+      actorId: hiredActor,
+      offerId: offer,
     });
     expect(replay).toEqual({ positionId: position, replay: true });
   });
@@ -170,27 +198,42 @@ describePostgres("authoritative employment foundation", () => {
     );
     const workingActor = String(hired[0].worker_id);
     const workingScope = workingActor === actor ? scope : competingScope;
-    await expect(employment.startShift({
-      scope: workingActor === actor ? competingScope : scope,
-      actorId: workingActor, positionId: position,
-    })).rejects.toMatchObject({ code: "forbidden" });
+    await expect(
+      employment.startShift({
+        scope: workingActor === actor ? competingScope : scope,
+        actorId: workingActor,
+        positionId: position,
+      }),
+    ).rejects.toMatchObject({ code: "forbidden" });
     const started = await employment.startShift({
-      scope: workingScope, actorId: workingActor, positionId: position,
+      scope: workingScope,
+      actorId: workingActor,
+      positionId: position,
     });
     const startedAgain = await employment.startShift({
-      scope: workingScope, actorId: workingActor, positionId: position,
+      scope: workingScope,
+      actorId: workingActor,
+      positionId: position,
     });
     expect(startedAgain).toMatchObject({ shiftId: started.shiftId, replay: true });
-    await expect(employment.settleShift({
-      scope: workingScope, actorId: workingActor, shiftId: started.shiftId,
-    })).rejects.toMatchObject({ code: "too_early" });
+    await expect(
+      employment.settleShift({
+        scope: workingScope,
+        actorId: workingActor,
+        shiftId: started.shiftId,
+      }),
+    ).rejects.toMatchObject({ code: "too_early" });
     await new Promise((resolve) => setTimeout(resolve, 1300));
     const [first, second] = await Promise.all([
       employment.settleShift({
-        scope: workingScope, actorId: workingActor, shiftId: started.shiftId,
+        scope: workingScope,
+        actorId: workingActor,
+        shiftId: started.shiftId,
       }),
       employment.settleShift({
-        scope: workingScope, actorId: workingActor, shiftId: started.shiftId,
+        scope: workingScope,
+        actorId: workingActor,
+        shiftId: started.shiftId,
       }),
     ]);
     expect(first.eventId).toBe(second.eventId);
@@ -202,14 +245,18 @@ describePostgres("authoritative employment foundation", () => {
     );
     expect(payments).toHaveLength(1);
     expect(payments[0]).toMatchObject({
-      world_id: world, shard_id: shard, event_id: first.eventId,
+      world_id: world,
+      shard_id: shard,
+      event_id: first.eventId,
     });
     const event = await db.client.unsafe(
       "SELECT world_id,shard_id,event_type,payload FROM game.event_ledger WHERE event_id=$1",
       [first.eventId],
     );
     expect(event[0]).toMatchObject({
-      world_id: world, shard_id: shard, event_type: "employment_wage_paid",
+      world_id: world,
+      shard_id: shard,
+      event_type: "employment_wage_paid",
     });
     expect(event[0].payload.wageCents).toBe(700);
     const balances = await db.client.unsafe(
@@ -228,13 +275,19 @@ describePostgres("authoritative employment foundation", () => {
       [position],
     );
     const workingActor = String(rows[0].worker_id);
-    await expect(employment.settleShift({
-      scope: { ...scope, userId: foreignUser }, actorId: workingActor,
-      shiftId: String(rows[0].shift_id),
-    })).rejects.toMatchObject({ code: "forbidden" });
-    await expect(employment.settleShift({
-      scope: { ...scope, worldId: foreignWorld, shardId: foreignShard },
-      actorId: workingActor, shiftId: String(rows[0].shift_id),
-    })).rejects.toMatchObject({ code: "forbidden" });
+    await expect(
+      employment.settleShift({
+        scope: { ...scope, userId: foreignUser },
+        actorId: workingActor,
+        shiftId: String(rows[0].shift_id),
+      }),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    await expect(
+      employment.settleShift({
+        scope: { ...scope, worldId: foreignWorld, shardId: foreignShard },
+        actorId: workingActor,
+        shiftId: String(rows[0].shift_id),
+      }),
+    ).rejects.toMatchObject({ code: "forbidden" });
   });
 });

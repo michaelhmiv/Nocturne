@@ -73,8 +73,14 @@ export function createEmploymentStore(database: ReturnType<typeof createDatabase
     await database.client.unsafe(
       "INSERT INTO game.employment_offers(offer_id,world_id,shard_id,employer_id,title,wage_cents,duration_seconds,capacity) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
       [
-        id, input.scope.worldId, input.scope.shardId, input.employerId,
-        input.title, input.wageCents, input.durationSeconds, input.capacity,
+        id,
+        input.scope.worldId,
+        input.scope.shardId,
+        input.employerId,
+        input.title,
+        input.wageCents,
+        input.durationSeconds,
+        input.capacity,
       ],
     );
     return { offerId: id };
@@ -127,8 +133,11 @@ export function createEmploymentStore(database: ReturnType<typeof createDatabase
       const positions = await sql.unsafe(
         "SELECT p.position_id,p.worker_id,p.status,o.duration_seconds,o.status AS offer_status FROM game.employment_positions p JOIN game.employment_offers o ON o.offer_id=p.offer_id JOIN game.player_characters pc ON pc.character_instance_id=p.worker_id AND pc.world_id=p.world_id WHERE p.position_id=$1 AND p.world_id=$2 AND p.shard_id=$3 AND p.worker_id=$4 AND pc.user_id=$5 FOR UPDATE OF p",
         [
-          input.positionId, input.scope.worldId, input.scope.shardId,
-          input.actorId, input.scope.userId,
+          input.positionId,
+          input.scope.worldId,
+          input.scope.shardId,
+          input.actorId,
+          input.scope.userId,
         ],
       );
       const position = positions[0];
@@ -147,7 +156,10 @@ export function createEmploymentStore(database: ReturnType<typeof createDatabase
       const rows = await sql.unsafe(
         "INSERT INTO game.employment_shifts(shift_id,world_id,shard_id,position_id,finishes_at) VALUES($1,$2,$3,$4,now()+($5::integer * interval '1 second')) RETURNING finishes_at",
         [
-          shiftId, input.scope.worldId, input.scope.shardId, input.positionId,
+          shiftId,
+          input.scope.worldId,
+          input.scope.shardId,
+          input.positionId,
           position.duration_seconds,
         ],
       );
@@ -160,8 +172,11 @@ export function createEmploymentStore(database: ReturnType<typeof createDatabase
       const rows = await sql.unsafe(
         "SELECT s.shift_id,s.status,s.finishes_at,s.position_id,p.worker_id,o.employer_id,o.wage_cents FROM game.employment_shifts s JOIN game.employment_positions p ON p.position_id=s.position_id JOIN game.employment_offers o ON o.offer_id=p.offer_id JOIN game.player_characters pc ON pc.character_instance_id=p.worker_id AND pc.world_id=p.world_id WHERE s.shift_id=$1 AND s.world_id=$2 AND s.shard_id=$3 AND p.worker_id=$4 AND pc.user_id=$5 FOR UPDATE OF s",
         [
-          input.shiftId, input.scope.worldId, input.scope.shardId,
-          input.actorId, input.scope.userId,
+          input.shiftId,
+          input.scope.worldId,
+          input.scope.shardId,
+          input.actorId,
+          input.scope.userId,
         ],
       );
       const shift = rows[0] as ShiftRow | undefined;
@@ -198,7 +213,9 @@ export function createEmploymentStore(database: ReturnType<typeof createDatabase
         throw new EmploymentStoreError("invalid_state", "Employment account missing.");
       }
       const wageCents = Number(shift.wage_cents);
-      const employerCash = validMoney((employer.state as Record<string, unknown>).cashOnPerson ?? 0);
+      const employerCash = validMoney(
+        (employer.state as Record<string, unknown>).cashOnPerson ?? 0,
+      );
       const workerCash = validMoney((worker.state as Record<string, unknown>).cashOnPerson ?? 0);
       if (employerCash < wageCents) {
         throw new EmploymentStoreError("insufficient_funds", "Employer cannot fund the wage.");
@@ -226,16 +243,24 @@ export function createEmploymentStore(database: ReturnType<typeof createDatabase
       await sql.unsafe(
         "INSERT INTO game.event_ledger(event_id,world_id,shard_id,idempotency_key,world_time,event_type,involved_entity_ids,payload) VALUES($1,$2,$3,$4,now(),'employment_wage_paid',$5::jsonb,$6::jsonb)",
         [
-          eventId, input.scope.worldId, input.scope.shardId,
+          eventId,
+          input.scope.worldId,
+          input.scope.shardId,
           "employment:pay:" + shift.shift_id,
-          JSON.stringify([shift.worker_id, shift.employer_id]), payload,
+          JSON.stringify([shift.worker_id, shift.employer_id]),
+          payload,
         ],
       );
       await sql.unsafe(
         "INSERT INTO game.employment_payments(world_id,shard_id,shift_id,worker_id,employer_id,amount_cents,event_id) VALUES($1,$2,$3,$4,$5,$6,$7)",
         [
-          input.scope.worldId, input.scope.shardId, shift.shift_id,
-          shift.worker_id, shift.employer_id, wageCents, eventId,
+          input.scope.worldId,
+          input.scope.shardId,
+          shift.shift_id,
+          shift.worker_id,
+          shift.employer_id,
+          wageCents,
+          eventId,
         ],
       );
       await sql.unsafe(
