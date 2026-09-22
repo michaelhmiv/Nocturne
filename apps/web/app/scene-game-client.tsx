@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import type { PlayerDashboard } from "../../../packages/contracts/src/index.js";
 import { authClient } from "../lib/auth-client";
 import ActionPlanResultCard, {
   parseActionPlanResult,
@@ -139,6 +140,10 @@ export default function SceneGameClient() {
   const [message, setMessage] = useState("");
   const [characters, setCharacters] = useState<Character[]>([]);
   const [world, setWorld] = useState<StarterWorld | null>(null);
+  const [currentScene, setCurrentScene] = useState<{
+    actorId: string;
+    location: PlayerDashboard["scene"]["location"];
+  } | null>(null);
   const [inventions, setInventions] = useState<Invention[]>([]);
   const [actions, setActions] = useState<ActionResult[]>([]);
   const [resolvedPlans, setResolvedPlans] = useState<ResolvedPlan[]>([]);
@@ -149,8 +154,11 @@ export default function SceneGameClient() {
   const [installingId, setInstallingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const monitoredJobs = useRef(new Set<string>());
+  const characterToggleRef = useRef<HTMLButtonElement>(null);
+  const characterPanelRef = useRef<HTMLElement>(null);
 
   const selected = characters.find((character) => character.selected) || characters[0];
+  const actualScene = currentScene?.actorId === selected?.characterId ? currentScene.location : null;
   const resolvedEventIds = useMemo(
     () =>
       new Set(
@@ -180,11 +188,21 @@ export default function SceneGameClient() {
     const active =
       characterResponse.characters.find((character) => character.selected) ||
       characterResponse.characters[0];
-    const actionResponse = active
-      ? await gameFetch<{ actions: ActionResult[] }>(
-          `actions?actorId=${encodeURIComponent(active.characterId)}`,
-        )
-      : { actions: [] };
+    const [actionResponse, dashboardResponse] = active
+      ? await Promise.all([
+          gameFetch<{ actions: ActionResult[] }>(
+            `actions?actorId=${encodeURIComponent(active.characterId)}`,
+          ),
+          gameFetch<PlayerDashboard>("persistent-world/dashboard?historyLimit=1").catch(
+            () => null,
+          ),
+        ])
+      : [{ actions: [] }, null];
+    setCurrentScene(
+      active && dashboardResponse?.character.characterId === active.characterId
+        ? { actorId: active.characterId, location: dashboardResponse.scene.location }
+        : null,
+    );
     setCharacters(characterResponse.characters);
     setWorld(worldResponse);
     setInventions(inventionResponse.inventions);
@@ -198,6 +216,31 @@ export default function SceneGameClient() {
   useEffect(() => {
     setResolvedPlans([]);
   }, [selected?.characterId]);
+
+  useEffect(() => {
+    if (!selected || (!session && !guestMode)) {
+      setMessage("");
+      return;
+    }
+    try {
+      setMessage(sessionStorage.getItem(`nocturne:draft:${session?.user.id || "guest"}:${selected.characterId}`) || "");
+    } catch {
+      // Private browsing may disable session storage; the composer still works.
+    }
+  }, [selected?.characterId, session?.user.id]);
+
+  useEffect(() => {
+    if (!showCharacter) return;
+    characterPanelRef.current?.focus();
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowCharacter(false);
+        characterToggleRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onEscape);
+    return () => window.removeEventListener("keydown", onEscape);
+  }, [showCharacter]);
 
   async function monitorJob(localId: string, jobId: string) {
     if (monitoredJobs.current.has(jobId)) return;
@@ -391,6 +434,11 @@ export default function SceneGameClient() {
     const idempotencyKey = crypto.randomUUID();
     const kind = inferJobKind(text);
     setMessage("");
+    try {
+      sessionStorage.removeItem(`nocturne:draft:${session?.user.id || "guest"}:${selected.characterId}`);
+    } catch {
+      // No persistent draft storage is available.
+    }
     setSubmitting(true);
     setError("");
     setPendingTurns((current) => [...current, { localId, text, kind, status: "capturing" }]);
@@ -425,6 +473,11 @@ export default function SceneGameClient() {
         ),
       );
       setMessage(text);
+      try {
+        sessionStorage.setItem(`nocturne:draft:${session?.user.id || "guest"}:${selected.characterId}`, text);
+      } catch {
+        // Keep the failed command in component state.
+      }
       setError(detail);
     } finally {
       setSubmitting(false);
@@ -471,6 +524,7 @@ export default function SceneGameClient() {
         <button
           aria-label={showCharacter ? "Close character panel" : "Open character panel"}
           className="scene-quiet-button scene-character-toggle"
+          ref={characterToggleRef}
           onClick={() => setShowCharacter((value) => !value)}
         >
           {showCharacter ? "Close" : "Character"}
@@ -487,11 +541,13 @@ export default function SceneGameClient() {
         <section className="scene-main">
           <header className="scene-location">
             <p className="scene-kicker">CURRENT SCENE</p>
-            <h1>{selected?.residenceName || (selected ? "Ashdown Apartments" : "Foundry Row")}</h1>
+            <h1>{selected ? actualScene?.name || "Location unavailable" : "Nocturne"}</h1>
             <p>
               {selected
-                ? `Your unit is cramped, the locks are weak, and the empty floor space is limited. ${world?.alley.name || "The rear alley"} runs behind the building; Calder City offers much better places if you can earn them.`
-                : "Rain shines on old brick and machine shops. You have no base and no history here yet."}
+                ? actualScene
+                  ? `You are at ${actualScene.name}. Your home is ${selected.residenceName || "not yet established"}.`
+                  : "Current surroundings are unavailable. Refresh to inspect your location."
+                : "You have no base and no history here yet."}
             </p>
           </header>
 
@@ -662,7 +718,23 @@ export default function SceneGameClient() {
         </section>
 
         {showCharacter && selected && (
-          <aside className="scene-character-panel">
+          <aside
+            aria-label="Character details"
+            className="scene-character-panel"
+            ref={characterPanelRef}
+            role="dialog"
+            tabIndex={-1}
+          >
+            <button
+              className="scene-quiet-button"
+              onClick={() => {
+                setShowCharacter(false);
+                characterToggleRef.current?.focus();
+              }}
+              type="button"
+            >
+              Close character details
+            </button>
             <p className="scene-kicker">CHARACTER</p>
             <h2>{selected.name}</h2>
             <p>{selected.conceptSummary}</p>
@@ -681,9 +753,12 @@ export default function SceneGameClient() {
               </div>
               <div>
                 <dt>Location</dt>
-                <dd>{selected.residenceName || "Foundry Row"}</dd>
+                <dd>{actualScene?.name || "Location unavailable"}</dd>
               </div>
             </dl>
+            {selected.residenceName && (
+              <p>Home: {selected.residenceName}</p>
+            )}
             {selected.inventory?.length ? (
               <section>
                 <p className="scene-kicker">INVENTORY</p>
@@ -703,7 +778,14 @@ export default function SceneGameClient() {
               </section>
             ) : null}
             {session && (
-              <button className="scene-quiet-button" onClick={() => void authClient.signOut()}>
+              <button className="scene-quiet-button" onClick={() => {
+                try {
+                  sessionStorage.removeItem(`nocturne:draft:${session.user.id}:${selected.characterId}`);
+                } catch {
+                  // Storage might be unavailable.
+                }
+                void authClient.signOut();
+              }}>
                 Sign out
               </button>
             )}
@@ -722,7 +804,17 @@ export default function SceneGameClient() {
             maxLength={4000}
             rows={1}
             value={message}
-            onChange={(event) => setMessage(event.target.value)}
+            onChange={(event) => {
+              setMessage(event.target.value);
+              try {
+                sessionStorage.setItem(
+                  `nocturne:draft:${session?.user.id || "guest"}:${selected.characterId}`,
+                  event.target.value,
+                );
+              } catch {
+                // Unsent text remains in memory until the tab closes.
+              }
+            }
             placeholder="What do you do?"
           />
           <div className="scene-composer-footer">
