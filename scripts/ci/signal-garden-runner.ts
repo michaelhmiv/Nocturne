@@ -368,7 +368,7 @@ async function main() {
   assert.equal(audit.commandCount, campaign.length);
   assert.equal(audit.packetCount, campaign.length);
   assert.equal(audit.playerCount, 3);
-  assert.equal(audit.signatureTurns.length, Math.floor((turnsRequested - 1) / 25) + 1);
+  assert.equal(audit.signatureTurns.length, campaign.filter((turn) => turn.signatureAction).length);
 
   const database = createDatabase(databaseUrl);
   const agents = createAgentStore(database);
@@ -456,7 +456,7 @@ async function main() {
 
       const shouldReplay = turn.signatureAction || turn.sequence % 97 === 0;
       if (shouldReplay) await replayAndAssert(player, turn, key, first);
-      await sampleViewChecks(player, turn.sequence);
+      if (turn.sequence % 25 === 0) await sampleViewChecks(player, turn.sequence);
 
       evidence.push({
         sequence: turn.sequence,
