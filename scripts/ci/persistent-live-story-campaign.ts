@@ -510,16 +510,25 @@ try {
       scopes: ["play", "character:read", "character:write", "action:submit"],
     });
     player.token = minted.token; // NEVER persist or log credentials.
-    if (!existing) {
-      await query(
-        "INSERT INTO game.certification_players(run_id,user_id,world_id,shard_id) VALUES ($1,$2,$3,$4)",
-        [runId, player.userId, worldId, shardId],
-      );
-      await query(
-        "INSERT INTO game.world_memberships(world_id,user_id,role,status) VALUES ($1,$2,'player','active')",
-        [worldId, player.userId],
-      );
-    }
+    // Every provisioning step must be retryable. A failed setup can leave the
+    // world and certification run committed before all three bindings exist.
+    await query(
+      "INSERT INTO game.certification_players(run_id,user_id,world_id,shard_id) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING",
+      [runId, player.userId, worldId, shardId],
+    );
+    await query(
+      "INSERT INTO game.world_memberships(world_id,user_id,role,status) VALUES ($1,$2,'player','active') ON CONFLICT DO NOTHING",
+      [worldId, player.userId],
+    );
+    const [binding] = await query(
+      "SELECT player.run_id,player.world_id,player.shard_id,member.role,member.status FROM game.certification_players player JOIN game.world_memberships member ON member.world_id=player.world_id AND member.user_id=player.user_id WHERE player.user_id=$1",
+      [player.userId],
+    );
+    assert.equal(binding?.run_id, runId, "Existing user is bound to a different certification run.");
+    assert.equal(binding?.world_id, worldId);
+    assert.equal(binding?.shard_id, shardId);
+    assert.equal(binding?.role, "player");
+    assert.equal(binding?.status, "active");
   }
   const [districtResult] = await query(
     "SELECT game.provision_certification_district($1) AS district",
