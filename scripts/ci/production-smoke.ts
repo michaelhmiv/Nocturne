@@ -6,6 +6,7 @@ const apiUrl = (
 const webUrl = (
   process.env.NOCTURNE_WEB_URL || "https://nocturneweb-production.up.railway.app"
 ).replace(/\/$/, "");
+const webOrigin = new URL(webUrl).origin;
 const token = process.env.NOCTURNE_SMOKE_AGENT_TOKEN?.trim();
 let actorId = process.env.NOCTURNE_SMOKE_CHARACTER_ID?.trim();
 const expectedCommit = process.env.EXPECTED_COMMIT_SHA;
@@ -43,6 +44,9 @@ function requestHeaders(extra?: Record<string, string>) {
 async function jsonRequest(url: string, init: RequestInit = {}) {
   const parsed = new URL(url);
   const headers = new Headers(init.headers || {});
+  if (parsed.origin === webOrigin && !headers.has("origin")) {
+    headers.set("origin", webOrigin);
+  }
   const cookie = cookieHeader(parsed.origin);
   if (cookie) headers.set("cookie", cookie);
   const response = await fetch(parsed, { ...init, headers });
