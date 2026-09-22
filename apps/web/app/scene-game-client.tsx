@@ -159,7 +159,9 @@ export default function SceneGameClient() {
 
   const selected = characters.find((character) => character.selected) || characters[0];
   const actualScene =
-    currentScene?.actorId === selected?.characterId ? currentScene.location : null;
+    currentScene && selected && currentScene.actorId === selected.characterId
+      ? currentScene.location
+      : null;
   const resolvedEventIds = useMemo(
     () =>
       new Set(
