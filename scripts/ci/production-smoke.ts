@@ -132,6 +132,7 @@ async function provisionPlayer() {
   await jsonRequest(`${webUrl}/api/game/characters/${actorId}/select`, {
     method: "POST",
     headers: requestHeaders({ "content-type": "application/json" }),
+    body: JSON.stringify({}),
   });
   await jsonRequest(`${webUrl}/api/game/residences/starter/rent`, {
     method: "POST",
