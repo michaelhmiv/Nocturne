@@ -147,7 +147,9 @@ export function createSignalGardenTurn(
       witness +
       " after verifying checksum " +
       checksum +
-      " and leave an auditable public evidence trail."
+      " during the " +
+      phase +
+      " phase, and leave an auditable public evidence trail."
     : String(capability.canonicalPrompts[sequence % capability.canonicalPrompts.length]).replace(
         /[.!?]+$/,
         "",
