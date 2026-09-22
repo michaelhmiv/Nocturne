@@ -44,6 +44,16 @@ test("onboards a character, resolves every supported action, and loads the dashb
     timeout: 20_000,
   });
 
+  // An unsent natural-language action is not lost when a player reloads the tab.
+  await page.getByPlaceholder("What do you do?").fill("Inspect the street before leaving.");
+  await page.reload();
+  await expect(page.getByPlaceholder("What do you do?")).toHaveValue(
+    "Inspect the street before leaving.",
+    { timeout: 20_000 },
+  );
+  await page.getByPlaceholder("What do you do?").fill("");
+
+
   for (const action of actions) {
     const composer = page.getByPlaceholder("What do you do?");
     await composer.fill(action.prompt);
