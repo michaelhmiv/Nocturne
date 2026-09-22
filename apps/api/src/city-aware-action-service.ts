@@ -1,4 +1,7 @@
-import { WorldActionPlayerSafeResultSchema, type WorldActionPlayerSafeResult } from "@nocturne/contracts";
+import {
+  WorldActionPlayerSafeResultSchema,
+  type WorldActionPlayerSafeResult,
+} from "@nocturne/contracts";
 import { buildCityTravelPlan } from "@nocturne/ai-gm";
 import type { WorldScope } from "@nocturne/database";
 import {
@@ -74,7 +77,8 @@ export function createCityAwareWorldActionService(
         scope: input.scope,
         actorId: input.actorId,
         command: input.command,
-        locationId: context.entities.find((entity) => entity.entityId === input.actorId)?.locationId,
+        locationId: context.entities.find((entity) => entity.entityId === input.actorId)
+          ?.locationId,
       });
       if (!destination?.entityId) {
         const result = WorldActionPlayerSafeResultSchema.parse({
