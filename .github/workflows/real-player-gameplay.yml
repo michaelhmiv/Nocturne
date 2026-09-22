@@ -7,12 +7,16 @@ on:
     paths:
       - "scripts/ci/live-story-campaign.ts"
       - "scripts/ci/gameplay-verdict.ts"
+      - "scripts/ci/gameplay-verdict.test.ts"
+      - "scripts/ci/production-smoke.ts"
       - "scripts/ci/story-certification-corpus.mjs"
       - ".github/workflows/real-player-gameplay.yml"
   push:
     branches: [main]
     paths:
       - "scripts/ci/live-story-campaign.ts"
+      - "scripts/ci/gameplay-verdict.ts"
+      - "scripts/ci/production-smoke.ts"
       - ".github/workflows/real-player-gameplay.yml"
 
 permissions:
@@ -87,6 +91,8 @@ jobs:
             echo "::error::OPENROUTER_API_KEY is required; no fake-provider fallback."
             exit 1
           fi
+      - name: Prove the outcome policy rejects historical false-green production cases
+        run: pnpm exec vitest run scripts/ci/gameplay-verdict.test.ts
       - name: Build compiled API and worker
         run: |
           pnpm --filter @nocturne/api build
@@ -108,7 +114,7 @@ jobs:
           done
           echo "::error::Real-model compiled API did not become healthy."
           exit 1
-      - name: Attempt all 72 authored beats with independent real player credentials
+      - name: Attempt 12 real-provider story beats with independent player credentials
         run: |
           set -o pipefail
           pnpm exec tsx scripts/ci/live-story-campaign.ts 2>&1 | tee artifacts/live-story/live-story-console.log
