@@ -2,6 +2,7 @@ export * from "./action-affordance.js";
 export * from "./action-plans.js";
 export * from "./action.js";
 export * from "./affordance.js";
+export * from "./category-source.js";
 export * from "./character.js";
 export * from "./consumption.js";
 export * from "./content.js";
