@@ -19,15 +19,16 @@ test("audits navigation, character drawer, refresh, and responsive gameplay cont
   await page.goto(webUrl + "/");
   await expect(page.getByRole("link", { name: "Play" })).toBeVisible();
 
-  const onboarding = page.getByLabel("Name");
-  if (await onboarding.count()) {
-    await onboarding.fill("Interaction Audit Agent");
+  const composer = page.getByPlaceholder("What do you do?");
+  const composerReady = await composer.isVisible({ timeout: 5_000 }).catch(() => false);
+  if (!composerReady) {
+    await page.getByLabel("Name").fill("Interaction Audit Agent");
     await page
       .getByLabel("Character concept")
       .fill("A disposable browser interaction audit character.");
     await page.getByRole("button", { name: "Begin" }).click();
   }
-  await expect(page.getByPlaceholder("What do you do?")).toBeVisible({ timeout: 30_000 });
+  await expect(composer).toBeVisible({ timeout: 30_000 });
 
   await page.getByRole("link", { name: "Dashboard" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
