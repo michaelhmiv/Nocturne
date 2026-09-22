@@ -178,14 +178,13 @@ async function runBeat(beat, index) {
   const key = previous?.idempotencyKey || "live-story:" + runId + ":" + beat.id;
   const started = Date.now();
   const before = await snapshot(player.actorId);
-  const dialogueTarget = beat.id === "keys-10"
-    ? players.find((candidate) => candidate.alias === "dax")
-    : beat.id === "keys-11"
-      ? players.find((candidate) => candidate.alias === "mara")
-      : null;
-  const targetBefore = dialogueTarget?.actorId
-    ? await snapshot(dialogueTarget.actorId)
-    : null;
+  const dialogueTarget =
+    beat.id === "keys-10"
+      ? players.find((candidate) => candidate.alias === "dax")
+      : beat.id === "keys-11"
+        ? players.find((candidate) => candidate.alias === "mara")
+        : null;
+  const targetBefore = dialogueTarget?.actorId ? await snapshot(dialogueTarget.actorId) : null;
   let response = null;
   let transportError = null;
   try {
@@ -257,30 +256,44 @@ async function runBeat(beat, index) {
   // Required ordinary objectives are not certified merely because the API
   // returned 200, wrote a failure event, or generated convincing prose.
   const positiveObjectives = new Set([
-    "keys-01", "keys-02", "keys-06", "keys-07", "keys-08", "keys-09", "keys-12",
+    "keys-01",
+    "keys-02",
+    "keys-06",
+    "keys-07",
+    "keys-08",
+    "keys-09",
+    "keys-12",
   ]);
   if (positiveObjectives.has(beat.id)) {
     if (!record || record.status !== "completed") {
       observedDefects.push("positive_objective_not_completed");
     }
-    if (/\\b(?:do not accomplish|did not accomplish|cannot quite determine|no matching source|no effect)\\b/i.test(narration)) {
+    if (
+      /\\b(?:do not accomplish|did not accomplish|cannot quite determine|no matching source|no effect)\\b/i.test(
+        narration,
+      )
+    ) {
       observedDefects.push("positive_objective_failed_in_narration");
     }
     if (evidence.events.length === 0) observedDefects.push("positive_objective_has_no_event");
-    if (["keys-07", "keys-08"].includes(beat.id) &&
-      before?.locationId === after?.locationId) {
+    if (["keys-07", "keys-08"].includes(beat.id) && before?.locationId === after?.locationId) {
       observedDefects.push("move_did_not_change_durable_location");
     }
     if (beat.id === "keys-09" && !materialStateChanged(before, after)) {
       observedDefects.push("preference_not_persisted");
     }
-    if (beat.id === "keys-01" &&
-      /(?:promising lead|fragment of evidence|matching signature)/i.test(narration)) {
+    if (
+      beat.id === "keys-01" &&
+      /(?:promising lead|fragment of evidence|matching signature)/i.test(narration)
+    ) {
       observedDefects.push("scene_observation_is_generic_invented_clue");
     }
   }
-  if (dialogueTarget && before?.locationId !== targetBefore?.locationId &&
-    /(?:introduce|make your way over|ask|accomplish your objective|spot .* near)/i.test(narration)) {
+  if (
+    dialogueTarget &&
+    before?.locationId !== targetBefore?.locationId &&
+    /(?:introduce|make your way over|ask|accomplish your objective|spot .* near)/i.test(narration)
+  ) {
     observedDefects.push("dialogue_claims_remote_player_is_present");
   }
 
