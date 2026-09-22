@@ -128,4 +128,26 @@ describe("city-aware submit", () => {
       expect(result.narration).toMatch(/14th Street Convenience/);
     }
   });
+
+  it("grabs a wrench from garage stock without inventing a mechanic NPC", async () => {
+    const takeCityStock = vi.fn(async () => ({
+      hereName: "14th Street Auto",
+      facts: ["You grab a wrench from 14th Street Auto."],
+      itemId: "99999999-9999-4999-8999-999999999999",
+    }));
+    const bag = deps({ takeCityStock });
+    const service = createCityAwareWorldActionService(bag as never);
+    const result = await service.submit({
+      scope: SCOPE,
+      actorId: ACTOR,
+      command: "Grab wrench from mechanic",
+      idempotencyKey: "wrench-1",
+    });
+    expect(bag.decisionClient.decide).not.toHaveBeenCalled();
+    expect(takeCityStock).toHaveBeenCalled();
+    expect(result.state).toBe("completed");
+    if (result.state === "completed") {
+      expect(result.narration).toMatch(/wrench from 14th Street Auto/);
+    }
+  });
 });

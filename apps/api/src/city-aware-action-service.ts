@@ -11,6 +11,7 @@ import {
   isScenePerceiveCommand,
   missingCityDestinationPrompt,
 } from "./category-travel.js";
+import { isCityTakeCommand, matchCityTake } from "./category-take.js";
 import {
   createPersistentWorldActionService,
   PersistentWorldActionServiceError,
@@ -33,6 +34,12 @@ export type CityAwareActionDependencies = InnerDeps & {
     actorId: string;
     locationId?: string | null;
   }) => Promise<{ facts: string[]; hereName: string }>;
+  takeCityStock?: (input: {
+    scope: WorldScope;
+    actorId: string;
+    command: string;
+    locationId?: string | null;
+  }) => Promise<{ facts: string[]; hereName: string; itemId?: string } | null>;
 };
 
 export function createCityAwareWorldActionService(
@@ -47,15 +54,17 @@ export function createCityAwareWorldActionService(
     idempotencyKey: string;
     clarificationForRequestId?: string;
   }): Promise<WorldActionPlayerSafeResult> {
-    if (
-      input.clarificationForRequestId ||
-      (!isCategoryTravelCommand(input.command) && !isScenePerceiveCommand(input.command))
-    ) {
+    if (input.clarificationForRequestId) {
       return inner.submit(input);
     }
-
+    if (isCityTakeCommand(input.command)) {
+      return submitTake(dependencies, input);
+    }
     if (isScenePerceiveCommand(input.command)) {
       return submitPerceive(dependencies, inner, input);
+    }
+    if (!isCategoryTravelCommand(input.command)) {
+      return inner.submit(input);
     }
 
     const frame = categoryTravelFrame(input.command);
@@ -184,15 +193,15 @@ export function createCityAwareWorldActionService(
   return { submit, executePlan: inner.executePlan };
 }
 
-async function submitPerceive(
+async function completeFactAction(
   dependencies: CityAwareActionDependencies,
-  _inner: PersistentWorldActionService,
   input: {
     scope: WorldScope;
     actorId: string;
     command: string;
     idempotencyKey: string;
   },
+  packet: { facts: string[]; hereName: string },
 ): Promise<WorldActionPlayerSafeResult> {
   const reservation = await dependencies.requests.reserve({
     scope: input.scope,
@@ -230,19 +239,6 @@ async function submitPerceive(
       contextCompilationId: context.compilationId,
     });
     currentStatus = "resolving_references";
-    const locationId = context.entities.find(
-      (entity) => entity.entityId === input.actorId,
-    )?.locationId;
-    const packet =
-      (await dependencies.compileLiveScene?.({
-        scope: input.scope,
-        actorId: input.actorId,
-        locationId,
-      })) ||
-      compileCityScene({
-        lon: OSM_STARTER_POINT.lon,
-        lat: OSM_STARTER_POINT.lat,
-      });
     await dependencies.requests.transition({
       scope: input.scope,
       requestId: reservation.requestId,
@@ -263,6 +259,7 @@ async function submitPerceive(
             rawText: input.command,
             actionType: "question",
             facts: packet.facts,
+            hereName: packet.hereName,
           },
           referencedEntities: [{ entityId: input.actorId, role: "actor" as const }],
         },
@@ -321,4 +318,70 @@ async function submitPerceive(
       .catch(() => {});
     throw error;
   }
+}
+
+async function submitPerceive(
+  dependencies: CityAwareActionDependencies,
+  _inner: PersistentWorldActionService,
+  input: {
+    scope: WorldScope;
+    actorId: string;
+    command: string;
+    idempotencyKey: string;
+  },
+): Promise<WorldActionPlayerSafeResult> {
+  const context = await dependencies.context.compile({
+    scope: input.scope,
+    viewpointId: input.actorId,
+    command: input.command,
+  }).catch(() => null);
+  const locationId = context?.entities.find((entity) => entity.entityId === input.actorId)
+    ?.locationId;
+  const packet =
+    (await dependencies.compileLiveScene?.({
+      scope: input.scope,
+      actorId: input.actorId,
+      locationId,
+    })) ||
+    compileCityScene({
+      lon: OSM_STARTER_POINT.lon,
+      lat: OSM_STARTER_POINT.lat,
+    });
+  return completeFactAction(dependencies, input, packet);
+}
+
+async function submitTake(
+  dependencies: CityAwareActionDependencies,
+  input: {
+    scope: WorldScope;
+    actorId: string;
+    command: string;
+    idempotencyKey: string;
+  },
+): Promise<WorldActionPlayerSafeResult> {
+  const match = matchCityTake(input.command);
+  const context = await dependencies.context.compile({
+    scope: input.scope,
+    viewpointId: input.actorId,
+    command: input.command,
+  }).catch(() => null);
+  const locationId = context?.entities.find((entity) => entity.entityId === input.actorId)
+    ?.locationId;
+  const taken =
+    (await dependencies.takeCityStock?.({
+      scope: input.scope,
+      actorId: input.actorId,
+      command: input.command,
+      locationId,
+    })) || null;
+  if (taken?.facts.length) {
+    return completeFactAction(dependencies, input, taken);
+  }
+  const label = match?.slot.label || "that item";
+  return completeFactAction(dependencies, input, {
+    hereName: "the street",
+    facts: [
+      `No loaded city place stocks a ${label} you can take from here.`,
+    ],
+  });
 }
