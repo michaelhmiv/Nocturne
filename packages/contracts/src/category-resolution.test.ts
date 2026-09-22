@@ -51,10 +51,7 @@ describe("clarification policy", () => {
     const decision = mayClarify({
       verbKnown: true,
       resolution: "ambiguous",
-      candidateEntityIds: [
-        STARTER_FOUNDRY_ROW_PLACES.bodegaId,
-        STARTER_FOUNDRY_ROW_PLACES.alleyId,
-      ],
+      candidateEntityIds: [STARTER_FOUNDRY_ROW_PLACES.bodegaId, STARTER_FOUNDRY_ROW_PLACES.alleyId],
       candidatesAreMaterialized: true,
       wrongChoiceMutatesDifferentEntity: true,
     });
