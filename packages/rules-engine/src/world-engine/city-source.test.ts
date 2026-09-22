@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { frameFromUtterance } from "@nocturne/contracts";
+import { EngineIntentSchema, frameFromUtterance } from "@nocturne/contracts";
 import { createWorldEngine } from "./decide.js";
 import { createMemoryPorts } from "./memory-ports.js";
 import { createFeatureSourcePort, pickNearestFeature } from "./city-source.js";
@@ -69,17 +69,19 @@ describe("city source port", () => {
       source,
     });
     const frame = frameFromUtterance("go to the nearest grocery store");
-    const decision = await engine.decide({
-      worldId: actor.worldId,
-      shardId: actor.shardId,
-      actorId: actor.actorId,
-      requestId: "44444444-4444-4444-8444-444444444444",
-      primitive: frame!.primitive,
-      category: frame!.category,
-      selector: frame!.selector,
-      travelMode: frame!.travelMode,
-      rawText: "go to the nearest grocery store",
-    });
+    const decision = await engine.decide(
+      EngineIntentSchema.parse({
+        worldId: actor.worldId,
+        shardId: actor.shardId,
+        actorId: actor.actorId,
+        requestId: "44444444-4444-4444-8444-444444444444",
+        primitive: frame!.primitive,
+        category: frame!.category,
+        selector: frame!.selector,
+        travelMode: frame!.travelMode,
+        rawText: "go to the nearest grocery store",
+      }),
+    );
     expect(decision.status).toBe("materialize_from_source");
     expect(decision.requiresClarification).toBe(false);
     expect(decision.target?.sourceKey).toBe("osm:node:1");
