@@ -28,6 +28,16 @@ try {
     .update(parsed.hostname + ":" + parsed.port)
     .digest("hex")
     .slice(0, 16);
+  assert.equal(
+    fingerprint,
+    "545485b0dba3929f",
+    "DATABASE_URL endpoint differs from the verified Railway Testing public TCP proxy; refusing any database writes",
+  );
+  assert.equal(
+    Math.floor(row.version / 10000),
+    18,
+    "Expected Railway Testing PostgreSQL 18",
+  );
   console.log(
     JSON.stringify({
       event: "testing_database_readonly_probe",
@@ -36,7 +46,7 @@ try {
       postgresMajor: Math.floor(row.version / 10000),
       hasWorlds: row.has_worlds,
       hasMigrations: row.has_migrations,
-      identity: "NOT_YET_INDEPENDENTLY_VERIFIED",
+      identity: "PINNED_TESTING_TCP_ENDPOINT_USER_ATTESTED",
     }),
   );
 } finally {
