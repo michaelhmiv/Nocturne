@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stockForFamily } from "./family-stock.js";
+import { findStockSlot, stockForFamily } from "./family-stock.js";
 
 describe("family stock", () => {
   it("gives a bodega food-ish slots instead of a SKU encyclopedia", () => {
@@ -12,6 +12,17 @@ describe("family stock", () => {
       "bandage",
       "painkiller",
     ]);
+  });
+
+  it("gives a garage tools instead of an invented mechanic NPC", () => {
+    expect(stockForFamily("place.service.garage").map((slot) => slot.sku)).toEqual([
+      "wrench",
+      "crowbar",
+    ]);
+    expect(findStockSlot("Grab wrench from mechanic")).toMatchObject({
+      placeFamily: "place.service.garage",
+      slot: { sku: "wrench", label: "wrench" },
+    });
   });
 
   it("gives a precinct no retail stock", () => {
