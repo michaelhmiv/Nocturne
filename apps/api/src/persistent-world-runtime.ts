@@ -43,9 +43,7 @@ import { registerPlayerEffectRoutes } from "./player-effect-routes.js";
 import { createCityAwareWorldActionService } from "./city-aware-action-service.js";
 import { compileLiveCityScene } from "./compile-live-city-scene.js";
 import { ensureCityDestination } from "./ensure-city-destination.js";
-import {
-  resolveCityDestinationFromFeatures,
-} from "./resolve-city-destination.js";
+import { resolveCityDestinationFromFeatures } from "./resolve-city-destination.js";
 import { registerPersistentWorldRoutes } from "./persistent-world-routes.js";
 import { createRoutineActionService } from "./routine-action-service.js";
 import { createSearchDiscoveryService } from "./search-discovery-service.js";
