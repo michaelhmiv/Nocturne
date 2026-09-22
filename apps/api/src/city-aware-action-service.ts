@@ -7,6 +7,7 @@ import type { WorldScope } from "@nocturne/database";
 import {
   categoryTravelFrame,
   isCategoryTravelCommand,
+  isScenePerceiveCommand,
   missingCityDestinationPrompt,
 } from "./category-travel.js";
 import {
@@ -26,6 +27,11 @@ export type CityAwareActionDependencies = InnerDeps & {
     lon?: number | null;
     lat?: number | null;
   }) => Promise<{ entityId: string; sourceKey?: string; name?: string } | null>;
+  compileLiveScene?: (input: {
+    scope: WorldScope;
+    actorId: string;
+    locationId?: string | null;
+  }) => Promise<{ facts: string[]; hereName: string }>;
 };
 
 export function createCityAwareWorldActionService(
@@ -40,8 +46,15 @@ export function createCityAwareWorldActionService(
     idempotencyKey: string;
     clarificationForRequestId?: string;
   }): Promise<WorldActionPlayerSafeResult> {
-    if (!isCategoryTravelCommand(input.command) || input.clarificationForRequestId) {
+    if (
+      input.clarificationForRequestId ||
+      (!isCategoryTravelCommand(input.command) && !isScenePerceiveCommand(input.command))
+    ) {
       return inner.submit(input);
+    }
+
+    if (isScenePerceiveCommand(input.command)) {
+      return submitPerceive(dependencies, inner, input);
     }
 
     const frame = categoryTravelFrame(input.command);
@@ -118,6 +131,7 @@ export function createCityAwareWorldActionService(
         command: input.command,
         actorId: input.actorId,
         destinationId: destination.entityId,
+        destinationName: destination.name,
       });
       const activePlanId = await dependencies.plans.findActive({
         scope: input.scope,
@@ -167,4 +181,141 @@ export function createCityAwareWorldActionService(
   }
 
   return { submit, executePlan: inner.executePlan };
+}
+
+async function submitPerceive(
+  dependencies: CityAwareActionDependencies,
+  _inner: PersistentWorldActionService,
+  input: {
+    scope: WorldScope;
+    actorId: string;
+    command: string;
+    idempotencyKey: string;
+  },
+): Promise<WorldActionPlayerSafeResult> {
+  const reservation = await dependencies.requests.reserve({
+    scope: input.scope,
+    actorId: input.actorId,
+    command: input.command,
+    idempotencyKey: input.idempotencyKey,
+  });
+  if (!reservation.created) {
+    if (reservation.playerSafeResult) return reservation.playerSafeResult;
+    throw new PersistentWorldActionServiceError(
+      "in_progress",
+      "The same world action is already being processed.",
+    );
+  }
+
+  let currentStatus = "reserved";
+  try {
+    await dependencies.requests.transition({
+      scope: input.scope,
+      requestId: reservation.requestId,
+      expectedStatus: currentStatus,
+      status: "compiling_context",
+    });
+    currentStatus = "compiling_context";
+    const context = await dependencies.context.compile({
+      scope: input.scope,
+      viewpointId: input.actorId,
+      command: input.command,
+    });
+    await dependencies.requests.transition({
+      scope: input.scope,
+      requestId: reservation.requestId,
+      expectedStatus: currentStatus,
+      status: "resolving_references",
+      contextCompilationId: context.compilationId,
+    });
+    currentStatus = "resolving_references";
+    const locationId = context.entities.find((entity) => entity.entityId === input.actorId)
+      ?.locationId;
+    const packet =
+      (await dependencies.compileLiveScene?.({
+        scope: input.scope,
+        actorId: input.actorId,
+        locationId,
+      })) || {
+        facts: ["The loaded city extract has no visible storefronts."],
+        hereName: "the street",
+      };
+    await dependencies.requests.transition({
+      scope: input.scope,
+      requestId: reservation.requestId,
+      expectedStatus: currentStatus,
+      status: "planning",
+      contextCompilationId: context.compilationId,
+    });
+    currentStatus = "planning";
+    const proposal = {
+      originalCommand: input.command,
+      exclusivePhysical: false,
+      steps: [
+        {
+          order: 1,
+          kind: "question" as const,
+          description: packet.facts[0] || input.command,
+          intentPayload: {
+            rawText: input.command,
+            actionType: "question",
+            facts: packet.facts,
+          },
+          referencedEntities: [{ entityId: input.actorId, role: "actor" as const }],
+        },
+      ],
+      dependencies: [],
+    };
+    const plan = await dependencies.plans.create({
+      scope: input.scope,
+      actorId: input.actorId,
+      proposal,
+      idempotencyRoot: input.idempotencyKey,
+      conflictDecision: "reject",
+    });
+    await dependencies.requests.transition({
+      scope: input.scope,
+      requestId: reservation.requestId,
+      expectedStatus: currentStatus,
+      status: "executing",
+      planId: plan.planId,
+    });
+    currentStatus = "executing";
+    const recorded = await dependencies.plans.read({
+      scope: input.scope,
+      planId: plan.planId,
+    });
+    const result = WorldActionPlayerSafeResultSchema.parse({
+      state: "completed",
+      requestId: reservation.requestId,
+      plan: {
+        ...recorded,
+        status: "completed",
+      },
+      narration: packet.facts.join(" "),
+      eventIds: [],
+    });
+    await dependencies.requests.transition({
+      scope: input.scope,
+      requestId: reservation.requestId,
+      expectedStatus: currentStatus,
+      status: "completed",
+      playerSafeResult: result,
+    });
+    return result;
+  } catch (error) {
+    await dependencies.requests
+      .transition({
+        scope: input.scope,
+        requestId: reservation.requestId,
+        expectedStatus: currentStatus,
+        status: "failed",
+        errorCode: "planning_failed",
+        authoritativeResult: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
+      .catch(() => {});
+    throw error;
+  }
 }
