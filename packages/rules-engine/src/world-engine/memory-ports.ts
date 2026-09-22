@@ -34,13 +34,14 @@ export function createMemoryPorts(world: MemoryWorld): {
     async queryNearest({ family, lon, lat }) {
       const matches = world.sources.filter((candidate) => candidate.family === family);
       if (matches.length === 0) return null;
-      return [...matches].sort((left, right) => {
+      const nearest = [...matches].sort((left, right) => {
         const leftDistance =
           left.distanceMeters || distanceMeters(lon, lat, left.lon ?? lon, left.lat ?? lat);
         const rightDistance =
           right.distanceMeters || distanceMeters(lon, lat, right.lon ?? lon, right.lat ?? lat);
         return leftDistance - rightDistance;
       })[0];
+      return nearest ?? null;
     },
   };
 
