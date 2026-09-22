@@ -48,6 +48,17 @@ describe("player-scoped geography projection", () => {
     ]);
     expect(geodesicDistanceMeters(origin, origin)).toBe(0);
   });
+  it("caps dense neighborhoods and rejects invalid raw source coordinates", () => {
+    const dense = Array.from({ length: 60 }, (_, index) => ({
+      ...food,
+      provider_feature_id: `node:market-${index}`,
+    }));
+    expect(projectDiscoverablePlaces(origin, dense)).toHaveLength(16);
+    expect(projectDiscoverablePlaces(origin, [
+      { ...food, centroid_latitude: Number.NaN },
+    ])).toEqual([]);
+  });
+
   it("changes neighborhood evidence when the actor moves", () => {
     expect(projectDiscoverablePlaces({ longitude: -73.96, latitude: 40.8 }, [food, far])).toEqual([
       expect.objectContaining({ sourceKey: "osm:node:far-grocery" }),
