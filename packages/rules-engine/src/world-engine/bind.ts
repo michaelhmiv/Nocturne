@@ -121,13 +121,16 @@ export async function bindIntent(
     };
   }
 
-  if (pool.length === 1) {
-    return { status: "bound", actor, target: toTarget(pool[0]), conflictNames: [] };
+  const only = pool[0];
+  if (pool.length === 1 && only) {
+    return { status: "bound", actor, target: toTarget(only), conflictNames: [] };
   }
 
   if (pool.length > 1 && (intent.selector === "nearest" || intent.selector === "any")) {
     const nearest = [...pool].sort((left, right) => left.distanceMeters - right.distanceMeters)[0];
-    return { status: "bound", actor, target: toTarget(nearest), conflictNames: [] };
+    if (nearest) {
+      return { status: "bound", actor, target: toTarget(nearest), conflictNames: [] };
+    }
   }
 
   if (actor.lon === null || actor.lat === null || !intent.category) {
