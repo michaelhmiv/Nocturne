@@ -25,6 +25,7 @@ export const MUTATING_PRIMITIVES: readonly SandboxPrimitive[] = [
   "wait",
   "work",
   "occupy",
+  "communicate",
 ];
 
 export const KIND_TO_PRIMITIVE: Record<WorldActionKind, SandboxPrimitive> = {
