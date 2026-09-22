@@ -355,8 +355,7 @@ export function isInventedSuccess(status: ResolutionStatus, mutated: boolean): b
   );
 }
 
-const TRAVEL_VERB =
-  /\b(go|walk|run|drive|head|take me|find|visit|travel|head over|come with)\b/;
+const TRAVEL_VERB = /\b(go|walk|run|drive|head|take me|find|visit|travel|head over|come with)\b/;
 const TRANSFER_VERB = /\b(give|hand|pass|trade|drop)\b/;
 
 export function hasExplicitTravelVerb(rawText: string) {
@@ -369,11 +368,7 @@ export function frameFromUtterance(rawText: string): IntentFrame | null {
   const lowered = rawText.toLowerCase();
   const travelIntent = hasExplicitTravelVerb(lowered);
   const transferIntent = TRANSFER_VERB.test(lowered);
-  const primitive = travelIntent
-    ? "travel"
-    : transferIntent
-      ? "transfer"
-      : noun.defaultPrimitive;
+  const primitive = travelIntent ? "travel" : transferIntent ? "transfer" : noun.defaultPrimitive;
   const travelMode: TravelMode | undefined = /\bdrive\b/.test(lowered)
     ? "drive"
     : /\brun\b/.test(lowered)
