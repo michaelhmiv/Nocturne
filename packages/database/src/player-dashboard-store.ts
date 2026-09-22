@@ -1,4 +1,8 @@
-import { PlayerDashboardSchema, type PlayerDashboard } from "@nocturne/contracts";
+import {
+  PlayerDashboardSchema,
+  skillProgressForXp,
+  type PlayerDashboard,
+} from "@nocturne/contracts";
 import type { createDatabase } from "./index.js";
 import { createPersistentSceneStore, type PersistentSceneStore } from "./persistent-scene-store.js";
 import { createPlayerEffectStore, type PlayerEffectStore } from "./player-effect-store.js";
@@ -214,6 +218,11 @@ export function createPlayerDashboardStore(
         resources: resourcesFromState(state),
         activeConditions: activeConditionsFromState(state),
         skills: numericRecord(state.skills),
+        skillProgress: Object.fromEntries(
+          Object.entries(numericRecord(state.skills))
+            .filter(([, xp]) => Number.isSafeInteger(xp) && xp >= 0)
+            .map(([skill, xp]) => [skill, skillProgressForXp(xp)]),
+        ),
         factionStanding: numericRecord(state.factionStanding),
         inventory: inventoryFromState(state),
       },
