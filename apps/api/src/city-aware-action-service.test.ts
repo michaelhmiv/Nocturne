@@ -91,8 +91,7 @@ describe("city-aware submit", () => {
     });
     expect(bag.plans.create).toHaveBeenCalled();
     const created = bag.plans.create.mock.calls.at(0)?.at(0) as
-      | { proposal?: { steps?: Array<{ intentPayload?: { destinationId?: string } }> } }
-      | undefined;
+      { proposal?: { steps?: Array<{ intentPayload?: { destinationId?: string } }> } } | undefined;
     expect(created?.proposal?.steps?.[0]?.intentPayload?.destinationId).toBe(DEST);
     expect(result.state).toBe("completed");
   });
