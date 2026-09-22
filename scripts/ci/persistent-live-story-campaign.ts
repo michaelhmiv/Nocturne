@@ -433,7 +433,11 @@ try {
     worldId = existing.world_id;
     if (prior) {
       assert.equal(prior.status, "active", "Do not reuse a revoked certification world.");
-      assert.equal(prior.campaign_mode, "persistent", "This is not a persistent certification run.");
+      assert.equal(
+        prior.campaign_mode,
+        "persistent",
+        "This is not a persistent certification run.",
+      );
       runId = prior.run_id;
       shardId = prior.shard_id;
     } else {
@@ -447,7 +451,9 @@ try {
       );
       assert.equal(orphan?.entities, 0, "Unsafe recovery: orphan world already has entities.");
       assert.equal(orphan?.events, 0, "Unsafe recovery: orphan world already has events.");
-      const [onlyShard] = await query("SELECT shard_id FROM game.world_shards WHERE world_id=$1", [worldId]);
+      const [onlyShard] = await query("SELECT shard_id FROM game.world_shards WHERE world_id=$1", [
+        worldId,
+      ]);
       assert.ok(onlyShard?.shard_id, "Orphan world is missing its shard.");
       shardId = onlyShard.shard_id;
       await query(
@@ -465,7 +471,11 @@ try {
       "SELECT expires_at > now() + interval '115 minutes' AS active_long_enough FROM game.certification_runs WHERE run_id=$1",
       [runId],
     );
-    assert.equal(remaining?.active_long_enough, true, "Persistent campaign certification expires before this batch ends; never extend beyond its 90-day creation cap.");
+    assert.equal(
+      remaining?.active_long_enough,
+      true,
+      "Persistent campaign certification expires before this batch ends; never extend beyond its 90-day creation cap.",
+    );
   } else {
     await query(
       "INSERT INTO game.worlds(world_id,slug,name,metadata) VALUES ($1,$2,'Persistent real-model certification district',$3::jsonb)",
