@@ -1,0 +1,85 @@
+name: Persistent Railway Testing Campaign
+on:
+  pull_request:
+    paths:
+      - .github/workflows/persistent-real-model.yml
+      - scripts/ci/persistent-story-campaign.ts
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: nocturne-railway-testing-persistent
+  cancel-in-progress: false
+jobs:
+  campaign:
+    runs-on: ubuntu-latest
+    environment: Testing
+    timeout-minutes: 115
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      AI_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      AI_PROVIDER: openrouter
+      AI_BASE_URL: https://openrouter.ai/api/v1
+      AI_DECISION_ENDPOINT: https://openrouter.ai/api/alpha/decisions
+      AI_DECISION_MODEL: "~typesafe/jev-latest"
+      AI_NARRATION_MODEL: poolside/laguna-xs-2.1
+      AI_MODEL: qwen/qwen3.7-flash
+      AI_GENERATIVE_MODEL: qwen/qwen3.7-flash
+      AI_AUTHORITATIVE_MODEL: qwen/qwen3.7-flash
+      AI_CREATIVE_MODEL: qwen/qwen3.7-flash
+      AI_TIMEOUT_MS: "65000"
+      AI_DECISION_TIMEOUT_MS: "15000"
+      NOCTURNE_API_URL: http://127.0.0.1:3101
+      NOCTURNE_LIVE_STORY_SANDBOX: "1"
+      PERSISTENT_BATCH_SIZE: "12"
+      BETTER_AUTH_SECRET: persistent-ci-auth-secret-at-least-thirty-two-characters
+      BETTER_AUTH_URL: http://127.0.0.1:3000
+      BETTER_AUTH_TRUSTED_ORIGINS: http://127.0.0.1:3000,http://127.0.0.1:3101
+      NOCTURNE_GUEST_MODE: "true"
+      NOCTURNE_GUEST_USER_ID: unbound-persistent-certification
+      NOCTURNE_RESOLUTION_SECRET: isolated-persistent-resolution-secret
+      NOCTURNE_ROLL_SECRET: isolated-persistent-roll-secret
+      AI_JOB_WORKER_SECRET: isolated-persistent-worker-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Pin Testing database and apply verified schema
+        run: pnpm --filter @nocturne/database exec tsx src/testing-db-readonly.ts && pnpm db:migrate && pnpm db:check
+      - name: Compile game and worker
+        run: pnpm --filter @nocturne/api build && pnpm --filter @nocturne/worker build
+      - name: Start game API and worker
+        run: |
+          mkdir -p artifacts/live-story
+          PORT=3101 node apps/api/dist/index.js > artifacts/live-story/api-process.log 2>&1 &
+          echo $! > artifacts/live-story/api.pid
+          node apps/worker/dist/index.js > artifacts/live-story/worker-process.log 2>&1 &
+          echo $! > artifacts/live-story/worker.pid
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3101/health >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Execute real-model persistent story
+        run: |
+          set -o pipefail
+          pnpm exec tsx scripts/ci/persistent-story-campaign.ts 2>&1 | tee artifacts/live-story/live-story-console.log
+      - if: always()
+        run: |
+          kill $(cat artifacts/live-story/api.pid) $(cat artifacts/live-story/worker.pid) 2>/dev/null || true
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: persistent-story-${{ github.run_id }}
+          path: |
+            artifacts/live-story/results.json
+            artifacts/live-story/transcript.md
+            artifacts/live-story/live-story-console.log
+          retention-days: 30

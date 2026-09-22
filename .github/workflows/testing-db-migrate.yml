@@ -1,0 +1,39 @@
+name: Railway Testing / Guarded Schema Bootstrap
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/testing-db-migrate.yml"
+      - "packages/database/src/testing-db-readonly.ts"
+      - "packages/database/migrations/**"
+permissions:
+  contents: read
+concurrency:
+  group: railway-testing-schema-bootstrap
+  cancel-in-progress: false
+jobs:
+  migrate:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment: Testing
+    timeout-minutes: 25
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Fail closed unless public Testing TCP endpoint is pinned and reachable
+        run: pnpm --filter @nocturne/database exec tsx src/testing-db-readonly.ts
+      - name: Apply exact checked-in migrations to isolated Testing PostgreSQL
+        run: pnpm db:migrate
+      - name: Verify migration ledger and checksums
+        run: pnpm db:check
+      - name: Verify installed Testing schema without any writes
+        run: pnpm --filter @nocturne/database exec tsx src/testing-db-readonly.ts

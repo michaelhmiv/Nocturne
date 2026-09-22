@@ -1,0 +1,127 @@
+name: Persistent Railway Testing / Real Jev Laguna 5000-Turn Campaign
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "scripts/ci/persistent-live-story-campaign.ts"
+      - "scripts/ci/signal-garden-campaign.ts"
+      - "scripts/ci/gameplay-verdict.ts"
+      - "scripts/ci/gameplay-verdict.test.ts"
+      - "scripts/ci/production-smoke.ts"
+      - "scripts/ci/story-certification-corpus.mjs"
+      - ".github/workflows/persistent-real-campaign.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/ci/persistent-live-story-campaign.ts"
+      - "scripts/ci/signal-garden-campaign.ts"
+      - "scripts/ci/gameplay-verdict.ts"
+      - "scripts/ci/production-smoke.ts"
+      - ".github/workflows/persistent-real-campaign.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: railway-testing-persistent-certification-world
+  cancel-in-progress: false
+
+jobs:
+  live-story:
+    name: Persistent / real Jev + Laguna / 5000 unique turns in batches
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment: Testing
+    timeout-minutes: 115
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      NOCTURNE_LIVE_STORY_SANDBOX: "1"
+      NOCTURNE_API_URL: http://127.0.0.1:3101
+      PERSISTENT_STORY_BATCH: "250"
+      BETTER_AUTH_SECRET: live-story-certification-secret-at-least-thirty-two-characters
+      BETTER_AUTH_URL: http://127.0.0.1:3000
+      BETTER_AUTH_TRUSTED_ORIGINS: http://127.0.0.1:3000,http://127.0.0.1:3101
+      NOCTURNE_GUEST_MODE: "true"
+      NOCTURNE_GUEST_USER_ID: unbound-live-story-test-account
+      NOCTURNE_RESOLUTION_SECRET: isolated-live-story-resolution-secret
+      NOCTURNE_ROLL_SECRET: isolated-live-story-roll-secret
+      AI_JOB_WORKER_SECRET: isolated-live-story-worker-secret
+      AI_PROVIDER: openrouter
+      AI_BASE_URL: https://openrouter.ai/api/v1
+      AI_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      AI_GENERATIVE_MODEL: qwen/qwen3.7-flash
+      AI_MODEL: qwen/qwen3.7-flash
+      AI_AUTHORITATIVE_MODEL: qwen/qwen3.7-flash
+      AI_CREATIVE_MODEL: qwen/qwen3.7-flash
+      AI_NARRATION_MODEL: poolside/laguna-xs-2.1
+      AI_DECISION_MODEL: "~typesafe/jev-latest"
+      AI_DECISION_ENDPOINT: https://openrouter.ai/api/alpha/decisions
+      AI_DECISION_TIMEOUT_MS: "15000"
+      AI_TIMEOUT_MS: "65000"
+      AI_JSON_MODE: "true"
+      AI_THINKING_MODE: omit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Require live OpenRouter credential
+        shell: bash
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo "::error::OPENROUTER_API_KEY is required; no fake-provider fallback."
+            exit 1
+          fi
+      - name: Prove the outcome policy rejects historical false-green production cases
+        run: pnpm exec vitest run scripts/ci/gameplay-verdict.test.ts
+      - name: Build compiled API and worker
+        run: |
+          pnpm --filter @nocturne/api build
+          pnpm --filter @nocturne/worker build
+      - name: Fail closed unless the persistent Testing endpoint matches the verified public TCP proxy
+        run: pnpm --filter @nocturne/database exec tsx src/testing-db-readonly.ts
+      - name: Verify Testing schema migration ledger without mutating world data
+        run: pnpm db:check
+      - name: Start real-model API and schedule worker
+        run: |
+          mkdir -p artifacts/live-story
+          PORT=3101 node apps/api/dist/index.js > artifacts/live-story/api-process.log 2>&1 &
+          echo $! > artifacts/live-story/api.pid
+          node apps/worker/dist/index.js > artifacts/live-story/worker-process.log 2>&1 &
+          echo $! > artifacts/live-story/worker.pid
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3101/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::Real-model compiled API did not become healthy."
+          exit 1
+      - name: Continue 72 real-provider story beats with independent identities and durable checkpoints
+        run: |
+          set -o pipefail
+          pnpm exec tsx scripts/ci/persistent-live-story-campaign.ts 2>&1 | tee artifacts/live-story/live-story-console.log
+      - if: always()
+        name: Stop API and worker
+        run: |
+          kill $(cat artifacts/live-story/api.pid) $(cat artifacts/live-story/worker.pid) 2>/dev/null || true
+      - if: always()
+        name: Upload live story results and sanitized transcript
+        uses: actions/upload-artifact@v4
+        with:
+          name: persistent-railway-story-${{ github.run_id }}
+          path: |
+            artifacts/live-story/results.json
+            artifacts/live-story/transcript.md
+            artifacts/live-story/live-story-console.log
+          if-no-files-found: warn
+          retention-days: 30
