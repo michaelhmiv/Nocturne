@@ -27,6 +27,7 @@ export * from "./resolution.js";
 export * from "./resource.js";
 export * from "./sandbox-systems.js";
 export * from "./scene.js";
+export * from "./skill-progression.js";
 export * from "./search-discovery.js";
 export * from "./semantic-action.js";
 export * from "./simulation.js";
