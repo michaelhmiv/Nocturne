@@ -34,6 +34,14 @@ try {
     "DATABASE_URL endpoint differs from the verified Railway Testing public TCP proxy; refusing any database writes",
   );
   assert.equal(Math.floor(row.version / 10000), 18, "Expected Railway Testing PostgreSQL 18");
+  const certStatus = row.has_migrations
+    ? await connection.begin("read only", (tx) => tx.unsafe(
+        "SELECT count(*)::int AS runs, " +
+        "count(*) FILTER (WHERE expires_at > created_at + interval '2 hours')::int AS over_two_hours, " +
+        "count(*) FILTER (WHERE expires_at > created_at + interval '365 days')::int AS over_one_year " +
+        "FROM game.certification_runs"
+      ))
+    : [];
   console.log(
     JSON.stringify({
       event: "testing_database_readonly_probe",
@@ -43,6 +51,7 @@ try {
       hasWorlds: row.has_worlds,
       hasMigrations: row.has_migrations,
       identity: "PINNED_TESTING_TCP_ENDPOINT_USER_ATTESTED",
+      existingCertificationRunLifetime: certStatus[0] || null,
     }),
   );
 } finally {
