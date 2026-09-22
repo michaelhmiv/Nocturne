@@ -503,16 +503,16 @@ try {
   }
   await query(
     "INSERT INTO system.persistent_campaigns(campaign_key,run_id,world_id,shard_id) " +
-    "VALUES ($1,$2,$3,$4) ON CONFLICT (campaign_key) DO NOTHING",
-    [campaignSlug,runId,worldId,shardId],
+      "VALUES ($1,$2,$3,$4) ON CONFLICT (campaign_key) DO NOTHING",
+    [campaignSlug, runId, worldId, shardId],
   );
   const [checkpoint] = await query(
     "SELECT run_id,world_id,shard_id FROM system.persistent_campaigns WHERE campaign_key=$1",
     [campaignSlug],
   );
-  assert.equal(checkpoint.run_id,runId,"Campaign checkpoint run mismatch.");
-  assert.equal(checkpoint.world_id,worldId,"Campaign checkpoint world mismatch.");
-  assert.equal(checkpoint.shard_id,shardId,"Campaign checkpoint shard mismatch.");
+  assert.equal(checkpoint.run_id, runId, "Campaign checkpoint run mismatch.");
+  assert.equal(checkpoint.world_id, worldId, "Campaign checkpoint world mismatch.");
+  assert.equal(checkpoint.shard_id, shardId, "Campaign checkpoint shard mismatch.");
   beats = allBeats.slice(cursor, cursor + limit);
   assert.ok(
     beats.length,
@@ -633,15 +633,15 @@ try {
         // cursor advance together so reruns never silently skip a beat.
         await tx.unsafe(
           "INSERT INTO system.persistent_campaign_beats(campaign_key,sequence,beat_id,actor_alias,verdict,result) " +
-          "VALUES ($1,$2,$3,$4,$5,$6::jsonb) ON CONFLICT (campaign_key,sequence) DO NOTHING",
-          [campaignSlug,cursor+i,beat.id,beat.actor,result.verdict,JSON.stringify(result)],
+            "VALUES ($1,$2,$3,$4,$5,$6::jsonb) ON CONFLICT (campaign_key,sequence) DO NOTHING",
+          [campaignSlug, cursor + i, beat.id, beat.actor, result.verdict, JSON.stringify(result)],
         );
         await tx.unsafe(
           "UPDATE game.worlds SET metadata=jsonb_set(jsonb_set(metadata,'{persistentCampaign,nextTurn}',to_jsonb($2::int),true),'{persistentCampaign,failures}',to_jsonb($3::int),true) WHERE world_id=$1 AND slug=$4",
           [
             worldId,
-            cursor+i+1,
-            previousFailures+turns.filter(t=>t.verdict==="observed_failure").length,
+            cursor + i + 1,
+            previousFailures + turns.filter((t) => t.verdict === "observed_failure").length,
             campaignSlug,
           ],
         );
