@@ -246,6 +246,22 @@ async function runBeat(beat, index) {
   if (record && !durableEventsLinked) observedDefects.push("event_scope_or_link_mismatch");
   if (!ownDashboard) observedDefects.push("player_dashboard_missing_or_wrong");
   if (!narration) observedDefects.push("narration_missing");
+  // Required ordinary objectives are not certified merely because the API
+  // returned 200, wrote a failure event, or generated convincing prose.
+  const positiveObjectives = new Set(["keys-01", "keys-06", "keys-07", "keys-08"]);
+  if (positiveObjectives.has(beat.id)) {
+    if (!record || record.status !== "completed") {
+      observedDefects.push("positive_objective_not_completed");
+    }
+    if (/\\b(?:do not accomplish|did not accomplish|no matching source|no effect)\\b/i.test(narration)) {
+      observedDefects.push("positive_objective_failed_in_narration");
+    }
+    if (evidence.events.length === 0) observedDefects.push("positive_objective_has_no_event");
+    if (["keys-07", "keys-08"].includes(beat.id) && !materialStateChanged(before, after)) {
+      observedDefects.push("move_did_not_change_durable_location");
+    }
+  }
+
   if (beat.clock === "real" && ["waiting", "waiting_for_time"].includes(record?.status)) {
     observedDefects.push("real_timed_action_not_terminal_after_180_seconds");
   }
