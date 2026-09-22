@@ -20,7 +20,12 @@ test("audits navigation, character drawer, refresh, and responsive gameplay cont
   await expect(page.getByRole("link", { name: "Play" })).toBeVisible();
 
   const composer = page.getByPlaceholder("What do you do?");
-  const composerReady = await composer.isVisible({ timeout: 5_000 }).catch(() => false);
+  let composerReady = true;
+  try {
+    await expect(composer).toBeVisible({ timeout: 15_000 });
+  } catch {
+    composerReady = false;
+  }
   if (!composerReady) {
     await page.getByLabel("Name").fill("Interaction Audit Agent");
     await page
