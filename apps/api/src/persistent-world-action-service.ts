@@ -605,11 +605,9 @@ export function createPersistentWorldActionService(dependencies: {
         (fastDecision.actionType === "move" || fastDecision.kind === "move") &&
         isImpossibleMovementCommand(command);
       const clarification = dependencies.references.clarification(interpretation);
-      const forceImpossibleMovement =
-        impossibleMovement &&
-        fastDecision.fallbackReasons.every((reason) =>
-          ["ambiguous_reference", "clarification"].includes(reason),
-        );
+      // An explicitly impossible movement is a deterministic world failure even
+      // when Jev is uncertain about the low-level action type.
+      const forceImpossibleMovement = impossibleMovement;
       const continuationMovement = Boolean(
         pendingClarification &&
         isMovementCommand(pendingClarification.command) &&
