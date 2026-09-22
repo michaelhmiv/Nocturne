@@ -41,6 +41,7 @@ import { registerOperatorDashboardRoutes } from "./operator-dashboard-routes.js"
 import { registerPlayerDashboardRoutes } from "./player-dashboard-routes.js";
 import { registerPlayerEffectRoutes } from "./player-effect-routes.js";
 import { createCityAwareWorldActionService } from "./city-aware-action-service.js";
+import { ensureCityDestination } from "./ensure-city-destination.js";
 import { resolveCityDestinationFromFeatures } from "./resolve-city-destination.js";
 import { registerPersistentWorldRoutes } from "./persistent-world-routes.js";
 import { createRoutineActionService } from "./routine-action-service.js";
@@ -244,12 +245,22 @@ export async function registerPersistentWorldRuntime(
     narrateCommittedEvents,
     recordCompletedTurn: narrativeMemory.recordCompletedTurn,
     simulateReferencedEntity: dependencies.simulateReferencedEntity,
-    resolveCityDestination: async ({ command }) =>
-      resolveCityDestinationFromFeatures({
+    resolveCityDestination: async ({ command, locationId, scope }) => {
+      const destination = resolveCityDestinationFromFeatures({
         command,
+        worldId: scope.worldId,
         lon: OSM_STARTER_POINT.lon,
         lat: OSM_STARTER_POINT.lat,
-      }),
+      });
+      if (!destination) return null;
+      await ensureCityDestination({
+        database: dependencies.database,
+        scope,
+        destination,
+        actorLocationId: locationId,
+      });
+      return destination;
+    },
   });
 
   const scheduledContinuation: ScheduledPersistentActionContinuation = {

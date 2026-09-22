@@ -14,8 +14,9 @@ export type ResolvedCityDestination = {
   distanceMeters: number;
 };
 
-export function stableEntityId(sourceKey: string) {
-  const hex = createHash("sha1").update(`nocturne-osm:${sourceKey}`).digest("hex");
+export function stableEntityId(sourceKey: string, worldId?: string) {
+  const seed = worldId ? `nocturne-osm:${worldId}:${sourceKey}` : `nocturne-osm:${sourceKey}`;
+  const hex = createHash("sha1").update(seed).digest("hex");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
@@ -23,6 +24,7 @@ export function resolveCityDestinationFromFeatures(input: {
   command: string;
   lon: number;
   lat: number;
+  worldId?: string;
   features?: readonly CitySourceFeature[];
 }): ResolvedCityDestination | null {
   const frame = categoryTravelFrame(input.command);
@@ -34,7 +36,7 @@ export function resolveCityDestinationFromFeatures(input: {
   });
   if (!nearest?.sourceKey || !nearest.name) return null;
   return {
-    entityId: stableEntityId(nearest.sourceKey),
+    entityId: stableEntityId(nearest.sourceKey, input.worldId),
     sourceKey: nearest.sourceKey,
     name: nearest.name,
     family: nearest.family,
