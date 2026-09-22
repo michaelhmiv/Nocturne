@@ -158,7 +158,8 @@ export default function SceneGameClient() {
   const characterPanelRef = useRef<HTMLElement>(null);
 
   const selected = characters.find((character) => character.selected) || characters[0];
-  const actualScene = currentScene?.actorId === selected?.characterId ? currentScene.location : null;
+  const actualScene =
+    currentScene?.actorId === selected?.characterId ? currentScene.location : null;
   const resolvedEventIds = useMemo(
     () =>
       new Set(
@@ -193,9 +194,7 @@ export default function SceneGameClient() {
           gameFetch<{ actions: ActionResult[] }>(
             `actions?actorId=${encodeURIComponent(active.characterId)}`,
           ),
-          gameFetch<PlayerDashboard>("persistent-world/dashboard?historyLimit=1").catch(
-            () => null,
-          ),
+          gameFetch<PlayerDashboard>("persistent-world/dashboard?historyLimit=1").catch(() => null),
         ])
       : [{ actions: [] }, null];
     setCurrentScene(
@@ -223,7 +222,11 @@ export default function SceneGameClient() {
       return;
     }
     try {
-      setMessage(sessionStorage.getItem(`nocturne:draft:${session?.user.id || "guest"}:${selected.characterId}`) || "");
+      setMessage(
+        sessionStorage.getItem(
+          `nocturne:draft:${session?.user.id || "guest"}:${selected.characterId}`,
+        ) || "",
+      );
     } catch {
       // Private browsing may disable session storage; the composer still works.
     }
@@ -435,7 +438,9 @@ export default function SceneGameClient() {
     const kind = inferJobKind(text);
     setMessage("");
     try {
-      sessionStorage.removeItem(`nocturne:draft:${session?.user.id || "guest"}:${selected.characterId}`);
+      sessionStorage.removeItem(
+        `nocturne:draft:${session?.user.id || "guest"}:${selected.characterId}`,
+      );
     } catch {
       // No persistent draft storage is available.
     }
@@ -474,7 +479,10 @@ export default function SceneGameClient() {
       );
       setMessage(text);
       try {
-        sessionStorage.setItem(`nocturne:draft:${session?.user.id || "guest"}:${selected.characterId}`, text);
+        sessionStorage.setItem(
+          `nocturne:draft:${session?.user.id || "guest"}:${selected.characterId}`,
+          text,
+        );
       } catch {
         // Keep the failed command in component state.
       }
@@ -756,9 +764,7 @@ export default function SceneGameClient() {
                 <dd>{actualScene?.name || "Location unavailable"}</dd>
               </div>
             </dl>
-            {selected.residenceName && (
-              <p>Home: {selected.residenceName}</p>
-            )}
+            {selected.residenceName && <p>Home: {selected.residenceName}</p>}
             {selected.inventory?.length ? (
               <section>
                 <p className="scene-kicker">INVENTORY</p>
@@ -778,14 +784,19 @@ export default function SceneGameClient() {
               </section>
             ) : null}
             {session && (
-              <button className="scene-quiet-button" onClick={() => {
-                try {
-                  sessionStorage.removeItem(`nocturne:draft:${session.user.id}:${selected.characterId}`);
-                } catch {
-                  // Storage might be unavailable.
-                }
-                void authClient.signOut();
-              }}>
+              <button
+                className="scene-quiet-button"
+                onClick={() => {
+                  try {
+                    sessionStorage.removeItem(
+                      `nocturne:draft:${session.user.id}:${selected.characterId}`,
+                    );
+                  } catch {
+                    // Storage might be unavailable.
+                  }
+                  void authClient.signOut();
+                }}
+              >
                 Sign out
               </button>
             )}

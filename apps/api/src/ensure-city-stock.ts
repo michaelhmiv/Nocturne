@@ -13,7 +13,10 @@ export async function ensureCityStock(input: {
 }) {
   const sql = input.database.client;
   const definitionId = `${ITEM_DEFINITION_PREFIX}-${input.slot.sku}`;
-  const itemId = stableEntityId(`${input.place.sourceKey}:stock:${input.slot.sku}`, input.scope.worldId);
+  const itemId = stableEntityId(
+    `${input.place.sourceKey}:stock:${input.slot.sku}`,
+    input.scope.worldId,
+  );
 
   await sql`
     INSERT INTO game.entity_definitions (

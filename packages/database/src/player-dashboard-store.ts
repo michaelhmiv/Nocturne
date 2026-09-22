@@ -1,4 +1,8 @@
-import { PlayerDashboardSchema, skillProgressForXp, type PlayerDashboard } from "@nocturne/contracts";
+import {
+  PlayerDashboardSchema,
+  skillProgressForXp,
+  type PlayerDashboard,
+} from "@nocturne/contracts";
 import type { createDatabase } from "./index.js";
 import { createPersistentSceneStore, type PersistentSceneStore } from "./persistent-scene-store.js";
 import { createPlayerEffectStore, type PlayerEffectStore } from "./player-effect-store.js";

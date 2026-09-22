@@ -12,7 +12,10 @@ describe("shared skill XP contract", () => {
     [200_000, 100, 100_000, null],
   ])("projects %i XP as level %i", (xp, level, current, next) => {
     expect(skillProgressForXp(xp)).toEqual({
-      xp, level, currentLevelXp: current, nextLevelXp: next,
+      xp,
+      level,
+      currentLevelXp: current,
+      nextLevelXp: next,
     });
     expect(skillLevelForXp(xp)).toBe(level);
   });

@@ -304,10 +304,22 @@ export default function PlayerDashboardClient() {
             <details className="dashboard-diagnostics">
               <summary>Technical details</summary>
               <dl className="dashboard-stat-list dashboard-stat-list--columns">
-                <div><dt>Entity version</dt><dd>{character.version}</dd></div>
-                <div><dt>Simulation version</dt><dd>{character.simulationVersion}</dd></div>
-                <div><dt>Definition</dt><dd>{character.definitionId}</dd></div>
-                <div><dt>Character ID</dt><dd>{character.characterId}</dd></div>
+                <div>
+                  <dt>Entity version</dt>
+                  <dd>{character.version}</dd>
+                </div>
+                <div>
+                  <dt>Simulation version</dt>
+                  <dd>{character.simulationVersion}</dd>
+                </div>
+                <div>
+                  <dt>Definition</dt>
+                  <dd>{character.definitionId}</dd>
+                </div>
+                <div>
+                  <dt>Character ID</dt>
+                  <dd>{character.characterId}</dd>
+                </div>
               </dl>
             </details>
           </section>
@@ -322,8 +334,14 @@ export default function PlayerDashboardClient() {
                   </div>
                   <progress
                     aria-label={`${label(skill)} skill progress`}
-                    max={progress.nextLevelXp === null ? 1 : progress.nextLevelXp - progress.currentLevelXp}
-                    value={progress.nextLevelXp === null ? 1 : progress.xp - progress.currentLevelXp}
+                    max={
+                      progress.nextLevelXp === null
+                        ? 1
+                        : progress.nextLevelXp - progress.currentLevelXp
+                    }
+                    value={
+                      progress.nextLevelXp === null ? 1 : progress.xp - progress.currentLevelXp
+                    }
                   />
                   <small>
                     {progress.nextLevelXp === null
