@@ -13,6 +13,8 @@ export type ResolvedCityDestination = {
   name: string;
   family: string;
   distanceMeters: number;
+  lon?: number;
+  lat?: number;
 };
 
 export function stableEntityId(sourceKey: string, worldId?: string) {
@@ -40,6 +42,8 @@ export function resolveNearestCityFamily(input: {
     name: nearest.name,
     family: nearest.family,
     distanceMeters: nearest.distanceMeters,
+    lon: nearest.lon,
+    lat: nearest.lat,
   };
 }
 

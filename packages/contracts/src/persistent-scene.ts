@@ -46,6 +46,14 @@ export const PersistentWorldSceneSchema = z
             z.object({ locationId: UuidSchema, name: z.string().trim().min(1).max(240) }).strict(),
           )
           .max(16),
+        coordinates: z
+          .object({
+            longitude: z.number().finite().min(-180).max(180),
+            latitude: z.number().finite().min(-90).max(90),
+          })
+          .strict()
+          .nullable()
+          .default(null),
       })
       .strict(),
     nearbyEntities: z.array(PersistentSceneEntitySchema).max(96),
@@ -61,6 +69,8 @@ export const PersistentWorldSceneSchema = z
             name: z.string().trim().min(1).max(240),
             family: z.string().trim().min(1).max(80),
             distanceMeters: z.number().nonnegative(),
+            longitude: z.number().finite().min(-180).max(180),
+            latitude: z.number().finite().min(-90).max(90),
           })
           .strict(),
       )
