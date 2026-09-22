@@ -53,7 +53,6 @@ test("onboards a character, resolves every supported action, and loads the dashb
   );
   await page.getByPlaceholder("What do you do?").fill("");
 
-
   for (const action of actions) {
     const composer = page.getByPlaceholder("What do you do?");
     await composer.fill(action.prompt);
