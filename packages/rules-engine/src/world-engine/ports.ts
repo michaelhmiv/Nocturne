@@ -16,6 +16,8 @@ export type ActorSnapshot = {
 export type WorldCandidate = {
   entityId?: string;
   sourceKey?: string;
+  worldId?: string;
+  shardId?: string;
   family: CategoryFamily;
   name: string;
   distanceMeters: number;

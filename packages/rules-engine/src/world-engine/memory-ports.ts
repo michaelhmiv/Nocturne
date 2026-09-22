@@ -19,8 +19,14 @@ export function createMemoryPorts(world: MemoryWorld): {
         ) ?? null
       );
     },
-    async listKnown({ family }) {
-      return world.known.filter((candidate) => candidate.family === family && candidate.known);
+    async listKnown({ family, worldId, shardId }) {
+      return world.known.filter(
+        (candidate) =>
+          candidate.family === family &&
+          candidate.known &&
+          (!candidate.worldId || candidate.worldId === worldId) &&
+          (!candidate.shardId || candidate.shardId === shardId),
+      );
     },
   };
 
