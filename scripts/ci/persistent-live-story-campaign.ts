@@ -206,7 +206,7 @@ async function durableEvidence(requestId) {
   );
   const steps = request?.plan_id
     ? await query(
-        "SELECT step_id,step_order,status,result_event_id,result_receipt_id FROM game.action_plan_steps WHERE plan_id=$1 ORDER BY step_order",
+        "SELECT step_id,step_order,step_kind,intent_payload,status,result_event_id,result_receipt_id FROM game.action_plan_steps WHERE plan_id=$1 ORDER BY step_order",
         [request.plan_id],
       )
     : [];
@@ -306,6 +306,26 @@ async function runBeat(beat, index) {
   if (record && !durableEventsLinked) observedDefects.push("event_scope_or_link_mismatch");
   if (!ownDashboard) observedDefects.push("player_dashboard_missing_or_wrong");
   if (!narration) observedDefects.push("narration_missing");
+  if (beat.storyId === "signal-garden") {
+    const [expectedAction, expectedKind] = beat.checks || [];
+    if (!record || record.status === "waiting_for_clarification") {
+      observedDefects.push("generated_action_not_resolved");
+    }
+    if (record?.status === "completed") {
+      if (evidence.steps[0]?.step_kind !== expectedKind) {
+        observedDefects.push("generated_action_world_kind_mismatch");
+      }
+      const actualAction = evidence.steps[0]?.intent_payload?.actionType;
+      if (actualAction !== expectedAction) {
+        observedDefects.push("generated_action_type_mismatch");
+      }
+      if (
+        /\\b(?:do not accomplish|did not accomplish|no matching source|no effect)\\b/i.test(narration)
+      ) {
+        observedDefects.push("completed_action_failed_in_narration");
+      }
+    }
+  }
   // Required ordinary objectives are not certified merely because the API
   // returned 200, wrote a failure event, or generated convincing prose.
   const positiveObjectives = new Set([
@@ -387,6 +407,8 @@ async function runBeat(beat, index) {
     planId: record?.plan_id || null,
     steps: evidence.steps.map((s) => ({
       stepId: s.step_id,
+      stepKind: s.step_kind,
+      actionType: s.intent_payload?.actionType ?? null,
       status: s.status,
       eventId: s.result_event_id,
       receiptId: s.result_receipt_id,
