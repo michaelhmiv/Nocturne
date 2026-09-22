@@ -6,6 +6,7 @@ const SCOPE = {
   shardId: "22222222-2222-4222-8222-222222222222",
   userId: "33333333-3333-4333-8333-333333333333",
   role: "player" as const,
+  selectedCharacterId: "44444444-4444-4444-8444-444444444444",
 };
 
 const ACTOR = "44444444-4444-4444-8444-444444444444";
@@ -89,8 +90,10 @@ describe("city-aware submit", () => {
       idempotencyKey: "grocery-1",
     });
     expect(bag.plans.create).toHaveBeenCalled();
-    const proposal = bag.plans.create.mock.calls[0][0].proposal;
-    expect(proposal.steps[0].intentPayload.destinationId).toBe(DEST);
+    const created = bag.plans.create.mock.calls.at(0)?.at(0) as
+      | { proposal?: { steps?: Array<{ intentPayload?: { destinationId?: string } }> } }
+      | undefined;
+    expect(created?.proposal?.steps?.[0]?.intentPayload?.destinationId).toBe(DEST);
     expect(result.state).toBe("completed");
   });
 
@@ -107,5 +110,30 @@ describe("city-aware submit", () => {
     });
     expect(result.state).toBe("waiting_for_clarification");
     expect(bag.plans.create).not.toHaveBeenCalled();
+  });
+
+  it("answers what is around me from the city scene packet without Jev", async () => {
+    const bag = deps({
+      compileLiveScene: vi.fn(async () => ({
+        hereName: "14th Street Convenience",
+        facts: [
+          "You are at 14th Street Convenience (food).",
+          "Nearby: Third Avenue Fuel (fuel, 80m).",
+        ],
+      })),
+    });
+    const service = createCityAwareWorldActionService(bag as never);
+    const result = await service.submit({
+      scope: SCOPE,
+      actorId: ACTOR,
+      command: "what is around me",
+      idempotencyKey: "look-1",
+    });
+    expect(bag.decisionClient.decide).not.toHaveBeenCalled();
+    expect(result.state).toBe("completed");
+    if (result.state === "completed") {
+      expect(result.narration).toMatch(/14th Street Convenience/);
+      expect(result.narration).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}/i);
+    }
   });
 });
