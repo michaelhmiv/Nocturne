@@ -269,7 +269,8 @@ export function resolveCategory(input: CategoryResolveInput): CategoryResolveRes
     .sort(
       (left, right) =>
         Number(right.known) - Number(left.known) ||
-        (left.distance ?? Number.POSITIVE_INFINITY) - (right.distance ?? Number.POSITIVE_INFINITY) ||
+        (left.distance ?? Number.POSITIVE_INFINITY) -
+          (right.distance ?? Number.POSITIVE_INFINITY) ||
         left.entityId.localeCompare(right.entityId),
     );
 
