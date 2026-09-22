@@ -1,275 +1,197 @@
 # Nocturne master implementation plan
 
-Date: 2026-09-22
+Date: 2026-09-22 (revised same day: OSM-first city)
 Status: binding sequence for the finish-line engine
-Companion: `docs/architecture/sandbox-systems.md`, `packages/contracts/src/sandbox-systems.ts`
+Companion: `docs/architecture/sandbox-systems.md`, `packages/contracts/src/sandbox-systems.ts`, `packages/contracts/src/category-source.ts`
 Does not replace the revival contract. It reorders work so the engine can exist before the catalog.
 
 ## 0. Why the previous order failed
 
-The revival plan is correct about layers: Jev interprets, the engine commits, Laguna narrates. The numbered sequence put canonical NYC geography at #139, after more semantic packets and consequence frameworks. The live site then asked for clarification on "go to the nearest grocery store" because the engine only binds UUIDs it already has.
+The revival plan is correct about layers: Jev interprets, the engine commits, Laguna narrates. The numbered sequence put canonical NYC geography at #139, after more semantic packets. The live site then asked for clarification on "go to the nearest grocery store" because the engine only binds UUIDs it already has.
 
-Scribe-class IF engines fail the same way: the world is a graph of authored passages. Evennia, Quilltale, TaleWeaver, and TADS succeed where they keep a typed world and treat prose as a view. Nocturne already has the view split. It does not yet have one engine that answers categories against the city.
-
-This plan builds that engine first, then turns systems on against it. Vehicles, weapons, jobs, heat, and property are later _modules of the same kernel_, not later products.
+The first draft of this plan still treated MapPLUTO tax lots as the thing that answers "nearest grocery." That was wrong. MapPLUTO is a finance file (BBL, LandUse 01–11, RetailArea). OSM is streets, buildings, and `shop`/`amenity` POIs. Grocery is an OSM question. Ownership is a later MapPLUTO join.
 
 ## 1. Doctrine
 
-1. There is one player-command engine. API, worker, MCP, and tests call it. Handlers in `world-action-handler-registry.ts` become adapters that die as the kernel covers their primitive.
-2. The engine never reads English. Jev (or a deterministic compiler for held-out paraphrases) emits an intent packet. If the packet cannot be built, clarify or reject. Never invent a plan in Qwen/Laguna.
-3. A destination may be a category + selector, not only a UUID. The engine resolves it against known instances, then `world_geo`, then `source_geo`. It never invents a bodega.
-4. Mutation is a list of `UniversalWorldOperation`s committed atomically with `world_id` / `shard_id` on every row. No-op success is a defect.
-5. Clarification is legal only when two already-known playable instances would send the body or an item to different places. "Nearest X" is specified.
-6. Adding a future noun is a lexicon entry + source class + maybe a snapshot field. Adding a future verb is almost never allowed. If it does not map to travel / perceive / search / operate / transfer / consume / damage / repair / restrain / release / communicate / wait / work / occupy, stop and ask why.
-7. Could the engine run the turn if Laguna were `console.log(facts)`? If no, the work is in the wrong layer.
+1. There is one player-command engine. API, worker, MCP, and tests call it.
+2. The engine never reads English. Jev emits an intent packet. If the packet cannot be built, clarify or reject. Never invent a plan in Qwen/Laguna.
+3. A destination may be a category + selector. Bind order: known instances → `world_geo` → `source_geo`. Never invent a bodega.
+4. **`source_geo` for play is an OSM extract.** Versioned `.osm.pbf` (or derived features) imported into `source_geo.features`. Stable keys are `osm:node:` / `osm:way:` / `osm:relation:`. No live Overpass on the player path.
+5. **MapPLUTO is optional overlay**, not the resolver. Join BBL onto an OSM building when Wave G needs ownership. Until then a "parcel" is a building or landuse polygon.
+6. Mutation is `UniversalWorldOperation`s with `world_id` / `shard_id` on every row. No-op success is a defect.
+7. Clarification is legal only when two already-known playable instances would send the body or an item to different places. "Nearest X" is specified.
+8. Adding a noun is a lexicon phrase + an OSM tag row in `CATEGORY_SOURCE_CLASSES`. Adding a verb is almost never allowed.
+9. Could the engine run the turn if Laguna were `console.log(facts)`? If no, wrong layer.
 
 ## 2. The engine packet
 
-This is the only thing Jev is allowed to produce for a player command.
+Unchanged.
 
 ```text
 EngineIntent
   worldId, shardId, actorId, requestId
-  primitive              // travel, transfer, ...
-  category?              // place.retail.food, vehicle.automobile, item.weapon
-  selector               // nearest | here | known | named | equipped | carried | owned
-  travelMode?            // walk | run | sneak | drive | transit | ...
-  explicitEntityIds[]    // only IDs that appeared in compiled candidates
-  constraints            // hours, payment, stealth, force, durationSeconds
-  rawText                // audit only; engine must not parse it again
+  primitive, category?, selector, travelMode?
+  explicitEntityIds[]   // only compiled candidates
+  constraints, rawText  // rawText is audit only
 ```
-
-Kernel pipeline, one function:
 
 ```text
 compileContext(actor)
-  -> bind(intent, queryPort)          // instances, then world_geo, then source_geo
-  -> authorize(bind, physics, law, money, body)
-  -> plan(operations: UniversalWorldOperation[])
-  -> commit(operations) | fail-closed
-  -> facts for Laguna + dashboard projections
+  -> bind(intent, queryPort)     // instances, world_geo, source_geo
+  -> authorize
+  -> plan(operations)
+  -> commit | fail-closed
+  -> facts for Laguna + dashboard
 ```
 
-Ports (interfaces, not new products):
+Ports:
 
-- `WorldQueryPort` — actor point, known instances, category-near, route
-- `SourcePort` — MapPLUTO / OSM / POI lookup by family + bbox
-- `MaterializePort` — create playable instance keyed to source feature id
-- `MutationPort` — existing universal operations + receipts
-- `ClockPort` — schedule / complete timed work on wall clock
+- `WorldQueryPort` — actor point, known instances
+- `SourcePort` — OSM features by family + walking bbox (`CATEGORY_SOURCE_CLASSES`)
+- `MaterializePort` — playable instance keyed to `osm:…`
+- `MutationPort`, `ClockPort`
 
-The first GIS-backed grocery command and the first stolen car use the same function. Different category, different operations, same kernel.
+MapPLUTO may later implement a second `SourcePort` for `owned` lots. It must not answer `nearest` grocery.
 
-## 3. Current truth (do not plan as if this is done)
+## 3. Current truth
 
-Present and usable:
+Present:
 
-- Jev fast-path + semantic frame + world-action kinds
-- Universal world operations and mutation receipts
-- Search discovery / materialization contracts
-- Geospatial source registry and MapPLUTO lineage (`0032`)
-- Worker stub, dashboard, revival regressions (missing sandwich, missing pistol, two-minute stretch)
-- Sandbox constitution + noun lexicon (this branch)
+- Kernel packet, bind/plan, in-memory ports (Wave A on this branch)
+- `CATEGORY_SOURCE_CLASSES` + `createFeatureSourcePort` (Wave B data plane)
+- Category-travel command gate (grocery is specified travel)
+- `source_geo` / `world_geo` schemas and dataset rows, including `openstreetmap_nyc_seed` (still `unimported`)
+- Jev fast-path, universal operations, dashboards, revival regressions
 
-Broken or inverted:
+Not done:
 
-- Move handler requires `destinationId` UUID → category travel clarifies
-- Planner binds only supplied instance candidates
-- Consume isolation leak to `DEFAULT_WORLD` (#152)
-- Generic "you succeed" with no mutation (#153)
-- Timed work does not complete on wall clock (#154)
-- Starter unit can sit on `legacy:` cells instead of a real parcel
-- `WorldActionKind` handlers are the engine, so every new verb wants a new handler
-- Geography is imported as source, not queried as the destination resolver
+- OSM extract is not loaded into `source_geo.features`
+- `resolveCityDestination` is not wired through `PersistentWorldActionService.submit`
+- Starter body may still sit on `legacy:` cells
+- #152 / #153 / #154
+- Live site grocery sentence still clarifies
 
-## 4. Sequence
+## 4. Geography contract (OSM-first)
 
-Do not start Wave C until Wave B's grocery sentence mutates location against GIS. Do not start vehicles until travel + buy + consume work on the same kernel.
+```text
+OSM extract
+  highway            → streets / route graph
+  building           → place.building (this is the playable "parcel" at launch)
+  shop|amenity|…     → activity families
+  railway/station    → transit
+  landuse/leisure    → parks, industrial, etc.
+        ↓
+world_geo.spatial_entity.stable_key = osm:way:123
+        ↓
+playable interior / stock / clerk when bound
+```
 
-### Wave A — Kernel in process (about one focused PR)
+Activity checklist is the OSM tag table, not LandUse 01–11:
 
-**Goal.** The engine exists as a package with ports. Nothing new is playable yet. Everything later has a place to plug in.
+| family | OSM match |
+| --- | --- |
+| `place.retail.food` | `shop=convenience\|supermarket\|greengrocer\|deli` |
+| `place.retail.pharmacy` | `amenity=pharmacy` |
+| `place.service.fuel` | `amenity=fuel` |
+| `place.service.garage` | `shop=car_repair` |
+| `place.service.hospital` | `amenity=hospital` |
+| `place.civic.precinct` | `amenity=police` |
+| `place.transit` | `station=subway` / `public_transport=station` |
+| `place.service.laundry` | `shop=laundry` |
+| `place.building` | `building=*` |
+| `place.street` | `highway=*` |
 
-Build:
+LandUse / BldgClass / RetailArea stay documented for Wave G. They do not decide travel.
 
-- `packages/contracts/src/engine-intent.ts` — packet + result + bind status
-- `packages/rules-engine/src/world-engine/` — `decide`, `bind`, `plan`, `authorize`
-- In-memory ports for tests
-- Map `WorldActionKind` → primitive (move→travel, buy→transfer, eat→consume, talk→communicate, …)
-- Ban invented success in the kernel (`need_source` cannot return `completed`)
+ODbL: attribute OSM on the site. Snapshot the extract. Do not query OSM live per turn.
 
-Do not:
+## 5. Sequence
 
-- seed another Foundry Row bodega
-- add grocery-specific code
-- change the website yet
+### Wave A — Kernel — landed on this branch
 
-Exit:
+Packet, bind, plan, invented-success ban, in-memory tests. Do not reopen unless the packet shape changes.
 
-- Unit tests: grocery paraphrase → travel + `place.retail.food` + nearest
-- Unit tests: missing source → `need_source`, zero operations
-- Unit tests: two known groceries → clarify; one known or GIS hit → no clarify
-- Unit tests: drive-to-garage → travel + drive + `place.service.garage`
-- Unit tests: fire pistol with no pistol entity → impossible, not a prompt
+### Wave B — OSM city as destination resolver
 
-Learn from: Quilltale validator, Evennia rulebook-as-black-box.
+**Goal.** Starter body has lon/lat on an OSM building. "Go to the nearest grocery store" binds `shop=convenience|supermarket|…` and moves.
 
-### Wave B — City as the destination resolver (the finish-line slice)
+Still to build:
 
-**Goal.** The starter body has a WGS84 point on a real parcel. "Go to the nearest grocery store" walks there.
+1. Import one NYC OSM extract into `source_geo.features` (roads + buildings + POIs). Mark `openstreetmap_nyc_seed` imported.
+2. Actor snapshot always has `locationId`, `lon`, `lat`, `worldId`, `shardId`. Starter apartment = one `building=apartments` (or `yes`) + interior, key `osm:way:…`. No `legacy:` cells.
+3. `resolveCityDestination`: walking bbox → `querySourceFeatures` → `pickNearestFeature` → upsert `world_geo` by stable OSM key → return entity id.
+4. Wire that into `PersistentWorldActionService.submit` via the existing category-travel gate. UUID destinations keep the old move handler.
+5. Isolation on every kernel mutation (#152).
 
-Build:
+Exit (one activation cell, live site):
 
-- Actor snapshot always includes `locationId`, `lon`, `lat`, `worldId`, `shardId`
-- `SourcePort` query: family → OSM/NYC class list → nearest feature in activation cell / walking radius
-- Stable key from BBL or OSM id; materialize one place + entrance, not a block of fiction
-- Travel plan uses route graph or straight-line fallback with honest seconds, then `move_entity` + timed work
-- Wire kernel in front of `PersistentWorldActionService.submit` for travel intents; old move handler remains for explicit UUID destinations
-- Fix starter apartment off `legacy:` cells
-- Fix #152 isolation on every mutation the kernel emits
+1. Look / money / body / exits from state.
+2. Grocery sentence: no clarification, location changes, dashboard/map/history agree, stable key is `osm:…`.
+3. Repeat does not duplicate the POI.
+4. Empty extract → city-source failure, not "which grocery?"
+5. "go there" still clarifies or rejects.
+6. World A invisible to world B.
+7. Live Jev: 20 grocery paraphrases → travel + `place.retail.food` + nearest.
 
-Category → source class (extend, do not fork):
-
-| family                   | source hint                                                                  |
-| ------------------------ | ---------------------------------------------------------------------------- |
-| `place.retail.food`      | OSM `shop=convenience\|supermarket\|greengrocer\|deli` + NYC retail land use |
-| `place.service.fuel`     | `amenity=fuel`                                                               |
-| `place.service.hospital` | `amenity=hospital`                                                           |
-| `place.civic.precinct`   | `amenity=police`                                                             |
-| `place.transit`          | `station=subway` / `public_transport=station`                                |
-
-Exit (live site, one activation cell):
-
-1. Look. Money. Body. Exits. All from state.
-2. "go to the nearest grocery store" — no clarification, location changes, dashboard/map/history agree.
-3. Same command twice does not duplicate the place.
-4. Closed hours → wait or fail, not clarify.
-5. "go there" with no prior bind → clarify or reject.
-6. World A grocery is invisible to world B.
-7. Live Jev corpus (Actions `OPENROUTER_API_KEY`): 20 grocery paraphrases emit travel+food+nearest, not a store name.
-
-This is the only slice that unblocks the product. Protect it.
+Protect this slice. No vehicles until it passes.
 
 ### Wave C — Core verbs on the same bind
 
-Once a place can be bound, the eight launch verbs share it.
+look, pick up, buy, eat, talk, wait/stretch (#154), walk. Kill #153 empty mutating success.
 
-| verb               | primitive   | commit                                               |
-| ------------------ | ----------- | ---------------------------------------------------- |
-| look / check money | perceive    | knowledge asset or projection only                   |
-| pick up            | transfer    | possession if present                                |
-| buy                | transfer    | money + stock or fail insufficient                   |
-| eat                | consume     | existing consumption path, scoped world              |
-| talk               | communicate | claim + NPC memory, no ownership                     |
-| wait / stretch     | wait        | wall-clock schedule that the worker completes (#154) |
-| walk               | travel      | Wave B                                               |
+Exit: apartment → grocery → buy → eat → talk → home. Playwright desktop + mobile.
 
-Kill #153: if operations.length === 0 and the primitive is mutating, result is failure, never "You accomplish your objective."
+### Wave D — Vehicles
 
-Exit: one sitting from apartment → grocery → buy allowed item → eat → talk to clerk → walk home. Replay is idempotent. Playwright desktop + mobile.
-
-Learn from: TaleWeaver two-pass, TADS implicit actions (travel may precede buy without Jev inventing a novel).
-
-### Wave D — Vehicles as occupy + travel mode
-
-No vehicle minigame.
-
-- Category `vehicle.*` from street occupancy reservoir or dealership POI
-- `occupy` seat, `operate` ignition (keys or mechanics), `travel` with `drive`
-- Fuel is a resource on the instance; empty tank fails drive
-- Trunk is a container; transfer into it is transfer
-- Stolen flag + plate heat attach here but police response waits for Wave F
-
-Exit: "get in the parked car" binds one accessible car here; "drive to the nearest garage" reuses Wave B resolver with mode drive and faster seconds. Missing keys fail-closed.
+`occupy` + `travel` mode `drive`. Parked cars from OSM `amenity=parking` / street occupancy, not a minigame.
 
 ### Wave E — Body, tools, weapons
 
-- Fists are anatomy (existing regression)
-- Weapon is `item.weapon` + ammo resource + legal class
-- `operate` + `damage` against a body or object
-- Noise event for witnesses (data only until Wave F)
-- Defeat → GTA recovery clock, drop carried cash/items, keep bank/property/skills
-
-Exit: missing pistol cannot fire. Bare fist resolves. Two-minute stretch still completes.
+`operate` + `damage`. Missing pistol impossible. Fists already certified.
 
 ### Wave F — Heat, police, newspaper
 
-- Witnesses from committed events + visibility, not omniscience
-- Heat per actor per faction
-- Police pathfind from `place.civic.precinct`
-- Arrest is `restrain` by authorized actor
-- Newspaper reads public evidence only (#146 rules, implemented now that events exist)
+Police from `amenity=police`. Evidence-only paper.
 
-Exit: unidentified theft can make the paper without a name. Hidden act stays hidden.
+### Wave G — Property overlay + work + two bodies
 
-### Wave G — Property, work, multiplayer presence
+Optional MapPLUTO join: OSM building → BBL when you need lease/own. Work clocks. Presence. No elections or cosmetics.
 
-- Lease/own as relations on interiors that already sit on parcels
-- `work` as timed labor with payroll once
-- Two bodies in one cell can see each other; contested transfer locks
-- Offline body stays put and is lootable per revival policy
+## 6. Later content
 
-Do not build elections, cosmetics, or long-horizon NPC ambitions.
+Nearest laundromat: lexicon row + `shop=laundry` (already in the table) + one extract query test. Stop.
 
-## 5. How later content plugs in without a new engine
+Boats: `vehicle.boat` + waterway edges from OSM. Same kernel.
 
-When you want "nearest laundromat" six months from now:
+Lockpick: `operate` on a lock. No new kind.
 
-1. Add phrases to `SANDBOX_NOUN_LEXICON`.
-2. Map family → OSM/NYC class in the source port table.
-3. If the place sells something, add an inventory capacity source, not SKUs.
-4. Ship a paraphrase test and one live GIS query test.
-5. Stop.
+## 7. Testing law
 
-When you want boats: `vehicle.boat` + travel mode `drive` restricted to water edges. Same occupy/travel.
+Revival gates stand. Engine PRs also need: schema round-trip, paraphrase table, missing source = zero mutation, isolation, replay, worker clocks, dashboard fingerprint, live Jev when the packet or lexicon changes.
 
-When you want lockpicking: `operate` on a lock condition with a skill check already in `rules-engine`. No `handlers.lockpick`.
+A wave that cannot run grocery travel against an OSM feature index may not add combat tables.
 
-## 6. Testing law for every wave
+## 8. Tickets
 
-Revival gates stand. In addition, every engine PR:
+| Ticket | Fate |
+| --- | --- |
+| #113 | Wave A+B are the action core + city foundation |
+| #152 / #153 / #154 | B isolation, C no-ops, C clocks |
+| #142 live runner | After Wave C |
+| revival #139 | OSM extract + bind, not MapPLUTO-first |
+| revival #140+ | After the loop is real |
 
-- schema-parses the intent and the receipt
-- table of paraphrases → same primitive+family+selector
-- missing source / missing item / insufficient money fail with zero mutation
-- world isolation
-- idempotent replay
-- worker completion if a clock was written
-- dashboard fingerprint agrees with the receipt
-- live Jev job when the packet shape or lexicon changes (Actions secret)
+## 9. Stop rules
 
-A wave that cannot run grocery-class travel against GIS is not allowed to add combat tables.
+Stop if someone adds `goToGrocery()`, a noun-specific `WorldActionKind`, a seeded store as the definition of nearest, Laguna choosing a destination, clarification for `nearest`, or MapPLUTO LandUse as the grocery matcher.
 
-## 7. Mapping to existing tickets
+## 10. Next, in order
 
-| Ticket             | Fate                                                                                                  |
-| ------------------ | ----------------------------------------------------------------------------------------------------- |
-| #113 waves 1–4     | Wave A+B _are_ the authoritative action core + NYC foundation, collapsed so geography is not optional |
-| #152 isolation     | Wave B kernel emits scoped operations only                                                            |
-| #153 no-op success | Wave C kernel refuses empty mutating commits                                                          |
-| #154 timed stretch | Wave C clock port + worker                                                                            |
-| #142 live runner   | After Wave C; do not certify a story on no-ops                                                        |
-| revival #136–#138  | Keep Jev packet work, but packet must include category+selector, not only entity IDs                  |
-| revival #139       | Pulled forward into Wave B                                                                            |
-| revival #140+      | After the loop is real; UI cannot fix a missing city                                                  |
+1. Keep constitution + Wave A + category table (this branch).
+2. Import a bounded Manhattan OSM extract into `source_geo`.
+3. Starter point on an OSM building.
+4. Wire `resolveCityDestination` into submit.
+5. Type the grocery sentence on the site.
+6. Only then buy / eat / talk.
 
-## 8. Stop rules
-
-Stop and rewrite the packet if someone adds:
-
-- `goToGrocery()`
-- a new `WorldActionKind` for one noun
-- a seeded store used as the definition of "nearest"
-- Laguna choosing a destination
-- a clarification for an unambiguous selector
-
-## 9. First week, in order
-
-1. Merge the constitution + lexicon tests (this branch).
-2. Wave A kernel + fake ports.
-3. Wave B source query on one borough extract + starter point.
-4. Wire travel intents only.
-5. Sit down and type the grocery sentence on the site.
-6. Only then buy/eat/talk/wait.
-
-If step 5 still clarifies, do not expand scope. The engine is still not the engine.
+If step 5 still clarifies, the engine is still not wired. Do not expand scope.
