@@ -295,21 +295,10 @@ async function certifyNeutralTransfers(actorId: string) {
 
   const pickupKey = `certification:pickup:${randomUUID()}`;
   const pickup = await runTransferCommand(actorId, "Pick up the Certification Wrench.", pickupKey);
-  const pickupPossessors = await possession(itemId);
-  if (JSON.stringify(pickupPossessors) !== JSON.stringify([actorId])) {
-    const relations = await database.client<{ relation_type: string; target_instance_id: string }[]>`
-      SELECT relation_type, target_instance_id FROM game.entity_relations
-      WHERE source_instance_id = ${itemId} ORDER BY relation_type, target_instance_id
-    `;
-    const recent = await database.client<{ event_type: string; payload: unknown }[]>`
-      SELECT event_type, payload FROM game.event_ledger
-      WHERE actor_id = ${actorId}
-      ORDER BY created_at DESC LIMIT 3
-    `.catch(() => []);
-    console.error("TRANSFER_CERTIFICATION_DIAGNOSTICS", JSON.stringify({
-      actorId, itemId, recipientId, pickupPossessors, pickupResult: pickup,
-      itemRelations: relations, recentEventTypes: recent.map((event) => event.event_type),
-    }));
+  if (!Array.isArray(pickup.eventIds) || pickup.eventIds.length === 0) {
+    throw new Error("Pickup claimed completion without a committed world event.");
+  }
+  if (JSON.stringify(await possession(itemId)) !== JSON.stringify([actorId])) {
     throw new Error("Pickup did not make the actor the sole possessor.");
   }
 
