@@ -260,7 +260,7 @@ jobs:
   integration:
     name: Certification / Compiled API Integration
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 90
     services:
       postgres:
         image: postgres:16
@@ -303,6 +303,7 @@ jobs:
       ACTION_INTEGRATION_RESULTS: artifacts/action-integration-results.json
       API_LOG_PATH: artifacts/api.ndjson
       FAKE_AI_TRANSCRIPT: artifacts/fake-ai-provider.ndjson
+      SIGNAL_GARDEN_RESULTS: artifacts/signal-garden-5000.json
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -343,6 +344,14 @@ jobs:
         run: |
           set -o pipefail
           pnpm exec tsx scripts/ci/multiplayer-story-slice.ts 2>&1 | tee artifacts/multiplayer-story-slice.log
+      - name: Run the 5,000-turn Signal Garden campaign through HTTP and PostgreSQL
+        env:
+          NOCTURNE_STORY_SANDBOX: "1"
+          SIGNAL_GARDEN_TURNS: "5000"
+          SIGNAL_GARDEN_SEED: signal-garden-ci
+        run: |
+          set -o pipefail
+          pnpm exec tsx scripts/ci/signal-garden-runner.ts 2>&1 | tee artifacts/signal-garden-5000.log
       - name: Validate correlated structured telemetry
         run: |
           set -o pipefail
@@ -444,7 +453,8 @@ jobs:
           exit 1
       - name: Run all actions through the real composer
         run: >-
-          pnpm exec playwright test test/browser/gameplay.spec.mjs
+          pnpm exec playwright test test/browser/gameplay.spec.mjs test/browser/interaction-coverage.spec.mjs
+          --workers=1
           --reporter=line,html
           --output=artifacts/playwright-results
       - if: always()
