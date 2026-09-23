@@ -23,6 +23,7 @@ export * from "./consumption-store.js";
 export * from "./discoverable-place-projection.js";
 export * from "./context-store.js";
 export * from "./conversation-store.js";
+export * from "./employment-store.js";
 export * from "./entity-lifecycle-schema.js";
 export * from "./entity-lifecycle-store.js";
 export * from "./game-store.js";

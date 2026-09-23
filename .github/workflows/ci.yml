@@ -210,6 +210,10 @@ jobs:
         run: |
           set -o pipefail
           pnpm --filter @nocturne/database exec vitest run test/isolated-certification-story-fixtures.integration.test.ts 2>&1 | tee artifacts/isolated-certification-story-fixtures.log
+      - name: Certify scoped employment and exactly-once wages
+        run: |
+          set -o pipefail
+          pnpm --filter @nocturne/database exec vitest run test/employment-foundation.integration.test.ts 2>&1 | tee artifacts/employment-foundation.log
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
